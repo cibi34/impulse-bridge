@@ -87,7 +87,11 @@
       "Bash(bash -n deploy/host-bootstrap.sh)",
       "Bash(curl -s -o /dev/null -w \"old server alive? HTTP %{http_code}\\\\n\" \"http://127.0.0.1:8080/health\")",
       "Bash(curl -s \"http://127.0.0.1:8080/help/files/07-deployment.md\")",
-      "Bash(echo \"new 07-deployment.md size: $\\(curl -s \"http://127.0.0.1:8080/help/files/07-deployment.md\")"
+      "Bash(echo \"new 07-deployment.md size: $\\(curl -s \"http://127.0.0.1:8080/help/files/07-deployment.md\")",
+      "Bash(git status *)",
+      "Bash(git ls-tree *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)"
     ]
   }
 }
