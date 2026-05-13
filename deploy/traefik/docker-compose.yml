@@ -1,0 +1,68 @@
+# Traefik — multi-project reverse proxy with automatic HTTPS.
+#
+# Lives at /srv/traefik/docker-compose.yml.
+# Listens on 80/443 of the host and routes to any container on the "edge"
+# Docker network that declares `traefik.enable=true` in its labels.
+#
+# Required environment (in /srv/traefik/.env):
+#   LE_EMAIL — registration email for Let's Encrypt
+
+services:
+  traefik:
+    image: traefik:v3.1
+    container_name: traefik
+    restart: unless-stopped
+
+    command:
+      # --- Provider: Docker label-based discovery ---
+      - --providers.docker=true
+      - --providers.docker.exposedByDefault=false
+      - --providers.docker.network=edge
+
+      # --- Entrypoints ---
+      - --entrypoints.web.address=:80
+      # Force HTTPS — redirect everything coming in over HTTP.
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.web.http.redirections.entrypoint.permanent=true
+      - --entrypoints.websecure.address=:443
+
+      # --- Automatic HTTPS via Let's Encrypt (HTTP-01 challenge) ---
+      - --certificatesresolvers.letsencrypt.acme.email=${LE_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+
+      # --- Operations ---
+      - --api.dashboard=true     # the dashboard is enabled but NOT exposed by default
+      - --log.level=INFO
+      - --accesslog=true
+
+    ports:
+      - "80:80"
+      - "443:443"
+
+    volumes:
+      # Read Docker events for service discovery.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Persist Let's Encrypt cert storage across container restarts.
+      - ./letsencrypt:/letsencrypt
+
+    networks:
+      - edge
+
+    # Optional: expose the Traefik dashboard. Uncomment, set DASHBOARD_DOMAIN
+    # and DASHBOARD_BASIC_AUTH in /srv/traefik/.env, and run `docker compose up -d`.
+    # labels:
+    #   - traefik.enable=true
+    #   - traefik.http.routers.traefik.rule=Host(`${DASHBOARD_DOMAIN}`)
+    #   - traefik.http.routers.traefik.entrypoints=websecure
+    #   - traefik.http.routers.traefik.tls.certresolver=letsencrypt
+    #   - traefik.http.routers.traefik.service=api@internal
+    #   - traefik.http.routers.traefik.middlewares=traefik-dash-auth
+    #   - traefik.http.middlewares.traefik-dash-auth.basicauth.users=${DASHBOARD_BASIC_AUTH}
+
+networks:
+  edge:
+    external: true
+    name: edge

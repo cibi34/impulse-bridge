@@ -1,0 +1,91 @@
+collection:
+  id: smithsonian-open-access
+  name: "Smithsonian Open Access"
+  description: "CC0-licensed objects from the Smithsonian's Open Access collection. Filters for items that include downloadable online media."
+  organization: "Smithsonian Institution"
+  owner_id: "bridge@impulse.eu"
+  published: 1
+
+adapter:
+  kind: rest
+  base_url: "https://api.si.edu"
+  auth:
+    type: query_param
+    name: api_key
+    value: "${SMITHSONIAN_API_KEY}"
+  timeout_seconds: 15
+  # Restrict to items that actually expose media so we don't fill the response
+  # with book records and other media-less items. The user can broaden by
+  # editing `pattern_when_empty` below.
+
+search:
+  path: "/openaccess/api/v1.0/search"
+  method: GET
+  pagination:
+    style: page_size
+    page_param: start
+    size_param: rows
+    page_base: 0
+    max_size: 100
+  query:
+    pattern_param: q
+    # Default: match items that have any online_media entry. Tightening to 3D:
+    # change to: 'online_media_type:"3D Images"'
+    pattern_when_empty: 'online_media_type:"Images"'
+    wildcard_translation:
+      from: "*"
+      to: "*"
+
+mapping:
+  items_path: "response.rows"
+  total_path: "response.rowCount"
+  fields:
+    assetID:
+      expr: "id"
+      transform: slugify
+    title:
+      expr: "title"
+      default: "Untitled"
+    description:
+      expr: "content.descriptiveNonRepeating.notes.content"
+      transform: strip_html
+    creator:
+      expr: "content.freetext.name[0].content"
+    date:
+      expr: "content.freetext.date[0].content"
+    rights:
+      literal: "CC0 (Smithsonian Open Access)"
+    identifier:
+      expr: "content.descriptiveNonRepeating.guid"
+    assetURI:
+      expr: "content.descriptiveNonRepeating.online_media.media[0].content"
+    previewURI:
+      expr: "content.descriptiveNonRepeating.online_media.media[0].thumbnail"
+    contentType:
+      expr: "content.descriptiveNonRepeating.online_media.media[0].type"
+      map:
+        "Images": "image/jpeg"
+        "3D Images": "model/gltf-binary"
+        "Audio": "audio/mpeg"
+        "Video": "video/mp4"
+      default: "image/jpeg"
+    contributor:
+      expr: "content.descriptiveNonRepeating.unit_code"
+    scale:
+      literal: "1"
+    type:
+      expr: "content.indexedStructured.object_type[0]"
+    subject:
+      expr: "content.indexedStructured.topic[0]"
+
+filter:
+  allowed_content_types:
+    - "image/jpeg"
+    - "image/png"
+    - "model/gltf-binary"
+  drop_if_missing:
+    - "assetURI"
+    - "previewURI"
+
+cache:
+  ttl_seconds: 900

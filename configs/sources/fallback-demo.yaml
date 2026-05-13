@@ -1,0 +1,12 @@
+adapter:
+  kind: fallback
+  manifest_path: data/fallback/assets/manifest.json
+  static_mount: true
+collection:
+  description: Local demo assets served directly by the bridge. Useful for end-to-end
+    verification and offline demos.
+  id: bridge-demo
+  name: Bridge Demo Collection
+  organization: Impulse Bridge
+  owner_id: bridge@impulse.eu
+  published: 1

@@ -1,0 +1,95 @@
+collection:
+  id: wikimedia-commons-images
+  name: "Wikimedia Commons Images"
+  description: "Freely licensed images from Wikimedia Commons, queried via the MediaWiki API."
+  organization: "Wikimedia Foundation"
+  owner_id: "bridge@impulse.eu"
+  published: 1
+
+adapter:
+  kind: rest
+  base_url: "https://commons.wikimedia.org"
+  auth:
+    type: none
+  timeout_seconds: 12
+  default_query:
+    action: "query"
+    format: "json"
+    generator: "search"
+    gsrnamespace: "6"          # File: namespace
+    prop: "imageinfo"
+    iiprop: "url|mime|extmetadata|size"
+    iiurlwidth: "1024"
+
+search:
+  path: "/w/api.php"
+  method: GET
+  pagination:
+    style: offset_limit
+    offset_param: gsroffset
+    limit_param: gsrlimit
+    max_size: 50
+  query:
+    pattern_param: gsrsearch
+    pattern_when_empty: "filetype:bitmap"
+    wildcard_translation:
+      from: "*"
+      to: ""                  # MediaWiki search ignores * — strip it
+
+mapping:
+  items_path: "values(query.pages || `{}`)"
+  fields:
+    assetID:
+      expr: "to_string(pageid)"
+    title:
+      expr: "title"
+    description:
+      expr: "imageinfo[0].extmetadata.ImageDescription.value"
+      transform: strip_html
+    creator:
+      expr: "imageinfo[0].extmetadata.Artist.value"
+      transform: strip_html
+    date:
+      expr: "imageinfo[0].extmetadata.DateTimeOriginal.value"
+      transform: strip_html
+    rights:
+      expr: "imageinfo[0].extmetadata.LicenseShortName.value"
+      default: "See source page for license"
+    identifier:
+      expr: "imageinfo[0].descriptionurl"
+    assetURI:
+      expr: "imageinfo[0].url"
+    previewURI:
+      expr: "imageinfo[0].thumburl"
+    contentType:
+      expr: "imageinfo[0].mime"
+    contributor:
+      literal: "Wikimedia Commons"
+    scale:
+      literal: "1"
+
+filter:
+  allowed_content_types:
+    - "image/jpeg"
+    - "image/png"
+    - "image/svg+xml"
+    - "image/tiff"
+    - "image/webp"
+  drop_if_missing:
+    - "assetURI"
+    - "previewURI"
+
+asset_detail:
+  enabled: true
+  path: "/w/api.php"
+  query:
+    action: "query"
+    format: "json"
+    pageids: "{asset_id}"
+    prop: "imageinfo"
+    iiprop: "url|mime|extmetadata|size"
+    iiurlwidth: "1024"
+  # mapping omitted -> reuses the search mapping (items_path resolves the same way)
+
+cache:
+  ttl_seconds: 600

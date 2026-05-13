@@ -1,0 +1,71 @@
+# Impulse Bridge — deployment compose file.
+#
+# This file lives next to the source tree on the VM (typical path
+# /srv/impulse-bridge/). It is meant to be copied or symlinked to the project
+# root so that `docker compose up -d` works from there.
+#
+# Required environment variables (defined in .env next to this file):
+#   BRIDGE_DOMAIN          — public hostname Traefik should route to (e.g. impulse-bridge.octo-code.de)
+#   BRIDGE_BASIC_AUTH      — htpasswd-format string protecting /admin, /docs, /openapi.json
+#                            generate with:  htpasswd -nB admin
+#                            then escape $ for compose with:  echo '<output>' | sed 's/\$/\$\$/g'
+#   EUROPEANA_API_KEY      — your Europeana API key
+#   SMITHSONIAN_API_KEY    — your Smithsonian Open Access API key
+
+services:
+  bridge:
+    container_name: impulse-bridge
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: impulse-bridge:latest
+    restart: unless-stopped
+
+    env_file:
+      - ../.env
+    environment:
+      # The bridge binds to 0.0.0.0 inside the container so Traefik can reach it.
+      BRIDGE_HOST: "0.0.0.0"
+      BRIDGE_PORT: "8080"
+      BRIDGE_PUBLIC_BASE_URL: "https://${BRIDGE_DOMAIN}"
+
+    # Bind-mount the mutable parts of the project so admin-UI saves persist
+    # outside the container, and so host-side YAML edits hot-reload via the UI.
+    volumes:
+      - ../configs:/app/configs
+      - ../data:/app/data
+
+    networks:
+      - edge
+
+    labels:
+      # Enable Traefik routing for this container.
+      - traefik.enable=true
+      - traefik.docker.network=edge
+
+      # --- Public routes (no auth) ---
+      # Everything except the admin-protected paths.
+      - traefik.http.routers.bridge-public.rule=Host(`${BRIDGE_DOMAIN}`) && !PathPrefix(`/admin`) && !PathPrefix(`/docs`) && !Path(`/openapi.json`)
+      - traefik.http.routers.bridge-public.entrypoints=websecure
+      - traefik.http.routers.bridge-public.tls.certresolver=letsencrypt
+      - traefik.http.routers.bridge-public.service=bridge
+
+      # --- Admin routes (basic auth) ---
+      - traefik.http.routers.bridge-admin.rule=Host(`${BRIDGE_DOMAIN}`) && (PathPrefix(`/admin`) || PathPrefix(`/docs`) || Path(`/openapi.json`))
+      - traefik.http.routers.bridge-admin.entrypoints=websecure
+      - traefik.http.routers.bridge-admin.tls.certresolver=letsencrypt
+      - traefik.http.routers.bridge-admin.middlewares=bridge-admin-auth
+      - traefik.http.routers.bridge-admin.service=bridge
+
+      # Basic-auth middleware reading from BRIDGE_BASIC_AUTH env var
+      - traefik.http.middlewares.bridge-admin-auth.basicauth.users=${BRIDGE_BASIC_AUTH}
+
+      # The actual service definition (one shared backend for both routers)
+      - traefik.http.services.bridge.loadbalancer.server.port=8080
+
+# The "edge" network is created once by deploy/host-bootstrap.sh and is shared
+# by Traefik and every project that wants to be reverse-proxied.
+networks:
+  edge:
+    external: true
+    name: edge

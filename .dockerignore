@@ -1,0 +1,27 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+*.egg
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.env
+.env.local
+.env.development
+.idea
+.vscode
+.DS_Store
+node_modules
+
+# Don't ship the deployment scripts inside the image — they're host-side.
+deploy/traefik
+deploy/host-bootstrap.sh
+deploy/docker-compose.yml
+deploy/.env.production.example
+
+# Don't ship the user's local data manifests; the host bind-mount provides them.
+# (Empty data/fallback/assets/ in image is OK — gets overlaid by bind mount.)

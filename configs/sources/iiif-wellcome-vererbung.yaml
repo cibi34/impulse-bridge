@@ -1,0 +1,15 @@
+collection:
+  id: iiif-wellcome-vererbung
+  name: "Wellcome — Wunder der Vererbung (1929)"
+  description: "Illustrated history-of-genetics manuscript from Wellcome Collection, served via IIIF Presentation API v3."
+  organization: "Wellcome Collection"
+  owner_id: "bridge@impulse.eu"
+  published: 1
+
+adapter:
+  kind: custom
+  custom_class: "app.adapter.custom.iiif.IIIFManifestSource"
+  # base_url is the IIIF manifest URL for this collection. To add more IIIF
+  # collections, copy this file with a new id and a different manifest URL.
+  base_url: "https://iiif.wellcomecollection.org/presentation/b18035723"
+  timeout_seconds: 20

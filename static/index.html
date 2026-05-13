@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Impulse Bridge — Browser</title>
+<script>
+  // Apply saved theme before paint to avoid any flash of the wrong palette.
+  (function () {
+    var t = localStorage.getItem("impulse-bridge-theme");
+    if (t === "light") document.documentElement.setAttribute("data-theme", "light");
+  })();
+</script>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #161a22;
+    --panel-2: #1f2532;
+    --border: #2a3142;
+    --text: #e6e9ef;
+    --muted: #8a93a6;
+    --accent: #5ea1ff;
+    --accent-2: #79e0c4;
+    --danger: #ff7676;
+  }
+  :root[data-theme="light"] {
+    --bg: #f6f8fb;
+    --panel: #ffffff;
+    --panel-2: #eef1f6;
+    --border: #d9dee8;
+    --text: #1c2330;
+    --muted: #5d6678;
+    --accent: #2563eb;
+    --accent-2: #0d9488;
+    --danger: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif; }
+  header { padding: 14px 22px; border-bottom: 1px solid var(--border); background: var(--panel); display: flex; align-items: center; gap: 14px; flex-wrap: wrap; position: sticky; top: 0; z-index: 5; }
+  header h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.3px; }
+  header .tag { color: var(--muted); font-size: 12px; }
+  .controls { display: flex; gap: 8px; padding: 14px 22px; flex-wrap: wrap; background: var(--panel); border-bottom: 1px solid var(--border); align-items: center; }
+  select, input[type=text], button { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 6px; font: inherit; }
+  select { min-width: 260px; }
+  input[type=text] { min-width: 240px; flex: 1; max-width: 420px; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .pager { display: flex; gap: 8px; align-items: center; margin-left: auto; color: var(--muted); }
+  main { padding: 22px; }
+  .status { color: var(--muted); margin: 0 0 16px 0; font-size: 13px; }
+  .status.error { color: var(--danger); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; cursor: pointer; transition: border-color 0.12s, transform 0.12s; }
+  .card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .thumb { width: 100%; aspect-ratio: 4/3; background: var(--panel-2) center/contain no-repeat; display: block; border-bottom: 1px solid var(--border); }
+  .thumb.placeholder { background-color: var(--panel-2); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; }
+  .meta { padding: 10px 12px; }
+  .title { font-size: 13px; font-weight: 500; margin: 0 0 4px 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .sub { font-size: 11px; color: var(--muted); }
+  .pill { display: inline-block; padding: 2px 6px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: 10px; margin-left: 6px; }
+
+  /* Detail modal */
+  .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 10; align-items: center; justify-content: center; padding: 20px; }
+  .modal-bg.open { display: flex; }
+  .modal { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; max-width: 920px; width: 100%; max-height: 90vh; overflow: auto; padding: 22px; }
+  .modal h2 { margin: 0 0 12px 0; font-size: 18px; }
+  .modal .preview { max-width: 100%; max-height: 360px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-2); display: block; margin-bottom: 14px; }
+  table.meta-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.meta-tbl td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.meta-tbl td:first-child { color: var(--muted); width: 140px; }
+  table.meta-tbl a { color: var(--accent); word-break: break-all; }
+  .close-btn { float: right; margin-top: -6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Impulse Bridge</h1>
+  <span class="tag" id="bridgeStatus">…</span>
+  <nav style="margin-left:auto; display:flex; gap:14px; font-size:12px; align-items:center">
+    <button id="themeBtn" title="Toggle theme" style="background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:6px;cursor:pointer;font:inherit"></button>
+    <a href="/help" style="color:var(--muted); text-decoration:none">Help</a>
+    <a href="/admin" style="color:var(--muted); text-decoration:none">Admin →</a>
+    <a href="/docs" style="color:var(--muted); text-decoration:none">API</a>
+  </nav>
+</header>
+
+<div class="controls">
+  <label for="collectionSel" style="color:var(--muted)">Collection</label>
+  <select id="collectionSel"></select>
+  <input id="searchInput" type="text" placeholder="Search (use * for wildcards)…">
+  <button id="searchBtn">Search</button>
+  <div class="pager">
+    <span id="pageInfo">—</span>
+    <button id="prevBtn">‹ Prev</button>
+    <button id="nextBtn">Next ›</button>
+  </div>
+</div>
+
+<main>
+  <p class="status" id="status">Pick a collection to browse.</p>
+  <div class="grid" id="grid"></div>
+</main>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal" id="modal">
+    <button class="close-btn" onclick="closeModal()">Close</button>
+    <div id="modalBody">…</div>
+  </div>
+</div>
+
+<script>
+// Theme toggle
+(function () {
+  const btn = document.getElementById("themeBtn");
+  function render() {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    btn.textContent = isLight ? "🌙 Dark" : "☀ Light";
+  }
+  btn.addEventListener("click", () => {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    if (isLight) {
+      document.documentElement.removeAttribute("data-theme");
+      localStorage.setItem("impulse-bridge-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light");
+      localStorage.setItem("impulse-bridge-theme", "light");
+    }
+    render();
+  });
+  render();
+})();
+
+const API = "";  // same-origin
+const PAGE_SIZE = 24;
+let collections = [];
+let currentCollection = null;
+let offset = 0;
+let lastResult = [];
+
+const $ = (id) => document.getElementById(id);
+
+async function getJSON(url) {
+  const r = await fetch(API + url);
+  const body = await r.json().catch(() => ({ code: 99, message: "Non-JSON response", data: null }));
+  return { httpStatus: r.status, ...body };
+}
+
+function setStatus(msg, isError) {
+  const el = $("status");
+  el.textContent = msg;
+  el.classList.toggle("error", !!isError);
+}
+
+async function bootstrap() {
+  setStatus("Loading collections…");
+  try {
+    const res = await getJSON("/collections");
+    if (res.code !== 0) {
+      setStatus("Bridge error: " + res.message, true);
+      return;
+    }
+    collections = res.data;
+    const sel = $("collectionSel");
+    sel.innerHTML = "";
+    for (const c of collections) {
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.name + " (" + c.organization + ")";
+      sel.appendChild(opt);
+    }
+    $("bridgeStatus").textContent = collections.length + " collection" + (collections.length === 1 ? "" : "s") + " connected";
+    sel.addEventListener("change", () => { offset = 0; loadPage(); });
+    $("searchBtn").addEventListener("click", () => { offset = 0; loadPage(); });
+    $("searchInput").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { offset = 0; loadPage(); }
+    });
+    $("prevBtn").addEventListener("click", () => {
+      offset = Math.max(0, offset - PAGE_SIZE);
+      loadPage();
+    });
+    $("nextBtn").addEventListener("click", () => {
+      offset += PAGE_SIZE;
+      loadPage();
+    });
+    if (collections.length > 0) {
+      currentCollection = collections[0].id;
+      sel.value = currentCollection;
+      loadPage();
+    } else {
+      setStatus("No collections registered with this bridge.", true);
+    }
+  } catch (e) {
+    setStatus("Cannot reach the bridge at " + (location.origin) + ": " + e.message, true);
+  }
+}
+
+function resolveURI(maybeRelative, collection) {
+  if (!maybeRelative) return null;
+  if (/^https?:\/\//i.test(maybeRelative)) return maybeRelative;
+  if (!collection || !collection.uri) return maybeRelative;
+  return collection.uri.replace(/\/$/, "") + "/" + maybeRelative.replace(/^\//, "");
+}
+
+async function loadPage() {
+  currentCollection = $("collectionSel").value;
+  const q = $("searchInput").value.trim();
+  const collection = collections.find(c => c.id === currentCollection);
+  $("pageInfo").textContent = "items " + (offset + 1) + "–" + (offset + PAGE_SIZE);
+  setStatus("Loading…");
+  const qs = new URLSearchParams();
+  if (q) qs.set("s", q);
+  qs.set("o", String(offset));
+  qs.set("c", String(PAGE_SIZE));
+  const res = await getJSON("/collections/" + encodeURIComponent(currentCollection) + "/assets?" + qs.toString());
+  const grid = $("grid");
+  grid.innerHTML = "";
+  if (res.code !== 0) {
+    setStatus("[code " + res.code + "] " + res.message, true);
+    return;
+  }
+  const items = Array.isArray(res.data) ? res.data : [];
+  lastResult = items;
+  if (items.length === 0) {
+    setStatus(offset === 0 ? "No results." : "End of results.");
+    return;
+  }
+  setStatus(items.length + " items shown" + (q ? " for “" + q + "”" : ""));
+  for (const a of items) {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.addEventListener("click", () => openAsset(a, collection));
+    const preview = resolveURI(a.previewURI, collection);
+    const thumb = document.createElement("div");
+    thumb.className = "thumb";
+    if (preview) {
+      thumb.style.backgroundImage = "url('" + preview.replace(/'/g, "\\'") + "')";
+    } else {
+      thumb.classList.add("placeholder");
+      thumb.textContent = a.contentType || "no preview";
+    }
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const title = document.createElement("p");
+    title.className = "title";
+    title.textContent = a.title || a.assetID || "(untitled)";
+    const sub = document.createElement("div");
+    sub.className = "sub";
+    const ct = (a.contentType || "").startsWith("model/") ? "3D" : (a.contentType || "").startsWith("image/") ? "image" : (a.contentType || "?");
+    sub.innerHTML = (a.creator || a.contributor || "") + '<span class="pill">' + ct + "</span>";
+    meta.appendChild(title);
+    meta.appendChild(sub);
+    card.appendChild(thumb);
+    card.appendChild(meta);
+    grid.appendChild(card);
+  }
+}
+
+async function openAsset(a, collection) {
+  const body = $("modalBody");
+  body.innerHTML = "<h2>" + escapeHtml(a.title || a.assetID) + "</h2><p class='sub'>Loading details…</p>";
+  $("modalBg").classList.add("open");
+  // Fetch the detail endpoint for any extra metadata the search omitted.
+  const res = await getJSON("/collections/" + encodeURIComponent(collection.id) + "/asset/" + encodeURIComponent(a.assetID));
+  const full = res.code === 0 && res.data && typeof res.data === "object" && !Array.isArray(res.data) ? res.data : a;
+  const previewURI = resolveURI(full.previewURI, collection);
+  const assetURI = resolveURI(full.assetURI, collection);
+  const rows = [
+    ["assetID", full.assetID],
+    ["title", full.title],
+    ["description", full.description],
+    ["creator", full.creator],
+    ["contributor", full.contributor],
+    ["date", full.date],
+    ["rights", full.rights],
+    ["subject", full.subject],
+    ["language", full.language],
+    ["publisher", full.publisher],
+    ["type", full.type],
+    ["identifier", full.identifier],
+    ["contentType", full.contentType],
+    ["assetURI", assetURI ? '<a href="' + escapeAttr(assetURI) + '" target="_blank" rel="noopener">' + escapeHtml(assetURI) + '</a>' : null],
+    ["previewURI", previewURI ? '<a href="' + escapeAttr(previewURI) + '" target="_blank" rel="noopener">' + escapeHtml(previewURI) + '</a>' : null],
+  ].filter(([_, v]) => v !== undefined && v !== null && v !== "");
+
+  let html = "";
+  html += "<button class='close-btn' onclick='closeModal()'>Close</button>";
+  html += "<h2>" + escapeHtml(full.title || full.assetID || "Untitled") + "</h2>";
+  if (previewURI) {
+    html += "<img class='preview' src='" + escapeAttr(previewURI) + "' alt=''>";
+  }
+  if (assetURI && (full.contentType || "").startsWith("model/")) {
+    html += "<p class='sub'>3D model — download from the link below to view in Unity / a 3D viewer.</p>";
+  }
+  html += "<table class='meta-tbl'>";
+  for (const [k, v] of rows) {
+    const cell = (k === "assetURI" || k === "previewURI") ? v : escapeHtml(String(v));
+    html += "<tr><td>" + escapeHtml(k) + "</td><td>" + cell + "</td></tr>";
+  }
+  html += "</table>";
+  body.innerHTML = html;
+}
+
+function closeModal() { $("modalBg").classList.remove("open"); }
+$("modalBg").addEventListener("click", (e) => { if (e.target.id === "modalBg") closeModal(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function escapeAttr(s) { return escapeHtml(s); }
+
+bootstrap();
+</script>
+</body>
+</html>

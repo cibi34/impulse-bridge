@@ -1,0 +1,1201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Impulse Bridge — Admin</title>
+<script>
+  (function () {
+    var t = localStorage.getItem("impulse-bridge-theme");
+    if (t === "light") document.documentElement.setAttribute("data-theme", "light");
+  })();
+</script>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #161a22;
+    --panel-2: #1f2532;
+    --panel-3: #2a3142;
+    --border: #2a3142;
+    --border-2: #3a4258;
+    --text: #e6e9ef;
+    --muted: #8a93a6;
+    --accent: #5ea1ff;
+    --accent-2: #79e0c4;
+    --danger: #ff7676;
+    --warning: #ffb86c;
+    --success: #79e0c4;
+    --shadow-strong: 0 6px 24px rgba(0,0,0,0.5);
+    --row-hover: rgba(255,255,255,0.03);
+  }
+  :root[data-theme="light"] {
+    --bg: #f6f8fb;
+    --panel: #ffffff;
+    --panel-2: #eef1f6;
+    --panel-3: #e1e6ee;
+    --border: #d9dee8;
+    --border-2: #c1c9d8;
+    --text: #1c2330;
+    --muted: #5d6678;
+    --accent: #2563eb;
+    --accent-2: #0d9488;
+    --danger: #dc2626;
+    --warning: #c2410c;
+    --success: #047857;
+    --shadow-strong: 0 6px 24px rgba(30,40,70,0.15);
+    --row-hover: rgba(15,30,60,0.04);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font: 13px/1.45 -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif; height: 100%; overflow: hidden; }
+  body { display: flex; flex-direction: column; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  header {
+    padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--panel);
+    display: flex; align-items: center; gap: 18px; flex-shrink: 0;
+  }
+  header h1 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: 0.3px; }
+  header .tag { color: var(--muted); font-size: 11px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; }
+  header nav { margin-left: auto; display: flex; gap: 14px; font-size: 12px; }
+  header nav a { color: var(--muted); }
+  header nav a:hover { color: var(--text); }
+
+  .layout { display: flex; flex: 1; min-height: 0; }
+
+  /* Left sidebar */
+  aside {
+    width: 320px; flex-shrink: 0; border-right: 1px solid var(--border);
+    background: var(--panel); display: flex; flex-direction: column; min-height: 0;
+  }
+  .sidebar-top { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; gap: 6px; align-items: center; }
+  .sidebar-list { flex: 1; overflow-y: auto; padding: 6px; }
+  .source-item {
+    padding: 10px 12px; border-radius: 6px; cursor: pointer; margin-bottom: 2px;
+    border: 1px solid transparent;
+  }
+  .source-item:hover { background: var(--panel-2); }
+  .source-item.active { background: var(--panel-2); border-color: var(--accent); }
+  .source-item .row1 { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 13px; }
+  .source-item .row2 { color: var(--muted); font-size: 11px; margin-top: 3px; padding-left: 16px; word-break: break-all; }
+  .source-item .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .status-dot.loaded { background: var(--success); }
+  .status-dot.error { background: var(--danger); }
+  .status-dot.unloaded { background: var(--muted); }
+  .source-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .source-item .kind {
+    font-size: 10px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 999px;
+    color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;
+  }
+
+  /* Main detail panel */
+  main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .detail-header {
+    padding: 14px 22px; border-bottom: 1px solid var(--border); background: var(--panel);
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap; flex-shrink: 0;
+  }
+  .detail-header h2 { margin: 0; font-size: 15px; font-weight: 600; }
+  .detail-header .pill {
+    font-size: 11px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px;
+    color: var(--muted);
+  }
+  .detail-header .pill.warning { color: var(--warning); border-color: var(--warning); }
+  .detail-header .actions { margin-left: auto; display: flex; gap: 8px; }
+
+  .tabs { display: flex; background: var(--panel); border-bottom: 1px solid var(--border); padding: 0 14px; flex-shrink: 0; }
+  .tab {
+    padding: 10px 18px; cursor: pointer; border-bottom: 2px solid transparent;
+    color: var(--muted); font-size: 12px; letter-spacing: 0.3px; user-select: none;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+  .tab .badge { margin-left: 6px; font-size: 10px; padding: 1px 6px; border-radius: 999px; background: var(--panel-2); }
+  .tab.error .badge { background: var(--danger); color: var(--bg); }
+
+  .pane { flex: 1; overflow-y: auto; padding: 22px; min-height: 0; }
+  .pane.hidden { display: none; }
+
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--muted); }
+  .empty-state h3 { margin-bottom: 4px; color: var(--text); font-weight: 600; }
+
+  /* Buttons / form controls */
+  button, .btn {
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+    padding: 7px 12px; border-radius: 6px; font: inherit; cursor: pointer; transition: border-color 0.1s;
+  }
+  button:hover, .btn:hover { border-color: var(--accent); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: #0a1020; border-color: var(--accent); font-weight: 500; }
+  button.primary:hover { filter: brightness(1.08); border-color: var(--accent); }
+  button.danger { color: var(--danger); }
+  button.danger:hover { border-color: var(--danger); }
+  button.ghost { background: transparent; }
+
+  input[type=text], input[type=number], select, textarea {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 6px 10px; border-radius: 5px; font: inherit; width: 100%;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+  textarea { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5; resize: vertical; }
+
+  /* Form sections */
+  .section {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    margin-bottom: 16px; overflow: hidden;
+  }
+  .section-header {
+    padding: 11px 16px; border-bottom: 1px solid var(--border); background: var(--panel-2);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section-header h3 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.3px; }
+  .section-header .hint { color: var(--muted); font-size: 11px; }
+  .section-body { padding: 16px; }
+
+  .form-row { display: grid; grid-template-columns: 160px 1fr; gap: 12px; align-items: center; margin-bottom: 10px; }
+  .form-row.col { grid-template-columns: 1fr; gap: 4px; align-items: stretch; }
+  .form-row label { color: var(--muted); font-size: 12px; }
+  .form-row .hint { color: var(--muted); font-size: 11px; }
+  .form-row .checkbox-label { display: flex; align-items: center; gap: 8px; color: var(--text); }
+  .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* Mapping table */
+  .mapping-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .mapping-table th, .mapping-table td { padding: 6px 8px; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--border); }
+  .mapping-table th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .mapping-table td.field-name { color: var(--text); font-weight: 500; }
+  .mapping-table td.field-name.optional { color: var(--muted); font-weight: 400; }
+  .mapping-table input, .mapping-table select { padding: 4px 7px; font-size: 12px; }
+  .mapping-table tr:hover { background: var(--row-hover); }
+  .show-optional-row td { padding-top: 12px; }
+
+  /* Key-value list (default_query, detail.query) */
+  .kv-list { display: flex; flex-direction: column; gap: 6px; }
+  .kv-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; align-items: center; }
+  .kv-row button { padding: 4px 8px; }
+
+  /* YAML editor */
+  .yaml-editor-wrap { display: flex; flex-direction: column; gap: 10px; height: 100%; }
+  .yaml-editor { flex: 1; min-height: 400px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; }
+  .yaml-status { padding: 8px 12px; border-radius: 5px; font-size: 12px; }
+  .yaml-status.ok { background: rgba(121,224,196,0.08); border: 1px solid rgba(121,224,196,0.3); color: var(--success); }
+  .yaml-status.err { background: rgba(255,118,118,0.08); border: 1px solid rgba(255,118,118,0.3); color: var(--danger); }
+  .yaml-errors { margin-top: 6px; font-family: ui-monospace, monospace; font-size: 11px; }
+
+  /* Test tab */
+  .test-controls { display: flex; gap: 8px; margin-bottom: 14px; align-items: center; flex-wrap: wrap; }
+  .test-controls input[type=text] { max-width: 320px; }
+  .test-controls input[type=number] { max-width: 80px; }
+  .test-result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; min-height: 400px; }
+  .test-pane {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  .test-pane-header { padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--panel-2); font-size: 11px; color: var(--muted); letter-spacing: 0.4px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+  .test-pane-body { padding: 12px; overflow: auto; max-height: 65vh; font-family: ui-monospace, monospace; font-size: 11px; line-height: 1.5; white-space: pre; }
+  .test-pane-body.json-preview { white-space: pre; word-break: normal; }
+  .test-pane-empty { padding: 20px; color: var(--muted); text-align: center; }
+
+  .upstream-url { padding: 8px 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 5px; font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted); margin-bottom: 12px; word-break: break-all; }
+  .upstream-url strong { color: var(--text); }
+
+  .errlist { margin: 8px 0 0 0; padding-left: 16px; }
+  .errlist li { font-family: ui-monospace, monospace; font-size: 11px; color: var(--danger); }
+
+  /* New source dropdown */
+  .dropdown { position: relative; }
+  .dropdown-menu {
+    position: absolute; top: calc(100% + 4px); left: 0; min-width: 280px;
+    background: var(--panel); border: 1px solid var(--border-2); border-radius: 6px;
+    padding: 4px; z-index: 20; box-shadow: var(--shadow-strong);
+    display: none;
+  }
+  .dropdown.open .dropdown-menu { display: block; }
+  .dropdown-item { padding: 8px 12px; cursor: pointer; border-radius: 4px; font-size: 12px; }
+  .dropdown-item:hover { background: var(--panel-2); }
+  .dropdown-item .desc { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 20px; right: 20px; padding: 12px 16px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+    font-size: 13px; box-shadow: var(--shadow-strong); z-index: 100;
+    opacity: 0; transform: translateY(8px); transition: opacity 0.15s, transform 0.15s;
+    pointer-events: none; max-width: 420px;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.success { border-color: var(--success); }
+  .toast.error { border-color: var(--danger); }
+
+  /* Confirm modal */
+  .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 50; align-items: center; justify-content: center; }
+  .modal-bg.open { display: flex; }
+  .modal { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 22px; max-width: 480px; width: 90%; }
+  .modal h3 { margin-top: 0; }
+  .modal-actions { margin-top: 18px; display: flex; gap: 10px; justify-content: flex-end; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Impulse Bridge — Admin</h1>
+  <span class="tag" id="counter">…</span>
+  <nav>
+    <button id="themeBtn" title="Toggle theme" style="background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:6px;cursor:pointer;font:inherit"></button>
+    <a href="/help">Help</a>
+    <a href="/">Browser</a>
+    <a href="/docs">API</a>
+  </nav>
+</header>
+
+<div class="layout">
+  <aside>
+    <div class="sidebar-top">
+      <div class="dropdown" id="newDropdown">
+        <button id="newBtn">+ New source ▾</button>
+        <div class="dropdown-menu" id="newMenu"></div>
+      </div>
+      <button class="ghost" id="reloadBtn" title="Re-scan configs/sources/ from disk">↻</button>
+    </div>
+    <div class="sidebar-list" id="sourceList"></div>
+  </aside>
+
+  <main id="detailPane">
+    <div class="empty-state">
+      <h3>Pick a source on the left</h3>
+      <p>or click "+ New source" to add one from a template.</p>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h3 id="modalTitle">Confirm</h3>
+    <p id="modalText">Are you sure?</p>
+    <div class="modal-actions">
+      <button id="modalCancel">Cancel</button>
+      <button class="danger" id="modalOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+<script>
+// ============================================================================
+// Theme toggle
+// ============================================================================
+(function () {
+  const btn = document.getElementById("themeBtn");
+  function render() {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    btn.textContent = isLight ? "🌙 Dark" : "☀ Light";
+  }
+  btn.addEventListener("click", () => {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    if (isLight) {
+      document.documentElement.removeAttribute("data-theme");
+      localStorage.setItem("impulse-bridge-theme", "dark");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light");
+      localStorage.setItem("impulse-bridge-theme", "light");
+    }
+    render();
+  });
+  render();
+})();
+
+// ============================================================================
+// State
+// ============================================================================
+const state = {
+  sources: [],
+  templates: [],
+  selectedId: null,
+  isNew: false,
+  current: null,        // parsed config dict (mutable in the form)
+  yamlText: "",         // current YAML string (kept in sync with `current`)
+  yamlEditedSeparately: false,  // true if the YAML tab was edited & not yet synced
+  validation: { valid: true, errors: [] },
+  dirty: false,         // unsaved changes (vs server)
+  test: null,           // last test result
+  activeTab: "form",    // form | yaml | test
+};
+
+// Impulse asset field catalogue per the platform spec.
+const FIELDS_INTERNAL_REQUIRED = ["assetID", "assetURI", "contentType", "previewURI", "scale"];
+const FIELDS_DC_REQUIRED = ["title", "description", "contributor", "identifier", "rights"];
+const FIELDS_DC_OPTIONAL = ["coverage", "creator", "date", "format", "language", "publisher", "relation", "source", "subject", "type"];
+const ALL_FIELDS = [...FIELDS_INTERNAL_REQUIRED, ...FIELDS_DC_REQUIRED, ...FIELDS_DC_OPTIONAL];
+
+const TRANSFORM_OPTIONS = ["", "slugify", "strip_html", "lower", "upper"];
+
+// ============================================================================
+// Utils
+// ============================================================================
+const $ = (id) => document.getElementById(id);
+const h = (tag, attrs = {}, ...children) => {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") el.className = v;
+    else if (k === "html") el.innerHTML = v;
+    else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
+    else if (v === true) el.setAttribute(k, "");
+    else if (v !== false && v != null) el.setAttribute(k, v);
+  }
+  for (const child of children.flat()) {
+    if (child == null || child === false) continue;
+    el.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
+  }
+  return el;
+};
+
+function toast(msg, kind = "") {
+  const t = $("toast");
+  t.className = "toast show " + kind;
+  t.textContent = msg;
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { t.className = "toast"; }, 3200);
+}
+
+function confirmModal(title, text) {
+  return new Promise((resolve) => {
+    $("modalTitle").textContent = title;
+    $("modalText").textContent = text;
+    $("modalBg").classList.add("open");
+    const cleanup = () => { $("modalBg").classList.remove("open"); };
+    $("modalOk").onclick = () => { cleanup(); resolve(true); };
+    $("modalCancel").onclick = () => { cleanup(); resolve(false); };
+  });
+}
+
+async function api(method, url, body) {
+  const opts = { method, headers: { "Content-Type": "application/json" } };
+  if (body != null) opts.body = JSON.stringify(body);
+  const r = await fetch(url, opts);
+  const ct = r.headers.get("content-type") || "";
+  const data = ct.includes("application/json") ? await r.json() : await r.text();
+  if (!r.ok) {
+    const detail = (data && data.detail) || data || r.statusText;
+    const err = new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+    err.data = data;
+    err.status = r.status;
+    throw err;
+  }
+  return data;
+}
+
+// ============================================================================
+// Loading sources & templates
+// ============================================================================
+async function loadSources() {
+  try {
+    const data = await api("GET", "/admin/api/sources");
+    state.sources = data.sources || [];
+    $("counter").textContent = `${data.loaded_count} loaded / ${state.sources.length} on disk`;
+    renderSourceList();
+    if (data.load_errors && data.load_errors.length > 0) {
+      toast(`${data.load_errors.length} config error(s) — see status dots`, "error");
+    }
+  } catch (e) {
+    toast("Cannot reach admin API: " + e.message, "error");
+  }
+}
+
+async function loadTemplates() {
+  const data = await api("GET", "/admin/api/templates");
+  state.templates = data.templates || [];
+  renderNewMenu();
+}
+
+function renderNewMenu() {
+  const menu = $("newMenu");
+  menu.innerHTML = "";
+  for (const t of state.templates) {
+    menu.appendChild(h("div", {
+      class: "dropdown-item",
+      onclick: () => { $("newDropdown").classList.remove("open"); newFromTemplate(t); }
+    },
+      h("div", {}, t.label),
+      h("div", { class: "desc" }, `${t.key}`)
+    ));
+  }
+}
+
+function renderSourceList() {
+  const list = $("sourceList");
+  list.innerHTML = "";
+  if (state.sources.length === 0) {
+    list.appendChild(h("div", { class: "empty-state", style: "padding: 30px 10px" },
+      h("p", {}, "No sources on disk yet.")
+    ));
+    return;
+  }
+  for (const src of state.sources) {
+    const dot = h("div", { class: "status-dot " + (src.error ? "error" : src.loaded ? "loaded" : "unloaded") });
+    const item = h("div", {
+      class: "source-item" + (src.id === state.selectedId && !state.isNew ? " active" : ""),
+      onclick: () => selectSource(src.id),
+    },
+      h("div", { class: "row1" },
+        dot,
+        h("div", { class: "name" }, src.name || src.id || src.filename),
+        h("div", { class: "kind" }, src.kind || "?")
+      ),
+      h("div", { class: "row2" }, src.error ? `⚠ ${src.error.slice(0, 80)}` : (src.base_url || src.filename))
+    );
+    list.appendChild(item);
+  }
+}
+
+// ============================================================================
+// Selecting / creating
+// ============================================================================
+async function selectSource(id) {
+  if (state.dirty) {
+    const ok = await confirmModal("Discard unsaved changes?", `You have unsaved changes to "${state.selectedId || 'a new source'}". Switch anyway?`);
+    if (!ok) return;
+  }
+  state.selectedId = id;
+  state.isNew = false;
+  state.dirty = false;
+  state.test = null;
+  renderSourceList();
+
+  try {
+    const data = await api("GET", `/admin/api/sources/${encodeURIComponent(id)}`);
+    state.current = data.parsed || {};
+    state.yamlText = data.yaml;
+    state.yamlEditedSeparately = false;
+    state.validation = { valid: data.valid, errors: data.errors || [] };
+    renderDetail();
+  } catch (e) {
+    toast("Failed to load source: " + e.message, "error");
+  }
+}
+
+function newFromTemplate(template) {
+  state.isNew = true;
+  state.selectedId = null;
+  state.dirty = true;
+  state.test = null;
+  state.yamlText = template.yaml;
+  try { state.current = jsyaml.load(template.yaml) || {}; } catch (e) { state.current = {}; }
+  state.yamlEditedSeparately = false;
+  state.validation = { valid: true, errors: [] };
+  renderSourceList();
+  renderDetail();
+  toast(`Started new source from template "${template.label}"`, "success");
+}
+
+// ============================================================================
+// Detail pane rendering
+// ============================================================================
+function renderDetail() {
+  if (state.current === null) {
+    $("detailPane").innerHTML = "";
+    $("detailPane").appendChild(h("div", { class: "empty-state" },
+      h("h3", {}, "Pick a source on the left"),
+      h("p", {}, 'or click "+ New source" to add one from a template.')
+    ));
+    return;
+  }
+
+  const collection = state.current.collection || {};
+  const titleText = collection.name || collection.id || "(new source)";
+  const idText = collection.id || "—";
+
+  const header = h("div", { class: "detail-header" },
+    h("h2", {}, titleText),
+    h("span", { class: "pill" }, `id: ${idText}`),
+    h("span", { class: "pill" + (state.dirty ? " warning" : "") }, state.dirty ? "Unsaved changes" : "Saved"),
+    h("div", { class: "actions" },
+      state.dirty
+        ? h("button", { class: "ghost", onclick: revertChanges }, "Discard")
+        : null,
+      h("button", { class: "primary", onclick: saveSource }, state.isNew ? "Create & Reload" : "Save & Reload"),
+      !state.isNew ? h("button", { class: "danger ghost", onclick: deleteSource }, "Delete") : null,
+    )
+  );
+
+  const tabs = h("div", { class: "tabs" },
+    tabEl("form", "Form"),
+    tabEl("yaml", "YAML" + (state.yamlEditedSeparately ? " •" : "")),
+    tabEl("test", "Test"),
+  );
+
+  const formPane = h("div", { class: "pane" + (state.activeTab === "form" ? "" : " hidden"), id: "formPane" });
+  renderForm(formPane);
+
+  const yamlPane = h("div", { class: "pane" + (state.activeTab === "yaml" ? "" : " hidden"), id: "yamlPane" });
+  renderYamlPane(yamlPane);
+
+  const testPane = h("div", { class: "pane" + (state.activeTab === "test" ? "" : " hidden"), id: "testPane" });
+  renderTestPane(testPane);
+
+  $("detailPane").innerHTML = "";
+  $("detailPane").appendChild(header);
+  $("detailPane").appendChild(tabs);
+  $("detailPane").appendChild(formPane);
+  $("detailPane").appendChild(yamlPane);
+  $("detailPane").appendChild(testPane);
+}
+
+function tabEl(key, label) {
+  const errCount = (key === "form" || key === "yaml") && !state.validation.valid ? state.validation.errors.length : 0;
+  return h("div", {
+    class: "tab" + (state.activeTab === key ? " active" : "") + (errCount > 0 ? " error" : ""),
+    onclick: () => switchTab(key),
+  },
+    label,
+    errCount > 0 ? h("span", { class: "badge" }, String(errCount)) : null
+  );
+}
+
+function switchTab(key) {
+  // When leaving the YAML tab, try to parse the textarea content back into state.current
+  if (state.activeTab === "yaml" && key !== "yaml" && state.yamlEditedSeparately) {
+    syncYamlToForm();
+  }
+  // When leaving the form, regenerate the YAML from state.current
+  if (state.activeTab === "form" && key !== "form") {
+    state.yamlText = jsyaml.dump(state.current, { lineWidth: 100, noRefs: true, indent: 2 });
+    state.yamlEditedSeparately = false;
+  }
+  state.activeTab = key;
+  renderDetail();
+}
+
+// ============================================================================
+// Form tab
+// ============================================================================
+function renderForm(container) {
+  container.innerHTML = "";
+
+  // ---- Collection section ----
+  container.appendChild(formSection("Collection", "Impulse-protocol metadata for this collection.", [
+    inputField("id", "ID", "lowercase, digits, hyphens — must match id-schema", { path: ["collection", "id"], placeholder: "my-source" }),
+    inputField("name", "Name", "Display name shown in Impulse / Unity", { path: ["collection", "name"] }),
+    inputField("description", "Description", null, { path: ["collection", "description"], type: "textarea" }),
+    inputField("organization", "Organization", null, { path: ["collection", "organization"] }),
+    inputField("owner_id", "Owner ID", null, { path: ["collection", "owner_id"] }),
+    inputField("published", "Published", "1 = visible, 0 = hidden", { path: ["collection", "published"], type: "number" }),
+  ]));
+
+  // ---- Adapter section ----
+  const adapterKind = (state.current.adapter || {}).kind || "rest";
+  const adapterRows = [
+    selectField("kind", "Kind", "REST = generic JSON API; fallback = local files; custom = Python class.", {
+      path: ["adapter", "kind"], options: ["rest", "fallback", "custom"]
+    }),
+  ];
+  if (adapterKind === "rest") {
+    adapterRows.push(
+      inputField("base_url", "Base URL", null, { path: ["adapter", "base_url"], placeholder: "https://api.example.org" }),
+      adapterAuthRow(),
+      inputField("timeout_seconds", "Timeout (sec)", null, { path: ["adapter", "timeout_seconds"], type: "number" }),
+      defaultQueryRow(),
+    );
+  } else if (adapterKind === "fallback") {
+    adapterRows.push(
+      inputField("manifest_path", "Manifest path", "Relative path to a JSON file with pre-mapped assets", { path: ["adapter", "manifest_path"] }),
+      checkboxField("static_mount", "Serve files via static mount", null, { path: ["adapter", "static_mount"] }),
+    );
+  } else if (adapterKind === "custom") {
+    adapterRows.push(
+      inputField("custom_class", "Custom class", "Dotted path, e.g. app.adapter.custom.iiif.IIIFManifestSource", { path: ["adapter", "custom_class"] }),
+      inputField("base_url", "Base URL / manifest URL", null, { path: ["adapter", "base_url"] }),
+      inputField("timeout_seconds", "Timeout (sec)", null, { path: ["adapter", "timeout_seconds"], type: "number" }),
+    );
+  }
+  container.appendChild(formSection("Adapter", "How the bridge talks to the upstream archive.", adapterRows));
+
+  // ---- Search (REST only) ----
+  if (adapterKind === "rest") {
+    const paginationStyle = ((state.current.search || {}).pagination || {}).style || "offset_limit";
+    const paginationRows = [
+      selectField("style", "Pagination style", null, {
+        path: ["search", "pagination", "style"], options: ["page_size", "offset_limit", "cursor", "none"]
+      }),
+    ];
+    if (paginationStyle === "page_size") {
+      paginationRows.push(
+        inputField("page_param", "Page param name", "e.g. page, start", { path: ["search", "pagination", "page_param"] }),
+        inputField("size_param", "Size param name", "e.g. rows, per_page", { path: ["search", "pagination", "size_param"] }),
+        inputField("page_base", "Page base (0 or 1)", null, { path: ["search", "pagination", "page_base"], type: "number" }),
+      );
+    } else if (paginationStyle === "offset_limit") {
+      paginationRows.push(
+        inputField("offset_param", "Offset param", "e.g. offset, gsroffset", { path: ["search", "pagination", "offset_param"] }),
+        inputField("limit_param", "Limit param", "e.g. limit, rows", { path: ["search", "pagination", "limit_param"] }),
+      );
+    } else if (paginationStyle === "cursor") {
+      paginationRows.push(
+        inputField("cursor_param", "Cursor param", null, { path: ["search", "pagination", "cursor_param"] }),
+        inputField("cursor_response_path", "Cursor response path (JMESPath)", null, { path: ["search", "pagination", "cursor_response_path"] }),
+        inputField("limit_param", "Limit param", null, { path: ["search", "pagination", "limit_param"] }),
+      );
+    }
+    paginationRows.push(
+      inputField("max_size", "Max page size", null, { path: ["search", "pagination", "max_size"], type: "number" }),
+    );
+
+    container.appendChild(formSection("Search", "How Impulse's ?s=, ?o=, ?c= are translated.", [
+      inputField("path", "Search path", "Appended to base_url", { path: ["search", "path"], placeholder: "/search" }),
+      selectField("method", "Method", null, { path: ["search", "method"], options: ["GET", "POST"] }),
+      inputField("pattern_param", "Search param (Impulse s=)", "Upstream param that receives the search pattern", { path: ["search", "query", "pattern_param"] }),
+      inputField("pattern_when_empty", "Default pattern (when ?s missing)", null, { path: ["search", "query", "pattern_when_empty"] }),
+      ...paginationRows.map(r => r),
+    ]));
+  }
+
+  // ---- Mapping ----
+  container.appendChild(mappingSection());
+
+  // ---- Filter ----
+  container.appendChild(formSection("Filter", "Drop assets that don't meet these criteria.", [
+    inputField("allowed_content_types", "Allowed content types", "Comma-separated list of MIME types; empty = no filter", {
+      path: ["filter", "allowed_content_types"], type: "list",
+    }),
+    inputField("drop_if_missing", "Drop if missing", "Comma-separated Impulse field names; asset is dropped if any are empty after mapping", {
+      path: ["filter", "drop_if_missing"], type: "list",
+    }),
+  ]));
+
+  // ---- Asset detail (REST only) ----
+  if (adapterKind === "rest") {
+    container.appendChild(formSection("Asset detail", "Optional: how to fetch a single asset by ID. If disabled, the bridge falls back to scanning the default search result.", [
+      checkboxField("enabled", "Enabled", null, { path: ["asset_detail", "enabled"] }),
+      inputField("path", "Path", "May contain {asset_id} placeholder", { path: ["asset_detail", "path"] }),
+      detailQueryRow(),
+    ]));
+  }
+
+  // ---- Cache ----
+  container.appendChild(formSection("Cache", "Per-source TTL override.", [
+    inputField("ttl_seconds", "TTL (seconds)", null, { path: ["cache", "ttl_seconds"], type: "number" }),
+  ]));
+}
+
+function formSection(title, hint, rows) {
+  const body = h("div", { class: "section-body" });
+  for (const r of rows) if (r) body.appendChild(r);
+  return h("div", { class: "section" },
+    h("div", { class: "section-header" },
+      h("h3", {}, title),
+      hint ? h("span", { class: "hint" }, hint) : null,
+    ),
+    body
+  );
+}
+
+function getPath(obj, path) {
+  let cur = obj;
+  for (const k of path) { if (cur == null) return undefined; cur = cur[k]; }
+  return cur;
+}
+function setPath(obj, path, value) {
+  let cur = obj;
+  for (let i = 0; i < path.length - 1; i++) {
+    if (cur[path[i]] == null || typeof cur[path[i]] !== "object") cur[path[i]] = {};
+    cur = cur[path[i]];
+  }
+  if (value === "" || value == null || (Array.isArray(value) && value.length === 0)) {
+    delete cur[path[path.length - 1]];
+  } else {
+    cur[path[path.length - 1]] = value;
+  }
+}
+
+function markDirty() { state.dirty = true; state.yamlEditedSeparately = false; }
+
+function inputField(key, label, hint, { path, type = "text", placeholder = "" } = {}) {
+  const value = getPath(state.current, path);
+  let displayValue = value;
+  if (type === "list" && Array.isArray(value)) displayValue = value.join(", ");
+  if (displayValue == null) displayValue = "";
+
+  const onInput = (e) => {
+    let v = e.target.value;
+    if (type === "number") v = v === "" ? "" : Number(v);
+    if (type === "list") v = v.split(",").map(s => s.trim()).filter(Boolean);
+    setPath(state.current, path, v);
+    markDirty();
+    // Refresh just the header pill — full re-render would lose focus.
+    updateHeaderPill();
+  };
+
+  const ctl = type === "textarea"
+    ? h("textarea", { rows: 2, placeholder, oninput: onInput }, displayValue)
+    : h("input", { type: type === "number" ? "number" : "text", value: displayValue, placeholder, oninput: onInput });
+
+  return h("div", { class: "form-row" + (type === "textarea" ? " col" : "") },
+    h("label", {}, label),
+    h("div", {},
+      ctl,
+      hint ? h("div", { class: "hint" }, hint) : null
+    )
+  );
+}
+
+function selectField(key, label, hint, { path, options }) {
+  const value = getPath(state.current, path) ?? options[0];
+  const onChange = (e) => {
+    setPath(state.current, path, e.target.value);
+    markDirty();
+    renderDetail();  // pagination style / adapter kind change → re-render conditional sections
+  };
+  const sel = h("select", { onchange: onChange },
+    ...options.map(o => h("option", { value: o, selected: o === value }, o || "—"))
+  );
+  return h("div", { class: "form-row" },
+    h("label", {}, label),
+    h("div", {},
+      sel,
+      hint ? h("div", { class: "hint" }, hint) : null
+    )
+  );
+}
+
+function checkboxField(key, label, hint, { path }) {
+  const checked = !!getPath(state.current, path);
+  const onChange = (e) => { setPath(state.current, path, e.target.checked); markDirty(); updateHeaderPill(); };
+  return h("div", { class: "form-row" },
+    h("label", {}, label),
+    h("div", {},
+      h("label", { class: "checkbox-label" },
+        h("input", { type: "checkbox", checked, onchange: onChange }),
+        h("span", {}, hint || "Enabled")
+      )
+    )
+  );
+}
+
+function adapterAuthRow() {
+  const auth = (state.current.adapter || {}).auth || {};
+  const authType = auth.type || "none";
+  const inner = h("div", { class: "form-grid-2" },
+    h("select", { onchange: (e) => { setPath(state.current, ["adapter", "auth", "type"], e.target.value); markDirty(); renderDetail(); } },
+      ...["none", "query_param", "header"].map(o => h("option", { value: o, selected: o === authType }, o))
+    ),
+    authType !== "none"
+      ? h("div", { class: "form-grid-2" },
+          h("input", { type: "text", placeholder: "name (e.g. wskey)", value: auth.name || "",
+            oninput: (e) => { setPath(state.current, ["adapter", "auth", "name"], e.target.value); markDirty(); } }),
+          h("input", { type: "text", placeholder: "value (use ${ENV_VAR})", value: auth.value || "",
+            oninput: (e) => { setPath(state.current, ["adapter", "auth", "value"], e.target.value); markDirty(); } }),
+        )
+      : h("div", { class: "hint" }, "No auth headers/params will be sent.")
+  );
+  return h("div", { class: "form-row" }, h("label", {}, "Auth"), inner);
+}
+
+function kvListRow(label, path, hint) {
+  const obj = getPath(state.current, path) || {};
+  const entries = Object.entries(obj);
+  const list = h("div", { class: "kv-list" });
+
+  function rebuild(newEntries) {
+    const fresh = {};
+    for (const [k, v] of newEntries) if (k) fresh[k] = v;
+    setPath(state.current, path, Object.keys(fresh).length > 0 ? fresh : undefined);
+    markDirty();
+  }
+
+  entries.forEach(([k, v], idx) => {
+    list.appendChild(h("div", { class: "kv-row" },
+      h("input", { type: "text", placeholder: "param name", value: k,
+        oninput: (e) => {
+          const newKey = e.target.value;
+          const newEntries = entries.map((p, i) => i === idx ? [newKey, p[1]] : p);
+          rebuild(newEntries);
+        } }),
+      h("input", { type: "text", placeholder: "value (supports ${ENV_VAR})", value: v,
+        oninput: (e) => { entries[idx][1] = e.target.value; rebuild(entries); } }),
+      h("button", { class: "ghost", onclick: () => {
+        entries.splice(idx, 1); rebuild(entries); renderDetail();
+      } }, "×")
+    ));
+  });
+  list.appendChild(h("button", { class: "ghost", style: "align-self: flex-start; margin-top: 4px",
+    onclick: () => { entries.push(["", ""]); rebuild(entries); renderDetail(); } }, "+ add"));
+
+  return h("div", { class: "form-row col" },
+    h("label", {}, label),
+    hint ? h("div", { class: "hint" }, hint) : null,
+    list
+  );
+}
+
+function defaultQueryRow() {
+  return kvListRow("Default query params", ["adapter", "default_query"],
+    "Sent with every search request. Use this for static filters (e.g. format=json) or auth-like params.");
+}
+function detailQueryRow() {
+  return kvListRow("Detail query params", ["asset_detail", "query"],
+    "Sent only on the asset-detail endpoint. Values may contain {asset_id}.");
+}
+
+// ---- Mapping section: table of Impulse fields ----
+function mappingSection() {
+  const mapping = state.current.mapping || (state.current.mapping = {});
+  if (!mapping.fields) mapping.fields = {};
+
+  let showOptional = mappingSection.showOptional || false;
+  const fieldsToShow = [...FIELDS_INTERNAL_REQUIRED, ...FIELDS_DC_REQUIRED];
+  if (showOptional) fieldsToShow.push(...FIELDS_DC_OPTIONAL);
+
+  const table = h("table", { class: "mapping-table" },
+    h("thead", {},
+      h("tr", {},
+        h("th", { style: "width: 110px" }, "Impulse field"),
+        h("th", { style: "width: 88px" }, "Type"),
+        h("th", {}, "Value"),
+        h("th", { style: "width: 130px" }, "Default"),
+        h("th", { style: "width: 110px" }, "Transform"),
+      )
+    ),
+    h("tbody", {}, ...fieldsToShow.map(renderMappingRow))
+  );
+
+  const itemsPathRow = h("div", { class: "form-row col" },
+    h("label", {}, "items_path"),
+    h("div", { class: "hint" }, "JMESPath that resolves to the array of items in the upstream response. Use e.g. values(query.pages) for object-shaped collections."),
+    h("input", {
+      type: "text", value: mapping.items_path || "", placeholder: "items",
+      oninput: (e) => { mapping.items_path = e.target.value; markDirty(); }
+    })
+  );
+
+  const toggle = h("button", { class: "ghost", style: "margin-top: 10px",
+    onclick: () => { mappingSection.showOptional = !mappingSection.showOptional; renderDetail(); } },
+    (showOptional ? "Hide" : "Show") + " optional Dublin Core fields"
+  );
+
+  return h("div", { class: "section" },
+    h("div", { class: "section-header" },
+      h("h3", {}, "Mapping"),
+      h("span", { class: "hint" }, "Translate upstream JSON to Impulse asset fields with JMESPath.")
+    ),
+    h("div", { class: "section-body" }, itemsPathRow, table, toggle)
+  );
+}
+
+function renderMappingRow(fieldName) {
+  const isOptional = FIELDS_DC_OPTIONAL.includes(fieldName);
+  const mapping = state.current.mapping.fields;
+  const m = mapping[fieldName] || {};
+  const useType = m.literal !== undefined ? "literal" : "expr";
+
+  const typeSelect = h("select", {
+    onchange: (e) => {
+      const v = e.target.value;
+      delete m.literal; delete m.expr;
+      if (v === "literal") m.literal = "";
+      else m.expr = "";
+      mapping[fieldName] = m;
+      markDirty();
+      renderDetail();
+    }
+  },
+    h("option", { value: "expr", selected: useType === "expr" }, "expr"),
+    h("option", { value: "literal", selected: useType === "literal" }, "literal"),
+  );
+
+  const valueInput = h("input", {
+    type: "text",
+    value: useType === "literal" ? (m.literal ?? "") : (m.expr ?? ""),
+    placeholder: useType === "literal" ? "constant value" : "JMESPath e.g. items[0].title",
+    oninput: (e) => {
+      const v = e.target.value;
+      if (v === "") {
+        if (useType === "literal") delete m.literal; else delete m.expr;
+        if (!m.default && !m.transform) delete mapping[fieldName];
+      } else {
+        if (useType === "literal") m.literal = v; else m.expr = v;
+        mapping[fieldName] = m;
+      }
+      markDirty();
+    }
+  });
+
+  const defaultInput = h("input", {
+    type: "text",
+    value: m.default ?? "",
+    placeholder: "fallback",
+    oninput: (e) => {
+      if (e.target.value === "") delete m.default; else m.default = e.target.value;
+      if (m.default !== undefined) mapping[fieldName] = m;
+      markDirty();
+    }
+  });
+
+  const transformSelect = h("select", {
+    onchange: (e) => {
+      if (e.target.value === "") delete m.transform; else m.transform = e.target.value;
+      if (m.transform) mapping[fieldName] = m;
+      markDirty();
+    }
+  },
+    ...TRANSFORM_OPTIONS.map(o => h("option", { value: o, selected: (m.transform || "") === o }, o || "—"))
+  );
+
+  return h("tr", {},
+    h("td", { class: "field-name" + (isOptional ? " optional" : "") }, fieldName),
+    h("td", {}, typeSelect),
+    h("td", {}, valueInput),
+    h("td", {}, defaultInput),
+    h("td", {}, transformSelect),
+  );
+}
+
+function updateHeaderPill() {
+  // lightweight: just flip "Saved" / "Unsaved" without full re-render
+  const pills = document.querySelectorAll(".detail-header .pill");
+  if (pills.length >= 2) {
+    pills[1].textContent = state.dirty ? "Unsaved changes" : "Saved";
+    pills[1].className = "pill" + (state.dirty ? " warning" : "");
+  }
+}
+
+// ============================================================================
+// YAML tab
+// ============================================================================
+function renderYamlPane(container) {
+  // Regenerate YAML from state.current if the user hasn't edited it directly.
+  if (!state.yamlEditedSeparately) {
+    try {
+      state.yamlText = jsyaml.dump(state.current, { lineWidth: 100, noRefs: true, indent: 2 });
+    } catch (e) {
+      state.yamlText = "# Could not serialize: " + e.message;
+    }
+  }
+
+  const status = state.validation.valid
+    ? h("div", { class: "yaml-status ok" }, "✓ Schema valid (will save and reload on click)")
+    : h("div", { class: "yaml-status err" },
+        "✗ " + state.validation.errors.length + " validation error(s):",
+        h("ul", { class: "errlist" },
+          ...state.validation.errors.map(e => h("li", {}, `${(e.loc || []).join(".")}: ${e.msg}`))
+        )
+      );
+
+  const editor = h("textarea", {
+    class: "yaml-editor", spellcheck: false,
+    oninput: (e) => {
+      state.yamlText = e.target.value;
+      state.yamlEditedSeparately = true;
+      state.dirty = true;
+      // Best-effort live parse
+      try {
+        const parsed = jsyaml.load(state.yamlText);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          state.current = parsed;
+        }
+      } catch {}
+      updateHeaderPill();
+    }
+  }, state.yamlText);
+
+  container.innerHTML = "";
+  container.appendChild(h("div", { class: "yaml-editor-wrap" },
+    editor,
+    status,
+    h("div", { class: "hint", style: "color: var(--muted); font-size: 11px" },
+      "Tip: edits in this tab override the form. Switching back to Form will re-render from this YAML. Comments are not preserved across saves — edit files on disk directly if you need them.")
+  ));
+}
+
+function syncYamlToForm() {
+  try {
+    const parsed = jsyaml.load(state.yamlText);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      state.current = parsed;
+      state.yamlEditedSeparately = false;
+    }
+  } catch (e) {
+    toast("YAML parse error — fix before switching tabs: " + e.message, "error");
+  }
+}
+
+// ============================================================================
+// Test tab
+// ============================================================================
+function renderTestPane(container) {
+  container.innerHTML = "";
+
+  const queryInput = h("input", { type: "text", placeholder: "search pattern (empty = use default)", id: "testQuery", value: state._lastTestQuery || "" });
+  const countInput = h("input", { type: "number", id: "testCount", value: state._lastTestCount || 5, min: 1, max: 50 });
+  const runBtn = h("button", { class: "primary", onclick: runTest }, "Run test");
+  container.appendChild(h("div", { class: "test-controls" },
+    h("label", { style: "color: var(--muted)" }, "Query"),
+    queryInput,
+    h("label", { style: "color: var(--muted); margin-left: 8px" }, "Count"),
+    countInput,
+    runBtn,
+    h("div", { class: "hint" }, "Runs the current (unsaved) config against the real upstream and shows the raw response next to the mapped Impulse output."),
+  ));
+
+  if (!state.test) {
+    container.appendChild(h("div", { class: "test-pane-empty" }, "Click \"Run test\" to query the upstream with the current (unsaved) configuration."));
+    return;
+  }
+
+  if (state.test.errors && state.test.errors.length > 0) {
+    container.appendChild(h("div", { class: "yaml-status err" },
+      "Errors:",
+      h("ul", { class: "errlist" },
+        ...state.test.errors.map(e => h("li", {}, `${(e.loc || []).join(".") || "(top)"}: ${e.msg}`))
+      )
+    ));
+  }
+
+  if (state.test.upstream_url) {
+    container.appendChild(h("div", { class: "upstream-url" },
+      h("strong", {}, "Upstream URL: "),
+      state.test.upstream_url
+    ));
+  }
+
+  container.appendChild(h("div", { class: "test-result-grid" },
+    h("div", { class: "test-pane" },
+      h("div", { class: "test-pane-header" }, "Raw upstream response",
+        state.test.raw_upstream ? h("span", { style: "margin-left:auto; color:var(--muted)" }, "(" + jsonSize(state.test.raw_upstream) + ")") : null),
+      h("div", { class: "test-pane-body json-preview" }, state.test.raw_upstream != null
+        ? JSON.stringify(state.test.raw_upstream, null, 2).slice(0, 50000)
+        : "(no upstream response captured)")
+    ),
+    h("div", { class: "test-pane" },
+      h("div", { class: "test-pane-header" }, "Mapped Impulse output",
+        h("span", { style: "margin-left:auto; color:var(--muted)" }, (state.test.transformed || []).length + " item" + ((state.test.transformed || []).length === 1 ? "" : "s"))),
+      h("div", { class: "test-pane-body json-preview" }, JSON.stringify(state.test.transformed || [], null, 2))
+    ),
+  ));
+}
+
+function jsonSize(obj) {
+  const s = JSON.stringify(obj);
+  if (s.length < 1024) return s.length + " B";
+  if (s.length < 1024 * 1024) return (s.length / 1024).toFixed(1) + " KB";
+  return (s.length / 1024 / 1024).toFixed(1) + " MB";
+}
+
+async function runTest() {
+  if (state.activeTab === "yaml" && state.yamlEditedSeparately) syncYamlToForm();
+  const query = $("testQuery").value;
+  const count = parseInt($("testCount").value, 10) || 5;
+  state._lastTestQuery = query;
+  state._lastTestCount = count;
+  // Always serialize the current parsed state — this includes form edits even if yamlEditedSeparately is true.
+  let yamlText;
+  if (state.yamlEditedSeparately) yamlText = state.yamlText;
+  else { yamlText = jsyaml.dump(state.current, { lineWidth: 100, noRefs: true, indent: 2 }); state.yamlText = yamlText; }
+
+  try {
+    state.test = { transformed: [], raw_upstream: null, upstream_url: null, errors: [{ loc: [], msg: "Running…" }] };
+    renderDetail();
+    const data = await api("POST", "/admin/api/test", { yaml: yamlText, query: query || null, count });
+    state.test = data;
+    renderDetail();
+  } catch (e) {
+    toast("Test failed: " + e.message, "error");
+    state.test = { transformed: [], raw_upstream: null, upstream_url: null, errors: [{ loc: [], msg: e.message }] };
+    renderDetail();
+  }
+}
+
+// ============================================================================
+// Save / delete / revert
+// ============================================================================
+async function saveSource() {
+  if (state.activeTab === "yaml" && state.yamlEditedSeparately) syncYamlToForm();
+  let yamlText;
+  if (state.yamlEditedSeparately) yamlText = state.yamlText;
+  else yamlText = jsyaml.dump(state.current, { lineWidth: 100, noRefs: true, indent: 2 });
+
+  const newId = ((state.current || {}).collection || {}).id;
+  if (!newId) { toast("collection.id is required", "error"); return; }
+  const urlId = state.isNew ? newId : (state.selectedId || newId);
+
+  try {
+    const data = await api("PUT", `/admin/api/sources/${encodeURIComponent(urlId)}`, { yaml: yamlText });
+    state.current = data.parsed;
+    state.yamlText = data.yaml;
+    state.validation = { valid: data.valid, errors: data.errors || [] };
+    state.dirty = false;
+    state.isNew = false;
+    state.selectedId = newId;
+    state.yamlEditedSeparately = false;
+    await loadSources();
+    renderDetail();
+    toast(`Saved & reloaded "${newId}"`, "success");
+  } catch (e) {
+    const detail = (e.data && e.data.detail) || {};
+    if (detail.errors) {
+      state.validation = { valid: false, errors: detail.errors };
+      state.activeTab = "yaml";
+      renderDetail();
+      toast(`${detail.errors.length} validation error(s) — see YAML tab`, "error");
+    } else {
+      toast("Save failed: " + e.message, "error");
+    }
+  }
+}
+
+async function deleteSource() {
+  const id = state.selectedId;
+  if (!id) return;
+  const ok = await confirmModal("Delete source?", `This will remove "${id}" from configs/sources/ and unregister it from the bridge.`);
+  if (!ok) return;
+  try {
+    await api("DELETE", `/admin/api/sources/${encodeURIComponent(id)}`);
+    state.selectedId = null;
+    state.current = null;
+    state.dirty = false;
+    await loadSources();
+    renderDetail();
+    toast(`Deleted "${id}"`, "success");
+  } catch (e) {
+    toast("Delete failed: " + e.message, "error");
+  }
+}
+
+async function revertChanges() {
+  if (!state.dirty) return;
+  if (state.isNew) {
+    state.current = null;
+    state.selectedId = null;
+    state.isNew = false;
+    state.dirty = false;
+    renderDetail();
+    return;
+  }
+  await selectSource(state.selectedId);
+}
+
+// ============================================================================
+// Bootstrap
+// ============================================================================
+$("newBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  $("newDropdown").classList.toggle("open");
+});
+document.addEventListener("click", (e) => {
+  if (!$("newDropdown").contains(e.target)) $("newDropdown").classList.remove("open");
+});
+$("reloadBtn").addEventListener("click", async () => {
+  toast("Re-scanning…");
+  await loadSources();
+});
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "s" && state.current) {
+    e.preventDefault();
+    saveSource();
+  }
+});
+
+loadTemplates();
+loadSources();
+</script>
+</body>
+</html>

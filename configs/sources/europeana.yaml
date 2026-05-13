@@ -1,0 +1,88 @@
+collection:
+  id: europeana-public-domain-images
+  name: "Europeana Public Domain Images"
+  description: "Open-licensed images aggregated from European cultural heritage institutions via Europeana."
+  organization: "Europeana Foundation"
+  owner_id: "bridge@impulse.eu"
+  published: 1
+
+adapter:
+  kind: rest
+  base_url: "https://api.europeana.eu"
+  auth:
+    type: query_param
+    name: wskey
+    value: "${EUROPEANA_API_KEY}"
+  timeout_seconds: 15
+  default_query:
+    reusability: "open"      # PD-eligible + open-licensed only
+    media: "true"            # only items with downloadable media
+    qf: "TYPE:IMAGE"         # filter to images
+    profile: "rich"          # include full metadata in the response
+
+search:
+  path: "/record/v2/search.json"
+  method: GET
+  pagination:
+    style: page_size
+    page_param: start
+    size_param: rows
+    page_base: 1             # Europeana is 1-based
+    max_size: 100
+  query:
+    pattern_param: query
+    pattern_when_empty: "*"  # match everything
+
+mapping:
+  items_path: "items"
+  total_path: "totalResults"
+  fields:
+    assetID:
+      expr: "id"
+      transform: slugify
+    title:
+      expr: "title[0]"
+      default: "Untitled"
+    description:
+      expr: "dcDescription[0]"
+      transform: strip_html
+    creator:
+      expr: "dcCreator[0]"
+    date:
+      expr: "year[0]"
+    rights:
+      expr: "rights[0]"
+      default: "See source for license"
+    identifier:
+      expr: "guid"
+    assetURI:
+      expr: "edmIsShownBy[0]"
+    previewURI:
+      expr: "edmPreview[0]"
+    contentType:
+      literal: "image/jpeg"  # we filtered TYPE:IMAGE; mime is not exposed reliably
+    contributor:
+      expr: "dataProvider[0]"
+    scale:
+      literal: "1"
+    subject:
+      expr: "dcSubject[0]"
+    language:
+      expr: "dcLanguage[0]"
+
+filter:
+  allowed_content_types:
+    - "image/jpeg"
+    - "image/png"
+  drop_if_missing:
+    - "assetURI"
+    - "previewURI"
+
+# asset_detail intentionally disabled: Europeana record IDs are paths like
+# "/2024903/foo" that we slugify on the way out, so we cannot reverse the slug
+# to call /record/v2/{id}.json. The base GenericRestSource falls back to
+# search-and-find for get_asset, which is sufficient as long as Unity asks for
+# assets it discovered in a recent search.
+
+cache:
+  ttl_seconds: 900

@@ -1,0 +1,50 @@
+[
+    {
+        "assetID": "demo-cube",
+        "title": "Demo Cube",
+        "description": "Placeholder cube for end-to-end bridge testing.",
+        "contentType": "model/gltf-binary",
+        "scale": "1",
+        "assetURI": "demo-cube.glb",
+        "previewURI": "demo-cube.png",
+        "contributor": "Impulse Bridge",
+        "creator": "Impulse Bridge",
+        "rights": "CC0",
+        "identifier": "bridge-demo:demo-cube",
+        "subject": "demo",
+        "type": "3D Model",
+        "published": 1
+    },
+    {
+        "assetID": "demo-sphere",
+        "title": "Demo Sphere",
+        "description": "Placeholder sphere for end-to-end bridge testing.",
+        "contentType": "model/gltf-binary",
+        "scale": "1",
+        "assetURI": "demo-sphere.glb",
+        "previewURI": "demo-sphere.png",
+        "contributor": "Impulse Bridge",
+        "creator": "Impulse Bridge",
+        "rights": "CC0",
+        "identifier": "bridge-demo:demo-sphere",
+        "subject": "demo",
+        "type": "3D Model",
+        "published": 1
+    },
+    {
+        "assetID": "demo-image",
+        "title": "Demo Painting",
+        "description": "A placeholder image asset to verify image-type rendering.",
+        "contentType": "image/png",
+        "scale": "1",
+        "assetURI": "demo-image.png",
+        "previewURI": "demo-image.png",
+        "contributor": "Impulse Bridge",
+        "creator": "Impulse Bridge",
+        "rights": "CC0",
+        "identifier": "bridge-demo:demo-image",
+        "subject": "demo",
+        "type": "Image",
+        "published": 1
+    }
+]
