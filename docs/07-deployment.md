@@ -126,6 +126,7 @@ From your **local machine**, in the bridge project root:
 rsync -avz \
   --exclude .venv --exclude .git --exclude __pycache__ \
   --exclude '*.egg-info' --exclude .env \
+  --exclude .claude --exclude .idea --exclude .vscode \
   ./ ubuntu@<VM public IP>:/tmp/impulse-bridge/
 ```
 
@@ -169,7 +170,16 @@ Still on the VM, in `/srv/impulse-bridge/`:
 ```bash
 cp deploy/.env.production.example .env
 cp deploy/docker-compose.yml ./docker-compose.yml
+
+# The container runs as uid 10001 (`impulse`). The bind-mounted directories
+# must be writable by that uid, otherwise admin-UI saves and any data writes
+# fail with PermissionError.
+sudo chown -R 10001:10001 configs data
 ```
+
+> If you later add new YAML files under `configs/sources/` from the host (not
+> via the admin UI), `chown` them too — admin-UI-created files are already
+> owned by 10001:10001.
 
 Edit `.env`:
 

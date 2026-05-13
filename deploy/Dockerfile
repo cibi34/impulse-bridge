@@ -19,7 +19,8 @@ RUN pip install --no-cache-dir --upgrade pip wheel && \
     pip install --no-cache-dir .
 
 # Drop privileges. Bind-mounted host directories (configs/, data/) need to be
-# readable/writable by uid 10001 — the host-bootstrap script handles ownership.
+# readable/writable by uid 10001 — the deployment guide (docs/07-deployment.md,
+# Step 6) instructs the operator to chown them after copying the source.
 RUN chown -R impulse:impulse /app
 USER impulse
 
