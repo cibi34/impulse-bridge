@@ -1,14 +1,15 @@
 # Impulse Bridge — deployment compose file.
 #
-# This file lives next to the source tree on the VM (typical path
-# /srv/impulse-bridge/). It is meant to be copied or symlinked to the project
-# root so that `docker compose up -d` works from there.
+# COPY this to the project root before running:
+#     cp deploy/docker-compose.yml ./docker-compose.yml
 #
-# Required environment variables (defined in .env next to this file):
+# All paths in this file are relative to the project root (where the copy
+# lives), NOT relative to deploy/.
+#
+# Required environment variables (defined in .env at the project root):
 #   BRIDGE_DOMAIN          — public hostname Traefik should route to (e.g. impulse-bridge.octo-code.de)
 #   BRIDGE_BASIC_AUTH      — htpasswd-format string protecting /admin, /docs, /openapi.json
-#                            generate with:  htpasswd -nB admin
-#                            then escape $ for compose with:  echo '<output>' | sed 's/\$/\$\$/g'
+#                            generate with:  docker run --rm httpd:2.4 htpasswd -nbB admin '<password>' | sed 's/\$/\$\$/g'
 #   EUROPEANA_API_KEY      — your Europeana API key
 #   SMITHSONIAN_API_KEY    — your Smithsonian Open Access API key
 
@@ -16,24 +17,25 @@ services:
   bridge:
     container_name: impulse-bridge
     build:
-      context: ..
+      context: .
       dockerfile: deploy/Dockerfile
     image: impulse-bridge:latest
     restart: unless-stopped
 
+    # Compose auto-loads .env from the current directory, but we also tell the
+    # container's process to read it (python-dotenv inside the bridge does).
     env_file:
-      - ../.env
+      - .env
     environment:
-      # The bridge binds to 0.0.0.0 inside the container so Traefik can reach it.
       BRIDGE_HOST: "0.0.0.0"
       BRIDGE_PORT: "8080"
       BRIDGE_PUBLIC_BASE_URL: "https://${BRIDGE_DOMAIN}"
 
-    # Bind-mount the mutable parts of the project so admin-UI saves persist
-    # outside the container, and so host-side YAML edits hot-reload via the UI.
+    # Bind-mount the mutable parts so admin-UI saves persist on the host,
+    # and host-side YAML edits hot-reload via the admin UI's reload button.
     volumes:
-      - ../configs:/app/configs
-      - ../data:/app/data
+      - ./configs:/app/configs
+      - ./data:/app/data
 
     networks:
       - edge
@@ -44,7 +46,6 @@ services:
       - traefik.docker.network=edge
 
       # --- Public routes (no auth) ---
-      # Everything except the admin-protected paths.
       - traefik.http.routers.bridge-public.rule=Host(`${BRIDGE_DOMAIN}`) && !PathPrefix(`/admin`) && !PathPrefix(`/docs`) && !Path(`/openapi.json`)
       - traefik.http.routers.bridge-public.entrypoints=websecure
       - traefik.http.routers.bridge-public.tls.certresolver=letsencrypt
@@ -60,11 +61,11 @@ services:
       # Basic-auth middleware reading from BRIDGE_BASIC_AUTH env var
       - traefik.http.middlewares.bridge-admin-auth.basicauth.users=${BRIDGE_BASIC_AUTH}
 
-      # The actual service definition (one shared backend for both routers)
+      # Service definition shared by both routers
       - traefik.http.services.bridge.loadbalancer.server.port=8080
 
-# The "edge" network is created once by deploy/host-bootstrap.sh and is shared
-# by Traefik and every project that wants to be reverse-proxied.
+# The "edge" network is created by deploy/host-bootstrap.sh and is shared by
+# Traefik and every project that wants to be reverse-proxied.
 networks:
   edge:
     external: true
