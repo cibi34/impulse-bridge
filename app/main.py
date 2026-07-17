@@ -5,6 +5,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 # Load .env into os.environ BEFORE Settings/loader use ${VAR} expansion. The
@@ -69,6 +70,20 @@ app = FastAPI(
     description="Adapter bridge between the Impulse 3D platform and external cultural heritage archives",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+# CORS — the Impulse web frontend is served from a different origin than the
+# bridge, so browser fetch/XHR calls to the API are cross-origin. With
+# allow_credentials=True Starlette reflects the caller's Origin back instead of
+# a literal "*" (browsers reject "*" together with credentials); this is valid
+# for credentialed and non-credentialed requests alike. Restrict the allowed
+# origins in production via BRIDGE_CORS_ALLOW_ORIGINS.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allow_origins_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
