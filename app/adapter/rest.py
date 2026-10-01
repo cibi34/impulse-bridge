@@ -233,6 +233,9 @@ class GenericRestSource(Source):
         cached = cache.get(cache_key)
         if cached is not None:
             logger.debug("cache hit: source=%s path=%s", source_id, path)
+            # Keep the inspection state accurate for the admin UI's test run.
+            self.last_upstream_url = str(self._client.build_request("GET", path, params=params).url)
+            self.last_raw_response = cached
             return cached
 
         # One retry on transient timeout, otherwise let the error propagate.
