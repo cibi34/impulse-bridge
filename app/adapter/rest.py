@@ -202,7 +202,7 @@ class GenericRestSource(Source):
             params[p.page_param] = str(page)
             params[p.size_param] = str(size)
         elif p.style == "offset_limit" and p.offset_param and p.limit_param:
-            params[p.offset_param] = str(offset)
+            params[p.offset_param] = str(offset + p.offset_base)
             params[p.limit_param] = str(size)
         elif p.style == "cursor":
             # Cursor pagination is stateful and doesn't compose naturally with

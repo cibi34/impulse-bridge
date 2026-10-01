@@ -77,6 +77,10 @@ class PaginationCfg(BaseModel):
     cursor_param: str | None = None
     cursor_response_path: str | None = None
     page_base: int = 0
+    """page_size style: number of the first page (0 or 1)."""
+    offset_base: int = 0
+    """offset_limit style: position of the first item (0 or 1). Europeana's
+    `start` counts from 1, Smithsonian's `start` from 0."""
     max_size: int = 100
 
 

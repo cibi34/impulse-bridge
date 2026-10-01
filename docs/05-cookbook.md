@@ -208,13 +208,13 @@ search:
     limit_param: gsrlimit
     max_size: 50
 
-# Europeana — page-based, one-based
+# Europeana — offset-based, but `start` counts from 1
 search:
   pagination:
-    style: page_size
-    page_param: start
-    size_param: rows
-    page_base: 1
+    style: offset_limit
+    offset_param: start
+    limit_param: rows
+    offset_base: 1
     max_size: 100
 
 # A hypothetical zero-based pages API

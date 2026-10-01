@@ -170,6 +170,7 @@ search:
 | `size_param` | string | (page_size) upstream param for the page size. |
 | `page_base` | int | (page_size) 0 or 1 — zero-based or one-based pages. |
 | `offset_param` | string | (offset_limit) upstream param for the result offset. |
+| `offset_base` | int | (offset_limit) 0 or 1 — position of the first item. Default `0`. |
 | `limit_param` | string | (offset_limit / cursor) upstream param for the count. |
 | `cursor_param` | string | (cursor) upstream param that takes the cursor token. |
 | `cursor_response_path` | string | (cursor) JMESPath to extract the next-cursor from the response. |
@@ -178,24 +179,27 @@ search:
 Impulse semantics: `o` is an offset, `c` is a count. The bridge converts them:
 
 - **page_size**: `page = (offset / size) + page_base`, `size = min(count, max_size)`. The conversion assumes pages are full and roughly aligned with offset; if the upstream and Impulse offsets diverge across pages, the count of results may not match exactly — this is expected for page-based APIs.
-- **offset_limit**: pass-through.
+- **offset_limit**: `offset + offset_base`, `limit = min(count, max_size)`.
 - **cursor**: only the size is sent; the bridge does not retain state across requests. Cursor-based archives are best wrapped at the upstream side.
 - **none**: no pagination params sent.
 
-#### Page-based (Europeana)
+Check the upstream docs carefully: a parameter called `start` is usually an
+item offset, not a page number (Europeana, Smithsonian, Solr).
+
+#### Offset-based, one-based (Europeana)
 
 ```yaml
 search:
   path: "/record/v2/search.json"
   pagination:
-    style: page_size
-    page_param: start
-    size_param: rows
-    page_base: 1
+    style: offset_limit
+    offset_param: start
+    limit_param: rows
+    offset_base: 1
     max_size: 100
 ```
 
-#### Offset-based (Wikimedia Commons)
+#### Offset-based, zero-based (Wikimedia Commons)
 
 ```yaml
 search:
@@ -478,10 +482,10 @@ adapter:
 search:
   path: "/record/v2/search.json"
   pagination:
-    style: page_size
-    page_param: start
-    size_param: rows
-    page_base: 1
+    style: offset_limit
+    offset_param: start
+    limit_param: rows
+    offset_base: 1
     max_size: 100
   query:
     pattern_param: query
