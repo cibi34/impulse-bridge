@@ -11,10 +11,10 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.params import pagination
 from app.api.responses import impulse_response
-from app.curation import get_store
 from app.curation.service import impulse_asset, impulse_collection
 from app.curation.store import CollectionRecord, CollectionStore
 from app.errors import AssetNotFound, CollectionNotFound
+from app.storage import get_store
 from app.transform.helpers import matches_pattern
 
 router = APIRouter(tags=["impulse"])

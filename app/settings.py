@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     """`organization` for curated collections whose creator left it empty."""
     max_assets_per_collection: int = 500
 
+    # Email (SMTP account and recipients are set in the admin UI).
+    smtp_password: str | None = None
+    """Overrides the SMTP password stored via the admin UI, for operators who
+    keep secrets in the environment only."""
+    mail_log_only: bool = False
+    """Development: log emails (incl. login links) instead of sending them."""
+
     # CORS. Comma-separated list of origins allowed to call the API from a
     # browser (cross-origin fetch/XHR), e.g. the Impulse web frontend served
     # from a different domain than the bridge. "*" allows any origin. Override

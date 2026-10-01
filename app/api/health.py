@@ -3,9 +3,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from app.api.responses import impulse_response
-from app.curation import get_store
 from app.curation.store import CollectionStore
 from app.registry import registry
+from app.storage import get_store
 
 router = APIRouter()
 

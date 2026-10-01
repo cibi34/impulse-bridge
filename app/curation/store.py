@@ -156,6 +156,16 @@ class CollectionStore:
             ).fetchall()
         return [_collection(row) for row in rows]
 
+    def list_by_owner(self, email: str) -> list[CollectionRecord]:
+        """Collections created with this email address (case-insensitive)."""
+        with self.db.read() as conn:
+            rows = conn.execute(
+                f"SELECT {_COLLECTION_COLUMNS} FROM collections c "
+                "WHERE lower(c.owner_email) = lower(?) ORDER BY c.updated_at DESC",
+                (email.strip(),),
+            ).fetchall()
+        return [_collection(row) for row in rows]
+
     def list_listed(self) -> list[CollectionRecord]:
         """Collections an admin approved for the public /collections listing."""
         with self.db.read() as conn:

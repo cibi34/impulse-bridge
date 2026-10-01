@@ -1,8 +1,9 @@
 """Web app API: create and edit curated collections.
 
-Reading is public (only published items). Changing a collection needs its
-edit key, sent as `Authorization: Bearer <key>`; the key is handed out once,
-when the collection is created (or reset by its editor or an admin).
+Reading is public (only published items). Changing a collection needs either
+its edit key, sent as `Authorization: Bearer <key>` (handed out once, when
+the collection is created, and resettable), or a login session for the email
+address the collection was created with (app/api/auth.py).
 """
 
 from __future__ import annotations
@@ -10,11 +11,11 @@ from __future__ import annotations
 import re
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
-from app.curation import get_store
+from app.auth import AuthStore, normalize_email, session_cookie_name
 from app.curation.service import (
     AssetRef,
     CollectionFull,
@@ -28,12 +29,17 @@ from app.curation.service import (
     refresh_items,
 )
 from app.curation.store import CollectionRecord, CollectionStore, ItemRecord, utcnow
+from app.mail import MailError, build_message, mail_available, send
 from app.ratelimit import create_limit, write_limit
 from app.settings import settings
+from app.site_settings import SiteSettingsStore
+from app.storage import get_auth_store, get_site_store, get_store
 
 router = APIRouter(prefix="/api/collections", tags=["web"])
 
 Store = Annotated[CollectionStore, Depends(get_store)]
+Auth = Annotated[AuthStore, Depends(get_auth_store)]
+Site = Annotated[SiteSettingsStore, Depends(get_site_store)]
 
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _PREVIEWS_PER_COLLECTION = 4
@@ -189,26 +195,53 @@ def _visible(store: CollectionStore, collection_id: str) -> CollectionRecord:
     return record
 
 
-def _is_editor(record: CollectionRecord, authorization: str | None) -> bool:
+def session_email(request: Request, auth: AuthStore) -> str | None:
+    session_id = request.cookies.get(session_cookie_name())
+    return auth.session_email(session_id) if session_id else None
+
+
+def _access(
+    record: CollectionRecord, request: Request, authorization: str | None, auth: AuthStore
+) -> str | None:
+    """How the request may edit the collection: "key", "session" or None."""
     key = _bearer(authorization)
-    return key is not None and edit_key_matches(key, record.edit_key_hash)
+    if key is not None and edit_key_matches(key, record.edit_key_hash):
+        return "key"
+    email = session_email(request, auth)
+    if email is not None and record.owner_email and normalize_email(record.owner_email) == email:
+        return "session"
+    return None
+
+
+def _public_origin() -> str:
+    scheme, _, rest = settings.public_base_url.partition("://")
+    return f"{scheme}://{rest.split('/', 1)[0]}"
 
 
 def editable(
     collection_id: str,
+    request: Request,
     store: Store,
+    auth: Auth,
     authorization: Annotated[str | None, Header()] = None,
 ) -> CollectionRecord:
-    """The collection, if the request carries its edit key and it isn't locked."""
+    """The collection, if the request may edit it and it isn't locked."""
     record = _visible(store, collection_id)
-    if _bearer(authorization) is None:
-        raise HTTPException(
-            status_code=401,
-            detail="This action needs the collection's edit link",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    if not _is_editor(record, authorization):
-        raise HTTPException(status_code=403, detail="The edit link is not valid for this collection")
+    access = _access(record, request, authorization, auth)
+    if access is None:
+        if _bearer(authorization) is None and session_email(request, auth) is None:
+            raise HTTPException(
+                status_code=401,
+                detail="This action needs the collection's edit link",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        raise HTTPException(status_code=403, detail="You can't edit this collection")
+    if access == "session" and request.method not in ("GET", "HEAD"):
+        # Defense in depth next to the SameSite cookie: browsers send Origin
+        # with every cross-origin write; refuse writes from other sites.
+        origin = request.headers.get("origin")
+        if origin is not None and origin != _public_origin():
+            raise HTTPException(status_code=403, detail="Cross-site request refused")
     if record.disabled:
         raise HTTPException(status_code=403, detail="This collection was locked by an administrator")
     return record
@@ -243,15 +276,7 @@ async def create(body: CollectionCreate, store: Store):
     }
 
 
-@router.get("")
-def summaries(
-    store: Store,
-    ids: Annotated[str, Query(description="Comma-separated collection ids")] = "",
-):
-    """Short public overviews of several collections (the browser's "My
-    collections" list). Unknown or locked ids are left out."""
-    wanted = [i for i in dict.fromkeys(ids.split(",")) if i][:_MAX_SUMMARY_IDS]
-    records = [r for r in store.get_many(wanted) if not r.disabled]
+def summaries_out(store: CollectionStore, records: list[CollectionRecord]) -> dict[str, Any]:
     previews = store.preview_items([r.id for r in records], _PREVIEWS_PER_COLLECTION)
     return {
         "collections": [
@@ -259,6 +284,7 @@ def summaries(
                 "id": r.id,
                 "uri": collection_uri(r.id),
                 "name": r.name,
+                "description": r.description,
                 "item_count": r.item_count,
                 "updated_at": r.updated_at,
                 "submitted_at": r.submitted_at,
@@ -269,16 +295,29 @@ def summaries(
     }
 
 
+@router.get("")
+def summaries(
+    store: Store,
+    ids: Annotated[str, Query(description="Comma-separated collection ids")] = "",
+):
+    """Short public overviews of several collections (the browser's "My
+    collections" list). Unknown or locked ids are left out."""
+    wanted = [i for i in dict.fromkeys(ids.split(",")) if i][:_MAX_SUMMARY_IDS]
+    return summaries_out(store, [r for r in store.get_many(wanted) if not r.disabled])
+
+
 @router.get("/{collection_id}")
 def read(
     collection_id: str,
+    request: Request,
     store: Store,
+    auth: Auth,
     authorization: Annotated[str | None, Header()] = None,
 ):
     """Public view (published items only), or the editor's view (all items,
-    plus email and lock state) when the edit key is sent."""
+    plus email and lock state) for a request that may edit it."""
     record = _visible(store, collection_id)
-    editor = _is_editor(record, authorization)
+    editor = _access(record, request, authorization, auth) is not None
     if record.disabled and not editor:
         raise HTTPException(status_code=404, detail="Collection not found")
     items = store.items(collection_id, published_only=not editor)
@@ -350,6 +389,39 @@ def mark_submitted(record: Editable, store: Store):
     email itself is sent from the editor's mail program."""
     store.update(record.id, submitted_at=utcnow())
     return {"submitted_at": store.get(record.id).submitted_at}  # type: ignore[union-attr]
+
+
+@router.post("/{collection_id}/email-link", status_code=202, dependencies=[Depends(write_limit)])
+async def email_edit_link(
+    record: Editable,
+    site: Site,
+    authorization: Annotated[str | None, Header()] = None,
+):
+    """Send the edit link to the collection's email address."""
+    key = _bearer(authorization)
+    if key is None or not edit_key_matches(key, record.edit_key_hash):
+        raise HTTPException(status_code=403, detail="Sending the edit link needs the edit link itself")
+    if not record.owner_email:
+        raise HTTPException(status_code=422, detail="Add an email address to the collection first")
+    site_settings = await run_in_threadpool(site.load)
+    if not mail_available(site_settings):
+        raise HTTPException(status_code=503, detail="Email is not available on this server")
+    link = f"{settings.public_base_url.rstrip('/')}/c/{record.id}/edit#key={key}"
+    message = build_message(
+        site_settings,
+        record.owner_email,
+        f"Edit link for “{record.name}”",
+        [
+            f"Here is the edit link for your IMPULSE Curator collection “{record.name}”.",
+            "Anyone with this link can change the collection, so keep it private.",
+        ],
+        link=("Open the collection", link),
+    )
+    try:
+        await send(site_settings, message)
+    except MailError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from None
+    return {"sent_to": record.owner_email}
 
 
 @router.post("/{collection_id}/key", dependencies=[Depends(write_limit)])

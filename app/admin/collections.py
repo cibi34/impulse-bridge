@@ -9,9 +9,9 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 
-from app.curation import get_store
 from app.curation.service import collection_uri, new_edit_key
 from app.curation.store import CollectionRecord, CollectionStore
+from app.storage import get_store
 
 router = APIRouter(prefix="/admin/api/collections", tags=["admin"])
 

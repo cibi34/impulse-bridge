@@ -15,14 +15,15 @@ load_dotenv()
 
 from app.admin import api as admin_api  # noqa: E402
 from app.admin import collections as admin_collections  # noqa: E402
-from app.api import collections, files, health, sources, web_collections  # noqa: E402
+from app.admin import settings as admin_settings  # noqa: E402
+from app.api import auth, collections, files, health, site, sources, web_collections  # noqa: E402
 from app.api.responses import CODE_INTERNAL, http_status_for, impulse_response  # noqa: E402
-from app.curation import close_store, open_store  # noqa: E402
 from app.errors import BridgeError  # noqa: E402
 from app.loading import load_sources  # noqa: E402
 from app.logging_conf import configure_logging  # noqa: E402
 from app.registry import registry  # noqa: E402
 from app.settings import settings  # noqa: E402
+from app.storage import close_storage, open_storage  # noqa: E402
 
 # MIME types Python's mimetypes module doesn't ship with; needed so fallback
 # files (app/api/files.py) are served with a content-type Unity can interpret.
@@ -38,12 +39,12 @@ logger = logging.getLogger("impulse_bridge")
 async def lifespan(app: FastAPI):
     configure_logging(settings.log_level)
     logger.info("Impulse Bridge starting (config dir: %s)", settings.config_dir)
-    open_store(settings.database_file)
+    open_storage(settings.database_file)
     await load_sources()
     yield
     logger.info("Impulse Bridge stopping")
     await registry.clear()
-    close_store()
+    close_storage()
 
 
 app = FastAPI(
@@ -53,14 +54,26 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — the Impulse web frontend is served from a different origin than the
-# bridge, so browser fetch/XHR calls to the API are cross-origin. With
-# allow_credentials=True Starlette reflects the caller's Origin back instead of
-# a literal "*" (browsers reject "*" together with credentials); this is valid
-# for credentialed and non-credentialed requests alike. Restrict the allowed
-# origins in production via BRIDGE_CORS_ALLOW_ORIGINS.
+class ImpulseApiCORSMiddleware(CORSMiddleware):
+    """CORS for the Impulse API only.
+
+    The Impulse web frontend runs on another origin and calls /collections…
+    cross-origin, possibly with credentials (then Starlette reflects the
+    caller's Origin instead of "*"). The web app API (/api/…) and the admin
+    are same-origin only: they carry sessions and edit keys, so no other
+    site — not even a sibling subdomain — gets CORS access to them.
+    Restrict the allowed origins via BRIDGE_CORS_ALLOW_ORIGINS.
+    """
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope["path"].startswith(("/api/", "/admin")):
+            await self.app(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)
+
+
 app.add_middleware(
-    CORSMiddleware,
+    ImpulseApiCORSMiddleware,
     allow_origins=settings.cors_allow_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
@@ -94,10 +107,13 @@ async def unhandled_error_handler(request: Request, exc: Exception):
 
 app.include_router(health.router)
 app.include_router(collections.router)
+app.include_router(site.router)
 app.include_router(sources.router)
 app.include_router(web_collections.router)
+app.include_router(auth.router)
 app.include_router(admin_api.router)
 app.include_router(admin_collections.router)
+app.include_router(admin_settings.router)
 app.include_router(files.router)
 
 

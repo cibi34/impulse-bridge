@@ -53,6 +53,28 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX collection_items_order ON collection_items (collection_id, position);
     """,
+    # 2 — site settings (edited in the admin UI), passwordless login
+    """
+    CREATE TABLE site_settings (
+        key             TEXT PRIMARY KEY,
+        value           TEXT NOT NULL
+    );
+
+    CREATE TABLE login_tokens (
+        token_hash      TEXT PRIMARY KEY,
+        email           TEXT NOT NULL,
+        created_at      TEXT NOT NULL,
+        expires_at      TEXT NOT NULL,
+        used_at         TEXT
+    );
+
+    CREATE TABLE sessions (
+        id_hash         TEXT PRIMARY KEY,
+        email           TEXT NOT NULL,
+        created_at      TEXT NOT NULL,
+        expires_at      TEXT NOT NULL
+    );
+    """,
 ]
 
 
