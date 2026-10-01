@@ -1,17 +1,10 @@
-"""Build a concrete Source instance from a validated SourceConfig.
-
-The factory is also responsible for mounting any per-source static directories
-(used by the fallback adapter to serve local asset files).
-"""
+"""Build a concrete Source instance from a validated SourceConfig."""
 
 from __future__ import annotations
 
 import importlib
 import logging
 from pathlib import Path
-
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 
 from app.adapter.base import Source
 from app.adapter.fallback import FallbackSource
@@ -22,10 +15,10 @@ from app.errors import ConfigError
 logger = logging.getLogger(__name__)
 
 
-def build_source(cfg: SourceConfig, config_path: Path, app: FastAPI) -> Source:
+def build_source(cfg: SourceConfig) -> Source:
     kind = cfg.adapter.kind
     if kind == "fallback":
-        return _build_fallback(cfg, config_path, app)
+        return _build_fallback(cfg)
     if kind == "rest":
         return GenericRestSource(cfg)
     if kind == "custom":
@@ -33,7 +26,7 @@ def build_source(cfg: SourceConfig, config_path: Path, app: FastAPI) -> Source:
     raise ConfigError(f"Unknown adapter.kind: {kind}")
 
 
-def _build_fallback(cfg: SourceConfig, config_path: Path, app: FastAPI) -> Source:
+def _build_fallback(cfg: SourceConfig) -> Source:
     if not cfg.adapter.manifest_path:
         raise ConfigError(
             f"fallback adapter requires adapter.manifest_path "
@@ -44,25 +37,14 @@ def _build_fallback(cfg: SourceConfig, config_path: Path, app: FastAPI) -> Sourc
     manifest = Path(cfg.adapter.manifest_path)
     if not manifest.is_absolute():
         manifest = Path.cwd() / manifest
-    source = FallbackSource(
+    return FallbackSource(
         collection_meta=cfg.collection.model_dump(),
         manifest_path=manifest,
+        # Relative assetURIs/previewURIs in the manifest resolve against the
+        # collection URI, so the files next to the manifest are served there
+        # (see app/api/files.py).
+        files_dir=manifest.parent if cfg.adapter.static_mount else None,
     )
-    if cfg.adapter.static_mount:
-        static_dir = manifest.parent
-        mount_path = f"/collections/{cfg.collection.id}"
-        app.mount(
-            mount_path,
-            StaticFiles(directory=static_dir),
-            name=f"static-{cfg.collection.id}",
-        )
-        logger.info(
-            "Mounted static files for '%s' at %s -> %s",
-            cfg.collection.id,
-            mount_path,
-            static_dir,
-        )
-    return source
 
 
 def _build_custom(cfg: SourceConfig) -> Source:

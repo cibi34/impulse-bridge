@@ -1,7 +1,8 @@
 """YAML config loader with ${ENV_VAR} expansion and strict Pydantic validation.
 
-Fail-fast on startup: any invalid YAML, schema violation, or missing required ENV
-variable raises ConfigError and prevents the app from accepting requests.
+`load_one` raises ConfigError for invalid YAML or a schema violation.
+`load_all` collects those errors per file instead, so one broken config only
+disables its own source (the admin UI shows the error) and never the bridge.
 """
 
 from __future__ import annotations
@@ -50,18 +51,28 @@ def load_one(path: Path) -> SourceConfig:
         raise ConfigError(f"Schema validation failed for {path}:\n{e}") from e
 
 
-def load_all(config_dir: Path) -> list[tuple[Path, SourceConfig]]:
-    """Load every *.yaml / *.yml file in `config_dir`. Order by filename for
-    determinism. Returns (path, config) pairs so callers can log per-source."""
+def load_all(
+    config_dir: Path,
+) -> tuple[list[tuple[Path, SourceConfig]], list[tuple[str, str]]]:
+    """Load every *.yaml / *.yml file in `config_dir`, ordered by filename.
+
+    A broken file does not stop the others from loading: it is reported in the
+    second list as (filename, error message) and skipped. Returns
+    ((path, config) pairs, errors)."""
     if not config_dir.exists():
         logger.warning("Config dir %s does not exist — no sources will load", config_dir)
-        return []
+        return [], []
     files = sorted(
         [p for p in config_dir.iterdir() if p.suffix in {".yaml", ".yml"} and p.is_file()]
     )
-    result: list[tuple[Path, SourceConfig]] = []
+    configs: list[tuple[Path, SourceConfig]] = []
+    errors: list[tuple[str, str]] = []
     for f in files:
-        cfg = load_one(f)
+        try:
+            cfg = load_one(f)
+        except ConfigError as e:
+            errors.append((f.name, e.message))
+            continue
         logger.info("Loaded source config: %s -> collection '%s'", f.name, cfg.collection.id)
-        result.append((f, cfg))
-    return result
+        configs.append((f, cfg))
+    return configs, errors

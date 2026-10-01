@@ -58,8 +58,8 @@ class AdapterCfg(BaseModel):
     # Fallback-specific
     manifest_path: str | None = None
     static_mount: bool = True
-    """If True, the bridge mounts the manifest's parent directory at the collection's
-    URI path so relative assetURIs/previewURIs resolve correctly."""
+    """If True, the bridge serves the files in the manifest's directory under the
+    collection's URI path so relative assetURIs/previewURIs resolve correctly."""
 
     # Custom-specific
     custom_class: str | None = None

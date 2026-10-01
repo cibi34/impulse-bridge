@@ -13,12 +13,13 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ValidationError
 
 from app.adapter.factory import build_source
-from app.config.schema import SourceConfig
 from app.config.loader import _expand_env
+from app.config.schema import SourceConfig
+from app.loading import load_sources
 from app.registry import registry
 from app.settings import settings
 
@@ -86,7 +87,8 @@ async def list_sources() -> dict:
             info["name"] = collection.get("name")
             info["kind"] = adapter.get("kind")
             info["base_url"] = adapter.get("base_url") or adapter.get("manifest_path")
-            info["loaded"] = info["id"] in loaded_ids
+            loaded_from = registry.file_for(info["id"]) if info["id"] else None
+            info["loaded"] = loaded_from is not None and loaded_from.name == path.name
         out.append(info)
 
     return {
@@ -121,15 +123,18 @@ async def get_source(collection_id: str) -> dict:
 class SaveBody(BaseModel):
     yaml: str
     """The full YAML text to write to disk."""
-    filename: str | None = None
-    """If provided, write to this filename. Otherwise derive from collection.id."""
 
 
 @router.put("/sources/{collection_id}")
-async def upsert_source(collection_id: str, body: SaveBody, request: Request) -> dict:
-    """Create-or-update a source. The URL collection_id matches the parsed
-    YAML's collection.id (the YAML is authoritative); if they differ, the
-    parsed id wins and the file may be renamed accordingly."""
+async def upsert_source(
+    collection_id: str,
+    body: SaveBody,
+    create: bool = Query(False, description="Refuse (409) instead of overwriting an existing source"),
+) -> dict:
+    """Create or update a source. The YAML's collection.id is authoritative:
+    when it differs from the URL id, the source is renamed (its file keeps its
+    name). Writing to an id that another file already defines is refused with
+    409, as is `create=true` for an id that exists at all."""
     parsed = _parse_or_400(body.yaml)
     validation = _validate_cfg(parsed)
     if not validation["valid"]:
@@ -139,21 +144,19 @@ async def upsert_source(collection_id: str, body: SaveBody, request: Request) ->
         )
 
     new_id = parsed["collection"]["id"]
-    existing = _find_file_by_id(collection_id)
-    target_filename = (
-        body.filename
-        or (existing.name if existing else _filename_from_id(new_id))
-    )
-    target = settings.config_dir / target_filename
+    existing = None if create else _find_file_by_id(collection_id)
+    taken_by = _find_file_by_id(new_id)
+    if taken_by is not None and (existing is None or taken_by.resolve() != existing.resolve()):
+        raise HTTPException(
+            status_code=409,
+            detail=f"A source with id '{new_id}' already exists ({taken_by.name})",
+        )
+
+    target = existing or _free_path(_filename_from_id(new_id))
     target.parent.mkdir(parents=True, exist_ok=True)
-
-    # If renaming the source (id changed) and an old file exists, delete it
-    # after writing the new one — but only if the new and old paths differ.
     target.write_text(body.yaml, encoding="utf-8")
-    if existing and existing.resolve() != target.resolve():
-        existing.unlink(missing_ok=True)
 
-    await _reload(request.app)
+    await load_sources()
     return await get_source(new_id)
 
 
@@ -162,13 +165,24 @@ async def upsert_source(collection_id: str, body: SaveBody, request: Request) ->
 # --------------------------------------------------------------------------
 
 @router.delete("/sources/{collection_id}")
-async def delete_source(collection_id: str, request: Request) -> dict:
+async def delete_source(collection_id: str) -> dict:
     path = _find_file_by_id(collection_id)
     if path is None:
         raise HTTPException(status_code=404, detail=f"Source '{collection_id}' not found")
     path.unlink()
-    await _reload(request.app)
+    await load_sources()
     return {"deleted": collection_id, "filename": path.name}
+
+
+# --------------------------------------------------------------------------
+# Reload (after editing files on disk)
+# --------------------------------------------------------------------------
+
+@router.post("/reload")
+async def reload_sources() -> dict:
+    """Re-read every config file from disk and hot-swap the registry."""
+    await load_sources()
+    return await list_sources()
 
 
 # --------------------------------------------------------------------------
@@ -197,10 +211,9 @@ async def test_source(body: TestBody) -> dict:
         }
     cfg = SourceConfig.model_validate(_expand_env(parsed))
 
-    # Build the source without mounting static files (would conflict with the
-    # live registry, and isn't needed to test search()).
+    # An ephemeral source, never registered: the live registry is untouched.
     try:
-        source = build_source(cfg, settings.config_dir / "__test__.yaml", _NoMountApp())
+        source = build_source(cfg)
     except Exception as e:  # noqa: BLE001
         return {
             "valid": True,
@@ -291,22 +304,16 @@ def _find_file_by_id(collection_id: str) -> Path | None:
     return None
 
 
-async def _reload(app: Any) -> None:
-    """Hot-reload all sources. Imported lazily to avoid a circular import."""
-    from app.main import _load_sources
-    await _load_sources(app)
-    logger.info("Admin: registry reloaded — %d source(s) active", len(registry.list_collections()))
-
-
-class _NoMountApp:
-    """A drop-in stand-in for FastAPI app used by build_source during /test.
-
-    The fallback adapter calls app.mount() to expose static files; for an
-    ephemeral test source we don't want that side effect, so we hand the
-    factory a fake app whose mount() is a no-op."""
-
-    def mount(self, *_args: Any, **_kwargs: Any) -> None:
-        return None
+def _free_path(filename: str) -> Path:
+    """`filename` in the config dir, or `<stem>-2.yaml`, `-3`, … if a file of
+    that name already exists (it may hold a different id)."""
+    candidate = settings.config_dir / filename
+    stem, suffix = candidate.stem, candidate.suffix
+    n = 2
+    while candidate.exists():
+        candidate = settings.config_dir / f"{stem}-{n}{suffix}"
+        n += 1
+    return candidate
 
 
 # --------------------------------------------------------------------------

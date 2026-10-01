@@ -42,8 +42,11 @@ class FallbackSource:
         self,
         collection_meta: dict[str, Any],
         manifest_path: Path,
+        files_dir: Path | None = None,
     ) -> None:
         self.collection_meta = collection_meta
+        self.files_dir = files_dir
+        """Directory whose files are served under the collection URI, or None."""
         cid = collection_meta["id"]
         if not manifest_path.exists():
             raise ConfigError(f"Fallback manifest not found: {manifest_path}")

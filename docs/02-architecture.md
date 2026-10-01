@@ -177,14 +177,14 @@ If `asset_detail` is disabled, the source falls back to calling its own `search(
 
 ## Hot-reload mechanism
 
-`POST/PUT/DELETE` on `/admin/api/sources/...` triggers `_load_sources(app)` in [`app/main.py`](../app/main.py):
+Saving or deleting a source in the admin UI (`PUT`/`DELETE /admin/api/sources/...`) and the **↻** button (`POST /admin/api/reload`) call `load_sources()` in [`app/loading.py`](../app/loading.py):
 
-1. `registry.clear()` — closes every `httpx.AsyncClient`, empties the `id → Source` map.
-2. `load_all(settings.config_dir)` — parses every YAML in `configs/sources/`, validates each against the Pydantic schema, expanding `${ENV_VAR}` references.
-3. For each valid config, `build_source()` constructs the correct adapter (REST, fallback, or custom) and `registry.register()` indexes it.
-4. Any per-source errors are kept in `registry._load_errors` and surfaced in the admin API's `/sources` response — the rest of the bridge keeps serving valid sources.
+1. `load_all(settings.config_dir)` — parses every YAML in `configs/sources/`, validates each against the Pydantic schema, expanding `${ENV_VAR}` references. A file that fails is recorded as an error and skipped.
+2. For each valid config, `build_source()` constructs the correct adapter (REST, fallback, or custom). Duplicate ids and adapters that fail to build are recorded as errors, too.
+3. `registry.swap()` replaces the whole `id → Source` map at once, so requests see either the old or the new set of sources — never an empty or half-loaded registry.
+4. The replaced sources are closed after a grace period (`RETIRE_GRACE_SECONDS`), so requests already running on them can finish.
 
-Net effect: changing a YAML file (via the admin UI or directly on disk + admin `↻` button) updates the live registry within milliseconds; no server restart required.
+Errors are surfaced in the admin API's `/sources` response (red status dot in the UI); every valid source keeps being served. Net effect: changing a YAML file (via the admin UI, or directly on disk + **↻**) updates the live registry within milliseconds; no server restart required.
 
 ## The Source protocol
 
@@ -217,7 +217,7 @@ Used by: Europeana, Wikimedia Commons, Smithsonian Open Access, and any future a
 
 ### `kind: fallback` — `FallbackSource`
 
-Reads pre-mapped Impulse-schema JSON from `data/fallback/assets/manifest.json` and returns slices of it. Substring search across `title`, `description`, `subject`, `creator`, `contributor`, `type`, `assetID`. The factory mounts the manifest's parent directory at `/collections/{id}/` so relative `assetURI` / `previewURI` values resolve correctly via static file serving — matching the resolution semantics defined in the spec.
+Reads pre-mapped Impulse-schema JSON from `data/fallback/assets/manifest.json` and returns slices of it. Substring search across `title`, `description`, `subject`, `creator`, `contributor`, `type`, `assetID`. The files in the manifest's directory are served under `/collections/{id}/` ([`app/api/files.py`](../app/api/files.py)), so relative `assetURI` / `previewURI` values resolve correctly — matching the resolution semantics defined in the spec. The directory is looked up in the registry per request, so reloads take effect immediately.
 
 Used for: the `bridge-demo` collection, offline demos, and as a guaranteed-working fallback when external APIs are down.
 
@@ -269,11 +269,11 @@ Two HTML pages are served on top:
 
 ## Configuration loading
 
-At startup (and after every admin save / delete), the bridge:
+At startup (and after every admin save / delete / reload), the bridge:
 
 1. Reads `.env` (via `python-dotenv`) into `os.environ`. This must happen at import time so `${ENV_VAR}` expansion in YAML works.
 2. Discovers `configs/sources/*.yaml` in `settings.config_dir`.
-3. For each file: parse YAML → substitute `${VAR}` references → validate against `SourceConfig` (Pydantic) → call `build_source()` → register.
+3. For each file: parse YAML → substitute `${VAR}` references → validate against `SourceConfig` (Pydantic) → call `build_source()` → swap the new set of sources into the registry.
 
 If any single file fails to validate, **the rest still load**. The failing file is reported in `Registry.errors()` and surfaced to the admin UI as a red status dot. This is deliberate: one operator's broken YAML must not take down the bridge for the other operators.
 

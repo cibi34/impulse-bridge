@@ -111,7 +111,7 @@ Returns the Impulse envelope. The `data` field includes the list of registered s
 | Change | Action |
 |---|---|
 | Edit a YAML file via the admin UI | Hot-reload happens automatically on Save. |
-| Edit a YAML file directly on disk | Click **↻** in the admin sidebar, or `POST /admin/api/sources/...` to force a reload. |
+| Edit a YAML file directly on disk | Click **↻** in the admin sidebar, or `POST /admin/api/reload`. |
 | Add or remove a YAML file | Same — hot-reload via the admin UI. |
 | Change a value in `.env` | **Restart the server.** `.env` is read once at process start. |
 | Change Python code (adapters, transform, …) | **Restart the server.** No code reload. |

@@ -13,18 +13,17 @@ from fastapi.responses import FileResponse
 # back-fill the process env. This must run at import time, before Settings().
 load_dotenv()
 
-from app.adapter.factory import build_source  # noqa: E402
 from app.admin import api as admin_api  # noqa: E402
-from app.api import assets, collections, health  # noqa: E402
+from app.api import assets, collections, files, health  # noqa: E402
 from app.api.responses import CODE_INTERNAL, impulse_response  # noqa: E402
-from app.config.loader import load_all  # noqa: E402
 from app.errors import BridgeError  # noqa: E402
+from app.loading import load_sources  # noqa: E402
 from app.logging_conf import configure_logging  # noqa: E402
 from app.registry import registry  # noqa: E402
 from app.settings import settings  # noqa: E402
 
-# MIME types Python's mimetypes module doesn't ship with; needed so StaticFiles
-# serves 3D models with a content-type Unity can interpret.
+# MIME types Python's mimetypes module doesn't ship with; needed so fallback
+# files (app/api/files.py) are served with a content-type Unity can interpret.
 mimetypes.add_type("model/gltf-binary", ".glb")
 mimetypes.add_type("model/gltf+json", ".gltf")
 mimetypes.add_type("model/stl", ".stl")
@@ -33,33 +32,11 @@ mimetypes.add_type("model/obj", ".obj")
 logger = logging.getLogger("impulse_bridge")
 
 
-async def _load_sources(app: FastAPI) -> None:
-    await registry.clear()
-    for path, cfg in load_all(settings.config_dir):
-        try:
-            source = build_source(cfg, path, app)
-        except Exception as e:  # noqa: BLE001
-            registry._load_errors.append((path.name, str(e)))
-            logger.exception("Failed to build source from %s", path.name)
-            continue
-        meta = source.collection_meta
-        meta.setdefault(
-            "uri",
-            f"{settings.public_base_url.rstrip('/')}/collections/{meta['id']}",
-        )
-        try:
-            registry.register(source, source_file=path)
-        except ValueError as e:
-            registry._load_errors.append((path.name, str(e)))
-            logger.error("Cannot register source from %s: %s", path.name, e)
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging(settings.log_level)
-    logger.info("Impulse Bridge starting on %s:%s", settings.host, settings.port)
-    await _load_sources(app)
-    logger.info("Registered %d source(s)", len(registry.list_collections()))
+    logger.info("Impulse Bridge starting (config dir: %s)", settings.config_dir)
+    await load_sources()
     yield
     logger.info("Impulse Bridge stopping")
     await registry.clear()
@@ -102,6 +79,8 @@ app.include_router(health.router)
 app.include_router(collections.router)
 app.include_router(assets.router)
 app.include_router(admin_api.router)
+# Catch-all file route under /collections/{id}/ — must come after the API routes.
+app.include_router(files.router)
 
 
 @app.get("/", include_in_schema=False)

@@ -254,7 +254,7 @@
         <button id="newBtn">+ New source ▾</button>
         <div class="dropdown-menu" id="newMenu"></div>
       </div>
-      <button class="ghost" id="reloadBtn" title="Re-scan configs/sources/ from disk">↻</button>
+      <button class="ghost" id="reloadBtn" title="Reload all configs from configs/sources/ on disk">↻</button>
     </div>
     <div class="sidebar-list" id="sourceList"></div>
   </aside>
@@ -1118,7 +1118,8 @@ async function saveSource() {
   const urlId = state.isNew ? newId : (state.selectedId || newId);
 
   try {
-    const data = await api("PUT", `/admin/api/sources/${encodeURIComponent(urlId)}`, { yaml: yamlText });
+    const query = state.isNew ? "?create=true" : "";
+    const data = await api("PUT", `/admin/api/sources/${encodeURIComponent(urlId)}${query}`, { yaml: yamlText });
     state.current = data.parsed;
     state.yamlText = data.yaml;
     state.validation = { valid: data.valid, errors: data.errors || [] };
@@ -1184,8 +1185,15 @@ document.addEventListener("click", (e) => {
   if (!$("newDropdown").contains(e.target)) $("newDropdown").classList.remove("open");
 });
 $("reloadBtn").addEventListener("click", async () => {
-  toast("Re-scanning…");
-  await loadSources();
+  toast("Reloading configs from disk…");
+  try {
+    const data = await api("POST", "/admin/api/reload");
+    await loadSources();
+    const errs = (data.load_errors || []).length;
+    toast(`Reloaded: ${data.loaded_count} loaded` + (errs ? `, ${errs} config error(s)` : ""), errs ? "error" : "success");
+  } catch (e) {
+    toast("Reload failed: " + e.message, "error");
+  }
 });
 document.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === "s" && state.current) {

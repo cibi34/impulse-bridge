@@ -62,7 +62,7 @@ Two controls at the top of the sidebar:
   - **REST API (generic)** — fully-wired skeleton for any JSON API
   - **IIIF Presentation API manifest** — wraps a single IIIF manifest as a collection
   - **Fallback (local files)** — points at a local JSON manifest
-- **↻** — re-scans the YAML directory from disk without saving anything. Useful after editing files directly with a text editor.
+- **↻** — reloads every YAML file from disk into the live bridge without saving anything. Useful after editing files directly with a text editor. Broken files show a red status dot; all other sources keep running.
 
 Clicking a source loads it into the right pane. Clicking again is a no-op. If the current pane has unsaved changes, a confirmation dialog appears.
 
@@ -77,6 +77,7 @@ When a source is selected (or a new one is being drafted), the right pane shows:
 | Status pill | **Saved** if the in-memory state matches disk; **Unsaved changes** (amber) if not. |
 | Discard | Visible only when there are unsaved changes — reverts to the last saved YAML. |
 | Save & Reload | Persists changes to disk, validates, and triggers a registry hot-reload. Keyboard shortcut: **Ctrl+S**. |
+| Create & Reload | Same, for a new source. Refused if another source already uses the id — existing configs are never overwritten. Changing an existing source's id to one that is taken is refused as well. |
 | Delete | (Only for existing sources.) Asks for confirmation, then unlinks the YAML file and removes the collection from the registry. |
 
 ## Tabs
@@ -125,7 +126,7 @@ The adapter kind drives most of the rest of the form.
 | Field | Purpose |
 |---|---|
 | **Manifest path** | Relative path to a JSON file containing pre-mapped Impulse assets. |
-| **Static mount** | If checked, the bridge serves the manifest's directory under `/collections/{id}/` so relative `assetURI` values resolve correctly. Usually leave this on. |
+| **Static mount** | If checked, the bridge serves the files in the manifest's directory under `/collections/{id}/` so relative `assetURI` values resolve correctly. Usually leave this on. |
 
 #### Kind: `custom`
 
