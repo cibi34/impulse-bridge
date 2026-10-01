@@ -180,7 +180,7 @@ Each entry in `mapping.fields` resolves to a value for one Impulse asset field:
 | `expr` | JMESPath against the raw item |
 | `literal` | A constant value (no JMESPath) |
 | `default` | Used if `expr` returns null / empty / missing |
-| `transform` | `slugify` (readable, lossy), `base32` (opaque, reversible), `strip_html`, `lower`, `upper` |
+| `transform` | `slugify` (readable, lossy), `base32` (opaque, reversible), `strip_html`, `file_title`, `lower`, `upper` |
 | `map` | Value-to-value mapping, e.g. `{"IMAGE": "image/jpeg"}` |
 
 `mapping.items_path` is a JMESPath to the array of items inside the upstream response. For object-shaped responses (e.g. MediaWiki's `query.pages`), use `values(query.pages)` to flatten to a list.

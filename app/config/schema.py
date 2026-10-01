@@ -121,7 +121,7 @@ class FieldMapping(BaseModel):
     """A constant value to use directly."""
     default: Any | None = None
     """Fallback if the JMESPath result is None or empty."""
-    transform: Literal["slugify", "base32", "strip_html", "lower", "upper"] | None = None
+    transform: Literal["slugify", "base32", "strip_html", "file_title", "lower", "upper"] | None = None
     """`slugify` is lossy but readable; `base32` is opaque but reversible (pair it
     with the `{asset_id_from_base32}` placeholder in asset_detail)."""
     map: dict[str, Any] | None = None

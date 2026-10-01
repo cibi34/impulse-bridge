@@ -270,7 +270,7 @@ fields:
 | `expr` | string | JMESPath evaluated against the raw upstream item. Mutually exclusive with `literal`. |
 | `literal` | any | Constant value. Use for fields the upstream doesn't provide (e.g. `contributor: "Wikimedia Commons"`). |
 | `default` | any | Used if `expr` returns null/empty. |
-| `transform` | enum | `slugify`, `base32`, `strip_html`, `lower`, or `upper`. Applied after default/value-map; only operates on strings. |
+| `transform` | enum | `slugify`, `base32`, `strip_html`, `file_title`, `lower`, or `upper`. Applied after default/value-map; only operates on strings. |
 | `map` | dict | Value substitution — if the JMESPath result equals a key, replace it with the value. Useful for normalizing MIME types or `type` codes. |
 
 #### Transform reference
@@ -280,6 +280,7 @@ fields:
 | `slugify` | Lower-cases, replaces any non-alphanumeric run with a single hyphen, strips leading/trailing hyphens. Used to coerce upstream IDs into Impulse id-schema. **Lossy**: case and separators cannot be recovered — see `asset_detail` placeholders for how to look such ids up anyway. |
 | `base32` | Encodes the string as lowercase, unpadded base32 (`a-z2-7`). Always id-schema safe and **fully reversible** via the `{asset_id_from_base32}` placeholder, at the cost of opaque ids ~1.6× longer than the input. Use for upstream ids that are not id-schema safe and must be fed verbatim to an exact-match detail endpoint. |
 | `strip_html` | Removes HTML tags (Wikimedia returns HTML in description fields). |
+| `file_title` | Turns a media file name into a title: drops a `File:` prefix and the extension, underscores become spaces (`File:Young_Hare.jpg` → `Young Hare`). |
 | `lower` | `str.lower()` |
 | `upper` | `str.upper()` |
 

@@ -2,7 +2,14 @@ import re
 
 import pytest
 
-from app.transform.helpers import base32_id, base32_id_decode, slug_to_regex, slugify
+from app.transform.helpers import (
+    base32_id,
+    base32_id_decode,
+    file_title,
+    matches_pattern,
+    slug_to_regex,
+    slugify,
+)
 
 
 @pytest.mark.parametrize(
@@ -55,3 +62,27 @@ def test_base32_id_decode_rejects_non_base32():
     assert base32_id_decode("does-not-exist-evaluation") is None
     assert base32_id_decode("90402-sk-a-3262") is None
     assert base32_id_decode("") is None
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("File:1665 Girl with a Pearl Earring.jpg", "1665 Girl with a Pearl Earring"),
+        ("File:A_Young_Hare,_Albrect_Durer.JPG", "A Young Hare, Albrect Durer"),
+        ("File:Model.glb", "Model"),
+        ("Version 1.10", "Version 1.10"),  # not a media extension
+        ("St. Peter", "St. Peter"),
+        ("Plain title", "Plain title"),
+    ],
+)
+def test_file_title(value, expected):
+    assert file_title(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("pattern", "expected"),
+    [(None, True), ("*", True), ("sunflower", True), ("van*sun", True), ("sun*van", False), ("rose", False)],
+)
+def test_matches_pattern(pattern, expected):
+    asset = {"title": "Sunflowers", "creator": "Vincent van Gogh", "rights": 1}
+    assert matches_pattern(asset, pattern, ("creator", "title", "rights")) is expected

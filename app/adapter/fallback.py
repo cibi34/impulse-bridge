@@ -6,32 +6,12 @@ from pathlib import Path
 from typing import Any
 
 from app.errors import AssetNotFound, ConfigError
+from app.transform.helpers import matches_pattern
 
 logger = logging.getLogger(__name__)
 
 
-def _matches(asset: dict, pattern: str) -> bool:
-    """Case-insensitive substring search across the typical text fields.
-
-    Pattern '*' (or empty after stripping) matches everything. Internal '*' wildcards
-    behave like substring delimiters (split on '*' and require each chunk to appear
-    in order)."""
-    if not pattern or pattern == "*":
-        return True
-    chunks = [c.lower() for c in pattern.split("*") if c]
-    haystack_parts: list[str] = []
-    for key in ("title", "description", "subject", "creator", "contributor", "type", "assetID"):
-        v = asset.get(key)
-        if isinstance(v, str):
-            haystack_parts.append(v.lower())
-    haystack = " | ".join(haystack_parts)
-    pos = 0
-    for chunk in chunks:
-        idx = haystack.find(chunk, pos)
-        if idx < 0:
-            return False
-        pos = idx + len(chunk)
-    return True
+SEARCH_FIELDS = ("title", "description", "subject", "creator", "contributor", "type", "assetID")
 
 
 class FallbackSource:
@@ -63,8 +43,7 @@ class FallbackSource:
     async def search(
         self, query: str | None, offset: int, count: int | None
     ) -> list[dict]:
-        pattern = (query or "").strip()
-        matched = [a for a in self._assets if _matches(a, pattern)]
+        matched = [a for a in self._assets if matches_pattern(a, query, SEARCH_FIELDS)]
         end = (offset + count) if count is not None else None
         return matched[offset:end]
 

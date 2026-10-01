@@ -43,6 +43,7 @@ mapping:
       expr: "to_string(pageid)"
     title:
       expr: "title"
+      transform: file_title     # "File:Young Hare.jpg" -> "Young Hare"
     description:
       expr: "imageinfo[0].extmetadata.ImageDescription.value"
       transform: strip_html

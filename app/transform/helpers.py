@@ -56,6 +56,47 @@ def strip_html(value: str) -> str:
     return _HTML_TAG.sub("", value).strip()
 
 
+_FILE_PREFIX = re.compile(r"^(file|image|datei):\s*", re.IGNORECASE)
+_FILE_EXTENSION = re.compile(
+    r"\.(jpe?g|png|gif|tiff?|webp|svg|bmp|jp2|pdf|djvu|glb|gltf|obj|stl|ply|fbx|usdz"
+    r"|ogg|ogv|oga|webm|mp3|mp4|wav|flac|midi?)$",
+    re.IGNORECASE,
+)
+
+
+def file_title(value: str) -> str:
+    """Turn a media file name into a readable title: drop a MediaWiki-style
+    namespace prefix and the extension, and use spaces for underscores.
+    "File:1665 Girl_with a Pearl Earring.jpg" -> "1665 Girl with a Pearl Earring"."""
+    if not value:
+        return value
+    title = _FILE_PREFIX.sub("", value.strip())
+    title = _FILE_EXTENSION.sub("", title).replace("_", " ")
+    return " ".join(title.split()) or value
+
+
+def matches_pattern(asset: dict, pattern: str | None, fields: tuple[str, ...]) -> bool:
+    """Case-insensitive search across the asset's text `fields`.
+
+    An empty pattern or "*" matches everything. Inner "*" wildcards separate
+    chunks that must all appear, in order ("van*sun" matches "van Gogh,
+    Sunflowers")."""
+    pattern = (pattern or "").strip()
+    if not pattern or pattern == "*":
+        return True
+    chunks = [c.lower() for c in pattern.split("*") if c]
+    haystack = " | ".join(
+        v.lower() for v in (asset.get(k) for k in fields) if isinstance(v, str)
+    )
+    pos = 0
+    for chunk in chunks:
+        idx = haystack.find(chunk, pos)
+        if idx < 0:
+            return False
+        pos = idx + len(chunk)
+    return True
+
+
 def mime_from_url(url: str, default: str = "application/octet-stream") -> str:
     """Guess MIME type from a URL's path extension."""
     if not url:
