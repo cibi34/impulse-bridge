@@ -67,7 +67,7 @@ app/
 ├── transform/          # Mapping engine
 │   ├── engine.py       # transform_item / extract_items
 │   ├── jmes.py         # JMESPath thin wrapper
-│   └── helpers.py      # slugify, strip_html, mime_from_url, …
+│   └── helpers.py      # slugify, slug_to_regex, base32_id, strip_html, mime_from_url, …
 │
 └── adapter/
     ├── base.py         # Source protocol — what every adapter must implement
@@ -169,9 +169,11 @@ The cache caches **raw upstream JSON**, not transformed assets. Editing the YAML
 
 `GET /collections/wikimedia-commons-images/asset/151972`:
 
-If the YAML has `asset_detail.enabled: true` and a `path` (it does for Wikimedia, with `pageids={asset_id}`), the source builds a fresh URL using `asset_detail.query` (which **replaces** `default_query`, not merges with it — because search and detail endpoints typically take different parameters), calls the upstream, and runs the same transform.
+First, the source checks whether a recent `search()` on this bridge returned the asset: every search indexes its raw upstream items by mapped `assetID` in the TTL cache. On a hit the raw item is re-mapped with the current mapping and returned — no upstream call, and YAML mapping edits still take effect.
 
-If `asset_detail` is disabled, the source falls back to calling its own `search()` with no query, scanning the result for a matching `assetID`, and returning that. This is the easy path for sources where individual detail lookups are awkward (Europeana, IIIF).
+On a miss, if the YAML has `asset_detail.enabled: true` and a `path` (it does for Wikimedia, with `pageids={asset_id}`, for Smithsonian, with `/content/{asset_id}`, and for Europeana, with a Solr regex built from `{asset_id_regex}`; `{asset_id_from_base32}` decodes `transform: base32` ids for exact endpoints), the source builds a fresh URL using `asset_detail.query` (which **replaces** `default_query`, not merges with it — because search and detail endpoints typically take different parameters), calls the upstream, runs the same transform, and returns the item whose mapped `assetID` matches.
+
+If `asset_detail` is disabled, the source falls back to calling its own `search()` with no query, scanning the result for a matching `assetID`, and returning that. This only works for small collections. See [03 — YAML reference](03-yaml-reference.md#asset_detail) for the placeholders.
 
 ## Hot-reload mechanism
 

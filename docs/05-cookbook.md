@@ -231,7 +231,7 @@ If the upstream really only does cursor-based pagination, set `style: cursor` an
 
 ## Recipe 9 — Configure asset_detail for a clean single-asset endpoint
 
-By default, `GET /collections/{id}/asset/{aid}` falls back to scanning the default search result. This is slow and brittle for large collections.
+Without `asset_detail`, `GET /collections/{id}/asset/{aid}` only finds assets that a recent search on this bridge returned, or that appear in the default search result. This is brittle for large collections.
 
 If the upstream has a per-asset endpoint, configure `asset_detail`:
 
@@ -251,6 +251,50 @@ asset_detail:
 `{asset_id}` is substituted with the Impulse asset ID at request time. The query block here **replaces** `adapter.default_query` — list every parameter you need, including `format=json`. (This is intentional: search and detail endpoints typically take incompatible parameters — for MediaWiki, search uses `generator=search` while detail uses `pageids`.)
 
 If the upstream's detail endpoint returns a different JSON shape than search, also provide a `mapping` block inside `asset_detail`. If shapes match, omit it and the top-level mapping is reused.
+
+### Variant: the assetID is slugified and cannot be reversed
+
+Sources whose upstream ids contain uppercase letters or separators (Europeana: `/90402/SK_A_3262`) map them with `transform: slugify` (`90402-sk-a-3262`) to satisfy the Impulse id-schema. That transformation is lossy, so `{asset_id}` cannot be fed to an exact-match detail endpoint — Europeana's Record API answers `Invalid record identifier` for `/90402/sk_a_3262`.
+
+If the upstream search is Solr-based (Europeana, DPLA, Trove, most Blacklight sites), point `asset_detail` at the **search** endpoint and use `{asset_id_regex}`, which the bridge expands to a case-insensitive regex matching exactly the ids that slugify to the requested assetID:
+
+```yaml
+asset_detail:
+  enabled: true
+  path: "/record/v2/search.json"
+  query:
+    query: "europeana_id:/{asset_id_regex}/"
+    profile: "rich"
+    rows: "1"
+```
+
+Because the response has the search shape, the search mapping is reused; the bridge verifies that the mapped `assetID` of the returned item equals the requested one.
+
+### Variant: no regex-capable search, but an exact detail endpoint
+
+If the upstream cannot do regex queries but has a `GET /items/{id}` style endpoint, make the assetID reversible instead of readable: map it with `transform: base32` and decode it in the detail request with `{asset_id_from_base32}`:
+
+```yaml
+mapping:
+  fields:
+    assetID: { expr: "id", transform: base32 }   # "edanmdm-nmah_1981.0296.06" -> "mvsgc3tnmrws23tn…"
+
+asset_detail:
+  enabled: true
+  path: "/openaccess/api/v1.0/content/{asset_id_from_base32}"
+  query: {}
+  mapping:
+    items_path: "response"    # detail wraps one row in "response"; fields are reused
+```
+
+Base32 ids are id-schema safe for any input (`a-z2-7`), but opaque and ~1.6× longer. Only reach for it when the id is genuinely not id-schema safe — Smithsonian's current `ld1-…` ids, for instance, are safe as they are and use plain `{asset_id}`.
+
+### Decision guide
+
+1. Does the upstream expose **any** identifier that is already lowercase letters, digits and hyphens (a numeric id, a UUID, a timestamp id)? Use it, no transform needed, `{asset_id}` for detail. Done.
+2. Otherwise, is the upstream search **Solr/Lucene-based** (Europeana, DPLA, Trove, Blacklight, most library discovery layers)? Use `slugify` for readable ids and `{asset_id_regex}` against the search endpoint.
+3. Otherwise, use `base32` and `{asset_id_from_base32}` against the exact detail endpoint.
+4. No detail endpoint at all and no regex search? Leave `asset_detail` disabled. Assets found through a search on this bridge stay retrievable for the cache TTL; anything else falls back to scanning the default search page.
 
 ## Recipe 10 — Test before saving
 

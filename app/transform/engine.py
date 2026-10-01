@@ -13,13 +13,14 @@ from typing import Any
 import jmespath
 
 from app.config.schema import FieldMapping, FilterCfg, MappingCfg
-from app.transform.helpers import slugify, strip_html
+from app.transform.helpers import base32_id, slugify, strip_html
 
 logger = logging.getLogger(__name__)
 
 
 _TRANSFORMS = {
     "slugify": slugify,
+    "base32": base32_id,
     "strip_html": strip_html,
     "lower": lambda s: s.lower() if isinstance(s, str) else s,
     "upper": lambda s: s.upper() if isinstance(s, str) else s,

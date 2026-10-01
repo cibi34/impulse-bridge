@@ -266,14 +266,15 @@ fields:
 | `expr` | string | JMESPath evaluated against the raw upstream item. Mutually exclusive with `literal`. |
 | `literal` | any | Constant value. Use for fields the upstream doesn't provide (e.g. `contributor: "Wikimedia Commons"`). |
 | `default` | any | Used if `expr` returns null/empty. |
-| `transform` | enum | `slugify`, `strip_html`, `lower`, or `upper`. Applied after default/value-map; only operates on strings. |
+| `transform` | enum | `slugify`, `base32`, `strip_html`, `lower`, or `upper`. Applied after default/value-map; only operates on strings. |
 | `map` | dict | Value substitution — if the JMESPath result equals a key, replace it with the value. Useful for normalizing MIME types or `type` codes. |
 
 #### Transform reference
 
 | Transform | What it does |
 |---|---|
-| `slugify` | Lower-cases, replaces any non-alphanumeric run with a single hyphen, strips leading/trailing hyphens. Used to coerce upstream IDs into Impulse id-schema. |
+| `slugify` | Lower-cases, replaces any non-alphanumeric run with a single hyphen, strips leading/trailing hyphens. Used to coerce upstream IDs into Impulse id-schema. **Lossy**: case and separators cannot be recovered — see `asset_detail` placeholders for how to look such ids up anyway. |
+| `base32` | Encodes the string as lowercase, unpadded base32 (`a-z2-7`). Always id-schema safe and **fully reversible** via the `{asset_id_from_base32}` placeholder, at the cost of opaque ids ~1.6× longer than the input. Use for upstream ids that are not id-schema safe and must be fed verbatim to an exact-match detail endpoint. |
 | `strip_html` | Removes HTML tags (Wikimedia returns HTML in description fields). |
 | `lower` | `str.lower()` |
 | `upper` | `str.upper()` |
@@ -400,11 +401,35 @@ asset_detail:
 | Field | Type | Description |
 |---|---|---|
 | `enabled` | bool | If `false` (the default), `get_asset()` falls back to scanning the default search result. |
-| `path` | string | URL path for the detail endpoint. May contain `{asset_id}` placeholder. |
-| `query` | dict[str, str] | Query parameters. **Replaces** (does not merge with) `adapter.default_query`, because search and detail typically take different params. Values may contain `{asset_id}`. |
-| `mapping` | MappingCfg | If omitted, the top-level `mapping` is reused. Override only if the detail endpoint returns a different shape. |
+| `path` | string | URL path for the detail endpoint. May contain the placeholders below. |
+| `query` | dict[str, str] | Query parameters. **Replaces** (does not merge with) `adapter.default_query`, because search and detail typically take different params. Values may contain the placeholders below. |
+| `mapping` | MappingCfg | If omitted, the top-level `mapping` is reused. If given **without** `fields`, only `items_path` is overridden and the search fields are reused — for the common case where the detail endpoint wraps the same item in a different envelope (Smithsonian: `response` vs. `response.rows`). Provide `fields` only if the item shape itself differs. |
 
-When `asset_detail` is **disabled**, calling `/collections/{id}/asset/{aid}` triggers a default search and scans the result for a matching `assetID`. This is acceptable for small/static collections but inefficient for big ones — enable `asset_detail` for production-quality detail lookups.
+### Placeholders
+
+| Placeholder | Substituted with |
+|---|---|
+| `{asset_id}` | The requested Impulse asset id, verbatim. Use it when the upstream accepts your `assetID` directly (Wikimedia's `pageids`). |
+| `{asset_id_from_base32}` | The original upstream id, decoded from an `assetID` that was produced with `transform: base32`. Use it when the upstream has an exact-match detail endpoint but no regex-capable search. An asset id that is not valid base32 yields *Asset not found* without an upstream call. |
+| `{asset_id_regex}` | A case-insensitive regular expression that matches every upstream id which **slugifies to** the requested asset id. Use it when `assetID` is produced with `transform: slugify` — which is irreversible (case and separators are lost) — and the upstream offers a Solr-style search endpoint that accepts `field:/regex/` queries. Example (Europeana): `query: "europeana_id:/{asset_id_regex}/"` turns `90402-sk-a-3262` into `[^a-zA-Z0-9]*90402[^a-zA-Z0-9]+[sS][kK][^a-zA-Z0-9]+[aA][^a-zA-Z0-9]+3262[^a-zA-Z0-9]*`, which matches `/90402/SK_A_3262`. |
+
+Whatever the detail request returns is run through the mapping, and the bridge returns the item whose mapped `assetID` equals the requested one (if the detail mapping has no `assetID` field, the first item is returned).
+
+### Choosing an assetID strategy
+
+| Upstream id | `assetID` mapping | Detail lookup |
+|---|---|---|
+| Already id-schema safe (`151972`, `ld1-1643407190095-…`) | `expr` only, or `slugify` (a no-op) | exact endpoint with `{asset_id}` — Wikimedia, Smithsonian |
+| Not safe, upstream search is Solr/Lucene | `slugify` — readable | search endpoint with `field:/{asset_id_regex}/` — Europeana |
+| Not safe, upstream has only an exact endpoint | `base32` — opaque but reversible | exact endpoint with `{asset_id_from_base32}` |
+
+Prefer the first row whenever the upstream offers any id-schema-safe identifier: it keeps ids readable and the lookup trivial.
+
+### Lookup order
+
+Regardless of configuration, `get_asset()` first checks whether the asset was returned by a recent `search()` on this bridge: every search indexes its raw items by mapped `assetID` for the cache TTL, and a hit is re-mapped with the current mapping (so YAML edits still apply). This guarantees that any asset a client just discovered can be fetched, with no upstream round-trip.
+
+Only on a miss does the configured detail request run. When `asset_detail` is **disabled**, the miss instead triggers a default search whose result is scanned for a matching `assetID`. That is acceptable for small/static collections but not for big ones — enable `asset_detail` for production-quality detail lookups.
 
 ---
 
@@ -484,6 +509,17 @@ mapping:
 filter:
   allowed_content_types: ["image/jpeg", "image/png"]
   drop_if_missing: ["assetURI", "previewURI"]
+
+asset_detail:
+  enabled: true
+  # The assetID is a slugified record id, so the exact-match Record API cannot
+  # be used. Query the Search API case-insensitively via a Solr regex instead;
+  # the response shape equals a search response, so the mapping above is reused.
+  path: "/record/v2/search.json"
+  query:
+    query: "europeana_id:/{asset_id_regex}/"
+    profile: "rich"
+    rows: "1"
 
 cache:
   ttl_seconds: 900

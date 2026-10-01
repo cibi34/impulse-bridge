@@ -78,11 +78,20 @@ filter:
     - "assetURI"
     - "previewURI"
 
-# asset_detail intentionally disabled: Europeana record IDs are paths like
-# "/2024903/foo" that we slugify on the way out, so we cannot reverse the slug
-# to call /record/v2/{id}.json. The base GenericRestSource falls back to
-# search-and-find for get_asset, which is sufficient as long as Unity asks for
-# assets it discovered in a recent search.
+asset_detail:
+  enabled: true
+  # Europeana's Record API (/record/v2/{id}.json) needs the exact, case-
+  # sensitive record id ("/90402/SK_A_3262"). Our assetID is that id slugified
+  # ("90402-sk-a-3262"), which cannot be reversed. So instead of the Record
+  # API we ask the Search API for the record whose europeana_id matches the
+  # assetID case-insensitively, via a Solr regular expression that the bridge
+  # derives from the assetID ({asset_id_regex}). The response has the same
+  # shape as a search response, so the search mapping above is reused.
+  path: "/record/v2/search.json"
+  query:
+    query: "europeana_id:/{asset_id_regex}/"
+    profile: "rich"
+    rows: "1"
 
 cache:
   ttl_seconds: 900

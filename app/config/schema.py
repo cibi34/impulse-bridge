@@ -117,7 +117,9 @@ class FieldMapping(BaseModel):
     """A constant value to use directly."""
     default: Any | None = None
     """Fallback if the JMESPath result is None or empty."""
-    transform: Literal["slugify", "strip_html", "lower", "upper"] | None = None
+    transform: Literal["slugify", "base32", "strip_html", "lower", "upper"] | None = None
+    """`slugify` is lossy but readable; `base32` is opaque but reversible (pair it
+    with the `{asset_id_from_base32}` placeholder in asset_detail)."""
     map: dict[str, Any] | None = None
     """Value-to-value mapping (e.g. {"IMAGE": "image/jpeg"})."""
 
@@ -145,12 +147,26 @@ class AssetDetailCfg(BaseModel):
 
     enabled: bool = False
     path: str | None = None
-    """URL path template with {asset_id} placeholder."""
+    """URL path template. May contain the placeholders described on `query`."""
     query: dict[str, str] = Field(default_factory=dict)
-    """Detail-endpoint query params. Values may contain {asset_id} which will be
-    substituted at lookup time. These are merged onto adapter.default_query."""
+    """Detail-endpoint query params. This is the COMPLETE query for the detail
+    request; it is NOT merged with adapter.default_query. Values (and `path`)
+    may contain two placeholders, substituted at lookup time:
+
+    * `{asset_id}`       — the requested Impulse asset id verbatim.
+    * `{asset_id_regex}` — a case-insensitive regular expression matching every
+      upstream id that slugifies to the requested asset id. Use it when assetID
+      is produced with `transform: slugify` (irreversible) and the upstream has a
+      Solr-style search endpoint that accepts `field:/regex/` queries, e.g.
+      Europeana: `query: "europeana_id:/{asset_id_regex}/"`.
+    * `{asset_id_from_base32}` — the original upstream id, decoded from an
+      assetID that was produced with `transform: base32`. Use it when the
+      upstream has an exact-match detail endpoint but no regex-capable search.
+      A non-base32 asset id makes the lookup fail with "Asset not found"."""
     mapping: MappingCfg | None = None
-    """If None, the search-mapping is reused (with items_path treated as identity)."""
+    """If None, the search mapping is reused. If given but without `fields`, only
+    `items_path` is overridden and the search mapping's fields are reused — the
+    common case of "same item shape, different envelope"."""
 
 
 class CacheCfg(BaseModel):

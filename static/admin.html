@@ -328,7 +328,7 @@ const FIELDS_DC_REQUIRED = ["title", "description", "contributor", "identifier",
 const FIELDS_DC_OPTIONAL = ["coverage", "creator", "date", "format", "language", "publisher", "relation", "source", "subject", "type"];
 const ALL_FIELDS = [...FIELDS_INTERNAL_REQUIRED, ...FIELDS_DC_REQUIRED, ...FIELDS_DC_OPTIONAL];
 
-const TRANSFORM_OPTIONS = ["", "slugify", "strip_html", "lower", "upper"];
+const TRANSFORM_OPTIONS = ["", "slugify", "base32", "strip_html", "lower", "upper"];
 
 // ============================================================================
 // Utils
@@ -666,7 +666,7 @@ function renderForm(container) {
   if (adapterKind === "rest") {
     container.appendChild(formSection("Asset detail", "Optional: how to fetch a single asset by ID. If disabled, the bridge falls back to scanning the default search result.", [
       checkboxField("enabled", "Enabled", null, { path: ["asset_detail", "enabled"] }),
-      inputField("path", "Path", "May contain {asset_id} placeholder", { path: ["asset_detail", "path"] }),
+      inputField("path", "Path", "May contain {asset_id}, {asset_id_regex} or {asset_id_from_base32}", { path: ["asset_detail", "path"] }),
       detailQueryRow(),
     ]));
   }
@@ -833,7 +833,7 @@ function defaultQueryRow() {
 }
 function detailQueryRow() {
   return kvListRow("Detail query params", ["asset_detail", "query"],
-    "Sent only on the asset-detail endpoint. Values may contain {asset_id}.");
+    "Sent only on the asset-detail endpoint (replaces default query). Placeholders: {asset_id}, {asset_id_regex} (slugified ids via Solr-style search), {asset_id_from_base32} (ids made with transform base32).");
 }
 
 // ---- Mapping section: table of Impulse fields ----

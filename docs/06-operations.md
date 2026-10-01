@@ -125,7 +125,7 @@ Every public response has a `code` field. The full list:
 |---|---|---|---|
 | 0 | OK | 200 | — |
 | 1 | Collection not found | 404 | Check `/collections` — is the source registered? Did the YAML fail to load? |
-| 2 | Asset not found | 404 | The asset id was not in the (cached or live) result set. Configure `asset_detail` for direct lookup. |
+| 2 | Asset not found | 404 | Not returned by a recent search, and the detail lookup (or, without `asset_detail`, the default search) did not contain the id. Configure `asset_detail` for direct lookup; use `{asset_id_regex}` if the assetID is slugified. |
 | 10 | Upstream source unavailable | 503 | Network problem, timeout, or upstream 5xx. Retry; check upstream's status page. |
 | 11 | Upstream rate limit reached | 503 | Slow down; check the upstream's rate-limit policy. Increase `cache.ttl_seconds` to reduce request volume. |
 | 12 | Upstream returned malformed data | 502 | Often a 400 from the upstream — bad query syntax. Check **Test** tab's upstream URL. |

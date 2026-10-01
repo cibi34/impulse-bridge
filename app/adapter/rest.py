@@ -21,12 +21,20 @@ from app.errors import (
     AssetNotFound,
     ConfigError,
     UpstreamMalformed,
+    UpstreamNotFound,
     UpstreamRateLimited,
     UpstreamUnavailable,
 )
 from app.transform.engine import extract_items, transform_item
+from app.transform.helpers import base32_id_decode, slug_to_regex
 
 logger = logging.getLogger(__name__)
+
+
+def _substitute(template: str, substitutions: dict[str, str]) -> str:
+    for placeholder, value in substitutions.items():
+        template = template.replace(placeholder, value)
+    return template
 
 
 class GenericRestSource(Source):
@@ -36,7 +44,6 @@ class GenericRestSource(Source):
         self._cfg = cfg
         self.collection_meta = cfg.collection.model_dump()
         if not cfg.adapter.base_url:
-            from app.errors import ConfigError
             raise ConfigError(
                 f"rest adapter requires adapter.base_url (collection '{cfg.collection.id}')"
             )
@@ -63,11 +70,19 @@ class GenericRestSource(Source):
         return self._map_and_filter(items)
 
     async def get_asset(self, asset_id: str) -> dict:
+        # 1. Cheapest and most reliable: the asset was returned by a recent
+        #    search() on this bridge. We index the *raw* upstream item by its
+        #    mapped assetID (see _map_and_filter) and re-run the current mapping
+        #    here, so YAML mapping edits still take effect immediately.
+        seen = self._recently_seen(asset_id)
+        if seen is not None:
+            return seen
+
         detail = self._cfg.asset_detail
         if not detail.enabled or not detail.path:
-            # Fallback: scan the default search result for a matching id. Works
-            # for small collections; sources with many assets should configure
-            # asset_detail with a proper upstream lookup.
+            # 2. No detail endpoint configured: scan the default search result.
+            #    Works for small collections; sources with many assets should
+            #    configure asset_detail with a proper upstream lookup.
             assets = await self.search(query=None, offset=0, count=None)
             for a in assets:
                 if a.get("assetID") == asset_id:
@@ -75,7 +90,35 @@ class GenericRestSource(Source):
             raise AssetNotFound(
                 f"Asset '{asset_id}' not found in collection '{self.collection_meta['id']}'"
             )
-        path = detail.path.replace("{asset_id}", asset_id)
+
+        # 3. Configured detail lookup. Placeholders available in path and query:
+        #    {asset_id}             the Impulse asset id verbatim
+        #    {asset_id_regex}       a case-insensitive regex matching every upstream
+        #                           id that slugifies to this asset id — for ids
+        #                           produced with `transform: slugify`, which cannot
+        #                           be reversed (Europeana "/90402/SK_A_3262" ->
+        #                           "90402-sk-a-3262"). Meant for Solr-style
+        #                           `field:/regex/` queries on a search endpoint.
+        #    {asset_id_from_base32} the original upstream id, for assetIDs produced
+        #                           with `transform: base32` — for exact-match
+        #                           detail endpoints without regex search.
+        substitutions = {
+            "{asset_id}": asset_id,
+            "{asset_id_regex}": slug_to_regex(asset_id),
+        }
+        needs_decode = "{asset_id_from_base32}" in detail.path or any(
+            "{asset_id_from_base32}" in v for v in detail.query.values()
+        )
+        if needs_decode:
+            decoded = base32_id_decode(asset_id)
+            if decoded is None:
+                # Not one of our base32 ids -> cannot exist upstream.
+                raise AssetNotFound(
+                    f"Asset '{asset_id}' not found in collection "
+                    f"'{self.collection_meta['id']}'"
+                )
+            substitutions["{asset_id_from_base32}"] = decoded
+        path = _substitute(detail.path, substitutions)
         # detail.query is the COMPLETE query for the detail endpoint (not merged
         # with search's default_query, since the two endpoints typically take
         # different params — e.g. MediaWiki's generator=search vs. pageids=X).
@@ -84,14 +127,38 @@ class GenericRestSource(Source):
         if auth.type == "query_param" and auth.name and auth.value:
             params[auth.name] = auth.value
         for k, v in detail.query.items():
-            params[k] = v.replace("{asset_id}", asset_id)
-        raw = await self._http_get(path, params)
+            params[k] = _substitute(v, substitutions)
+        try:
+            raw = await self._http_get(path, params)
+        except UpstreamNotFound as e:
+            # An exact-match detail endpoint saying 404 means "no such asset",
+            # not "upstream broken": report it as Impulse code 2, not 12.
+            raise AssetNotFound(
+                f"Asset '{asset_id}' not found in collection '{self.collection_meta['id']}'"
+            ) from e
         mapping = detail.mapping or self._cfg.mapping
+        if not mapping.fields:
+            # Detail mapping only overrides the envelope (items_path); the item
+            # shape is the same as in search, so reuse the search fields.
+            mapping = mapping.model_copy(update={"fields": self._cfg.mapping.fields})
         items = extract_items(raw, mapping.items_path) if mapping.items_path else [raw]
+
+        # Prefer the item whose mapped assetID equals the requested one. This
+        # matters when the detail lookup goes through a search endpoint, which
+        # may legitimately return more than one candidate. Only when the detail
+        # mapping produces no assetID at all do we trust the first item blindly.
+        unverified: dict | None = None
         for item in items:
             asset = transform_item(item, mapping, self._cfg.filter)
-            if asset is not None:
+            if asset is None:
+                continue
+            mapped_id = asset.get("assetID")
+            if mapped_id == asset_id:
                 return asset
+            if mapped_id is None and unverified is None:
+                unverified = asset
+        if unverified is not None:
+            return unverified
         raise AssetNotFound(
             f"Asset '{asset_id}' not found in collection '{self.collection_meta['id']}'"
         )
@@ -195,6 +262,8 @@ class GenericRestSource(Source):
             )
         if response.status_code >= 500:
             raise UpstreamUnavailable(f"Upstream {response.status_code}")
+        if response.status_code == 404:
+            raise UpstreamNotFound(f"Upstream 404: {response.text[:200]}")
         if response.status_code >= 400:
             raise UpstreamMalformed(
                 f"Upstream {response.status_code}: {response.text[:200]}"
@@ -215,4 +284,29 @@ class GenericRestSource(Source):
             asset = transform_item(raw, self._cfg.mapping, self._cfg.filter)
             if asset is not None:
                 out.append(asset)
+                asset_id = asset.get("assetID")
+                if isinstance(asset_id, str) and asset_id:
+                    # Remember the raw item so get_asset() can serve any asset a
+                    # client just discovered without a second upstream round-trip
+                    # (and, for sources without a detail endpoint, at all).
+                    cache.set(self._seen_key(asset_id), raw)
         return out
+
+    def _seen_key(self, asset_id: str) -> str:
+        return cache.key(self.collection_meta["id"], "__asset__", {"id": asset_id})
+
+    def _recently_seen(self, asset_id: str) -> dict | None:
+        """Re-map a raw item cached by a recent search(), if there is one and it
+        still maps to the requested assetID under the current mapping."""
+        raw = cache.get(self._seen_key(asset_id))
+        if not isinstance(raw, dict):
+            return None
+        asset = transform_item(raw, self._cfg.mapping, self._cfg.filter)
+        if asset is None or asset.get("assetID") != asset_id:
+            return None
+        logger.debug(
+            "asset served from recent search results: source=%s id=%s",
+            self.collection_meta["id"],
+            asset_id,
+        )
+        return asset

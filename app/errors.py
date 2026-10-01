@@ -35,6 +35,12 @@ class UpstreamMalformed(BridgeError):
     message = "Upstream returned malformed data"
 
 
+class UpstreamNotFound(UpstreamMalformed):
+    """The upstream answered 404 for a specific resource. Same Impulse code as
+    UpstreamMalformed unless a caller knows better — the REST adapter's detail
+    lookup turns it into AssetNotFound (code 2)."""
+
+
 class ConfigError(BridgeError):
     code = 20
     message = "Bridge configuration error"

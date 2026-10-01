@@ -177,7 +177,7 @@ Each row has five cells:
 | **Type** | `expr` (a JMESPath against the raw item) or `literal` (a constant value). |
 | **Value** | The expression or literal. |
 | **Default** | A fallback used when the expression returns nothing. |
-| **Transform** | One of `slugify`, `strip_html`, `lower`, `upper`, or empty. Applied **after** the default and any value-map. |
+| **Transform** | One of `slugify`, `base32`, `strip_html`, `lower`, `upper`, or empty. Applied **after** the default and any value-map. For `assetID`, see the strategy table in [03 — YAML reference](03-yaml-reference.md#choosing-an-assetid-strategy). |
 
 Leaving a row blank means "don't populate this Impulse field". Filters in the next section can drop assets where required fields turned out empty.
 

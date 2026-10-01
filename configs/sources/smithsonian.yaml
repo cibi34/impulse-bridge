@@ -87,5 +87,20 @@ filter:
     - "assetURI"
     - "previewURI"
 
+asset_detail:
+  enabled: true
+  # Smithsonian ids ("ld1-1643407190095-1643407198918-2") are already id-schema
+  # safe, so slugify leaves them untouched and {asset_id} can be passed to the
+  # exact-match content endpoint as is. Should ids with characters outside
+  # [a-z0-9-] ever appear (older "edanmdm-nmah_1234" style), switch assetID to
+  # `transform: base32` and use {asset_id_from_base32} here instead.
+  path: "/openaccess/api/v1.0/content/{asset_id}"
+  query: {}
+  # The content endpoint wraps a single row in "response" (search wraps a list
+  # in "response.rows"); the row shape is identical, so only items_path differs
+  # and the search fields are reused.
+  mapping:
+    items_path: "response"
+
 cache:
   ttl_seconds: 900

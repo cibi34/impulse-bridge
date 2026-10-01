@@ -140,9 +140,13 @@ filter:
 
 asset_detail:                  # optional: only if upstream has a per-asset endpoint
   enabled: true
-  path: "/items/{asset_id}"
-  query:
+  path: "/items/{asset_id}"    # {asset_id} = the Impulse asset id verbatim
+  query:                       # complete query for this endpoint (default_query is NOT merged in)
     expand: full
+  # If assetID is slugified (irreversible) and the upstream search is Solr-based,
+  # look the asset up case-insensitively instead — see configs/sources/europeana.yaml:
+  #   path: "/search"
+  #   query: { q: "id_field:/{asset_id_regex}/" }
 
 cache:
   ttl_seconds: 600
@@ -176,7 +180,7 @@ Each entry in `mapping.fields` resolves to a value for one Impulse asset field:
 | `expr` | JMESPath against the raw item |
 | `literal` | A constant value (no JMESPath) |
 | `default` | Used if `expr` returns null / empty / missing |
-| `transform` | `slugify`, `strip_html`, `lower`, `upper` |
+| `transform` | `slugify` (readable, lossy), `base32` (opaque, reversible), `strip_html`, `lower`, `upper` |
 | `map` | Value-to-value mapping, e.g. `{"IMAGE": "image/jpeg"}` |
 
 `mapping.items_path` is a JMESPath to the array of items inside the upstream response. For object-shaped responses (e.g. MediaWiki's `query.pages`), use `values(query.pages)` to flatten to a list.
@@ -255,7 +259,7 @@ curl -I "$(curl -s 'http://localhost:8080/collections/wikimedia-commons-images/a
 - **Cache TTL is global**, not per-source (cachetools simplification). Per-source `cache.ttl_seconds` is currently read but effectively shares the global TTL. Replace with `redis` + per-key TTL if you grow out of single-process.
 - **Smithsonian 3D content** is not reliably available via the openaccess REST API (3D models live in a separate Voyager-based portal at 3d.si.edu). The current config targets image-bearing items.
 - **IIIF cross-provider search** is not standardized; the bundled IIIF adapter handles one manifest per YAML config. Add one YAML per IIIF collection of interest.
-- **Europeana `get_asset` uses search-and-find fallback** because record IDs are paths that slug-ify irreversibly. Works fine when the asset is in the first page of the default search.
+- **Single-asset lookups for sources without `asset_detail`** only work for assets that a recent search on this bridge returned (they are indexed for the cache TTL), or that appear in the default search result. All bundled REST sources configure `asset_detail`; see `docs/05-cookbook.md` ("Decision guide") for choosing between `{asset_id}`, `{asset_id_regex}` and `{asset_id_from_base32}` when adding a source.
 
 ## License
 
