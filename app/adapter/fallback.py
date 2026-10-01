@@ -11,9 +11,6 @@ from app.transform.helpers import matches_pattern
 logger = logging.getLogger(__name__)
 
 
-SEARCH_FIELDS = ("title", "description", "subject", "creator", "contributor", "type", "assetID")
-
-
 class FallbackSource:
     """A source backed by static JSON files on disk. Useful as a guaranteed-working
     demo collection, and as a stand-in when external archives are unreachable."""
@@ -43,7 +40,7 @@ class FallbackSource:
     async def search(
         self, query: str | None, offset: int, count: int | None
     ) -> list[dict]:
-        matched = [a for a in self._assets if matches_pattern(a, query, SEARCH_FIELDS)]
+        matched = [a for a in self._assets if matches_pattern(a, query)]
         end = (offset + count) if count is not None else None
         return matched[offset:end]
 

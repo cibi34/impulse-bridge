@@ -15,6 +15,13 @@ class CollectionNotFound(BridgeError):
     message = "Collection not found"
 
 
+class SourceNotFound(BridgeError):
+    """An archive source id that is not configured (web app API)."""
+
+    code = 1
+    message = "Source not found"
+
+
 class AssetNotFound(BridgeError):
     code = 2
     message = "Asset not found"

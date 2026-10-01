@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from app.errors import CollectionNotFound
+from app.errors import SourceNotFound
 
 if TYPE_CHECKING:
     from app.adapter.base import Source
@@ -28,8 +28,9 @@ async def _close_all(sources: list["Source"]) -> None:
 
 
 class Registry:
-    """In-memory map collection_id -> Source. Loaded at startup, can be hot-
-    reloaded from disk by the admin API."""
+    """In-memory map source id -> Source (the archives users search). Loaded
+    at startup, hot-reloaded from disk by the admin API. A source's id is the
+    `collection.id` of its YAML config."""
 
     def __init__(self) -> None:
         self._sources: dict[str, "Source"] = {}
@@ -64,15 +65,13 @@ class Registry:
         if not task.cancelled():
             self._retiring.pop(task, None)
 
-    def get(self, collection_id: str) -> "Source":
+    def get(self, source_id: str) -> "Source":
         try:
-            return self._sources[collection_id]
+            return self._sources[source_id]
         except KeyError as e:
-            raise CollectionNotFound(
-                f"Collection '{collection_id}' is not registered with this bridge"
-            ) from e
+            raise SourceNotFound(f"Source '{source_id}' is not configured") from e
 
-    def list_collections(self) -> list[dict]:
+    def list_meta(self) -> list[dict]:
         return [s.collection_meta for s in self._sources.values()]
 
     def list_sources(self) -> list["Source"]:

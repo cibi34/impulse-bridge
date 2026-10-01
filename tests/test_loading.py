@@ -16,7 +16,7 @@ async def test_broken_config_only_disables_its_own_source(config_dir, clean_regi
 
     await load_sources()
 
-    assert sorted(c["id"] for c in clean_registry.list_collections()) == ["alpha", "beta"]
+    assert sorted(c["id"] for c in clean_registry.list_meta()) == ["alpha", "beta"]
     [(filename, message)] = clean_registry.errors()
     assert filename == "broken.yaml"
     assert "collection.name" in message
@@ -29,7 +29,7 @@ async def test_reload_with_a_broken_file_keeps_serving_valid_sources(config_dir,
 
     await load_sources()
 
-    assert [c["id"] for c in clean_registry.list_collections()] == ["alpha"]
+    assert [c["id"] for c in clean_registry.list_meta()] == ["alpha"]
 
 
 async def test_duplicate_id_is_reported_and_first_file_wins(config_dir, clean_registry):
@@ -54,7 +54,7 @@ async def test_unbuildable_source_is_reported(config_dir, clean_registry):
 
     await load_sources()
 
-    assert clean_registry.list_collections() == []
+    assert clean_registry.list_meta() == []
     [(filename, message)] = clean_registry.errors()
     assert filename == "alpha.yaml"
     assert "manifest not found" in message
@@ -91,4 +91,4 @@ async def test_clear_closes_retiring_and_current_sources_immediately():
     await reg.clear()
 
     assert old.closed and current.closed
-    assert reg.list_collections() == []
+    assert reg.list_meta() == []

@@ -86,7 +86,7 @@
 </header>
 
 <div class="controls">
-  <label for="collectionSel" style="color:var(--muted)">Collection</label>
+  <label for="collectionSel" style="color:var(--muted)">Source</label>
   <select id="collectionSel"></select>
   <input id="searchInput" type="text" placeholder="Search (use * for wildcards)…">
   <button id="searchBtn">Search</button>
@@ -140,10 +140,14 @@ let lastResult = [];
 
 const $ = (id) => document.getElementById(id);
 
+// Interim page until the new web app replaces it: talks to the web app API
+// (/api/sources/...) and maps its answers to the {code, message, data} shape
+// the rest of this page expects.
 async function getJSON(url) {
   const r = await fetch(API + url);
-  const body = await r.json().catch(() => ({ code: 99, message: "Non-JSON response", data: null }));
-  return { httpStatus: r.status, ...body };
+  const body = await r.json().catch(() => null);
+  if (r.ok && body !== null) return { code: 0, message: "OK", data: body };
+  return { code: (body && body.code) || 99, message: (body && body.detail) || "Request failed", data: null };
 }
 
 function setStatus(msg, isError) {
@@ -155,12 +159,12 @@ function setStatus(msg, isError) {
 async function bootstrap() {
   setStatus("Loading collections…");
   try {
-    const res = await getJSON("/collections");
+    const res = await getJSON("/api/sources");
     if (res.code !== 0) {
       setStatus("Bridge error: " + res.message, true);
       return;
     }
-    collections = res.data;
+    collections = res.data.sources;
     const sel = $("collectionSel");
     sel.innerHTML = "";
     for (const c of collections) {
@@ -169,7 +173,7 @@ async function bootstrap() {
       opt.textContent = c.name + " (" + c.organization + ")";
       sel.appendChild(opt);
     }
-    $("bridgeStatus").textContent = collections.length + " collection" + (collections.length === 1 ? "" : "s") + " connected";
+    $("bridgeStatus").textContent = collections.length + " source" + (collections.length === 1 ? "" : "s") + " connected";
     sel.addEventListener("change", () => { offset = 0; loadPage(); });
     $("searchBtn").addEventListener("click", () => { offset = 0; loadPage(); });
     $("searchInput").addEventListener("keydown", (e) => {
@@ -212,14 +216,14 @@ async function loadPage() {
   if (q) qs.set("s", q);
   qs.set("o", String(offset));
   qs.set("c", String(PAGE_SIZE));
-  const res = await getJSON("/collections/" + encodeURIComponent(currentCollection) + "/assets?" + qs.toString());
+  const res = await getJSON("/api/sources/" + encodeURIComponent(currentCollection) + "/assets?" + qs.toString());
   const grid = $("grid");
   grid.innerHTML = "";
   if (res.code !== 0) {
     setStatus("[code " + res.code + "] " + res.message, true);
     return;
   }
-  const items = Array.isArray(res.data) ? res.data : [];
+  const items = Array.isArray(res.data.items) ? res.data.items : [];
   lastResult = items;
   if (items.length === 0) {
     setStatus(offset === 0 ? "No results." : "End of results.");
@@ -247,7 +251,10 @@ async function loadPage() {
     const sub = document.createElement("div");
     sub.className = "sub";
     const ct = (a.contentType || "").startsWith("model/") ? "3D" : (a.contentType || "").startsWith("image/") ? "image" : (a.contentType || "?");
-    sub.innerHTML = (a.creator || a.contributor || "") + '<span class="pill">' + ct + "</span>";
+    const pill = document.createElement("span");
+    pill.className = "pill";
+    pill.textContent = ct;
+    sub.append(a.creator || a.contributor || "", pill);
     meta.appendChild(title);
     meta.appendChild(sub);
     card.appendChild(thumb);
@@ -261,7 +268,7 @@ async function openAsset(a, collection) {
   body.innerHTML = "<h2>" + escapeHtml(a.title || a.assetID) + "</h2><p class='sub'>Loading details…</p>";
   $("modalBg").classList.add("open");
   // Fetch the detail endpoint for any extra metadata the search omitted.
-  const res = await getJSON("/collections/" + encodeURIComponent(collection.id) + "/asset/" + encodeURIComponent(a.assetID));
+  const res = await getJSON("/api/sources/" + encodeURIComponent(collection.id) + "/assets/" + encodeURIComponent(a.assetID));
   const full = res.code === 0 && res.data && typeof res.data === "object" && !Array.isArray(res.data) ? res.data : a;
   const previewURI = resolveURI(full.previewURI, collection);
   const assetURI = resolveURI(full.assetURI, collection);

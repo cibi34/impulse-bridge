@@ -75,7 +75,14 @@ def file_title(value: str) -> str:
     return " ".join(title.split()) or value
 
 
-def matches_pattern(asset: dict, pattern: str | None, fields: tuple[str, ...]) -> bool:
+ASSET_TEXT_FIELDS = ("title", "description", "subject", "creator", "contributor", "type", "assetID")
+"""Impulse asset fields that local search (fallback sources, curated
+collections) looks at."""
+
+
+def matches_pattern(
+    asset: dict, pattern: str | None, fields: tuple[str, ...] = ASSET_TEXT_FIELDS
+) -> bool:
     """Case-insensitive search across the asset's text `fields`.
 
     An empty pattern or "*" matches everything. Inner "*" wildcards separate

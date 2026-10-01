@@ -1,16 +1,21 @@
-from fastapi import APIRouter
+from typing import Annotated
+
+from fastapi import APIRouter, Depends
 
 from app.api.responses import impulse_response
+from app.curation import get_store
+from app.curation.store import CollectionStore
 from app.registry import registry
 
 router = APIRouter()
 
 
 @router.get("/health")
-async def health():
+def health(store: Annotated[CollectionStore, Depends(get_store)]):
     return impulse_response(
         data={
             "status": "ok",
-            "sources": [c["id"] for c in registry.list_collections()],
+            "sources": [meta["id"] for meta in registry.list_meta()],
+            "collections": store.count(),
         }
     )

@@ -41,7 +41,7 @@ def test_create_writes_a_new_file_and_registers_it(config_dir):
     with TestClient(app) as client:
         yaml_text = template.read_text(encoding="utf-8").replace("id: alpha", "id: gamma")
         r = client.put("/admin/api/sources/gamma?create=true", json={"yaml": yaml_text})
-        ids = [c["id"] for c in client.get("/collections").json()["data"]]
+        ids = [s["id"] for s in client.get("/api/sources").json()["sources"]]
 
     assert r.status_code == 200
     assert (config_dir / "gamma.yaml").is_file()
@@ -68,7 +68,7 @@ def test_saving_with_a_broken_file_on_disk_keeps_all_valid_sources(config_dir):
     with TestClient(app) as client:
         (config_dir / "broken.yaml").write_text(BROKEN_YAML, encoding="utf-8")
         r = client.put("/admin/api/sources/alpha", json={"yaml": _yaml_of(client, "alpha")})
-        ids = [c["id"] for c in client.get("/collections").json()["data"]]
+        ids = [s["id"] for s in client.get("/api/sources").json()["sources"]]
         listing = client.get("/admin/api/sources").json()
 
     assert r.status_code == 200
@@ -83,7 +83,7 @@ def test_reload_picks_up_edits_made_on_disk(config_dir):
     with TestClient(app) as client:
         path.write_text(path.read_text(encoding="utf-8").replace("Before", "After"), encoding="utf-8")
         r = client.post("/admin/api/reload")
-        name = client.get("/collections/alpha").json()["data"]["name"]
+        name = client.get("/api/sources").json()["sources"][0]["name"]
 
     assert r.status_code == 200
     assert r.json()["loaded_count"] == 1

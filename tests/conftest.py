@@ -51,6 +51,17 @@ BROKEN_YAML = "collection:\n  id: broken\nadapter:\n  kind: rest\n"
 """Schema-invalid: collection.name / organization / owner_id are missing."""
 
 
+@pytest.fixture(autouse=True)
+def isolated_state(tmp_path, monkeypatch):
+    """Every test gets its own database and fresh rate limits."""
+    from app.ratelimit import create_limit, write_limit
+
+    monkeypatch.setattr(settings, "database_path", tmp_path / "curator.db")
+    monkeypatch.setattr(settings, "public_base_url", "http://bridge.test")
+    create_limit.reset()
+    write_limit.reset()
+
+
 @pytest.fixture
 def config_dir(tmp_path, monkeypatch) -> Path:
     d = tmp_path / "sources"

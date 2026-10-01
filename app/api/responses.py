@@ -24,6 +24,10 @@ _HTTP_STATUS_BY_CODE: dict[int, int] = {
 }
 
 
+def http_status_for(code: int) -> int:
+    return _HTTP_STATUS_BY_CODE.get(code, 500)
+
+
 def impulse_response(
     data: Any,
     code: int = CODE_OK,

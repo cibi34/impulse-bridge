@@ -25,3 +25,7 @@ deploy/.env.production.example
 
 # Don't ship the user's local data manifests; the host bind-mount provides them.
 # (Empty data/fallback/assets/ in image is OK — gets overlaid by bind mount.)
+
+# The collections database lives in the bind-mounted data/ on the host.
+data/*.db
+data/*.db-*

@@ -12,3 +12,6 @@ dist/
 .idea/
 .vscode/
 .claude/worktrees/
+# Curated collections database (SQLite + WAL files)
+data/*.db
+data/*.db-*

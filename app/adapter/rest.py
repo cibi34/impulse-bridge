@@ -14,7 +14,7 @@ from typing import Any
 
 import httpx
 
-from app.adapter.base import Source
+from app.adapter.base import SearchPage, Source
 from app.cache import cache
 from app.config.schema import PaginationCfg, SourceConfig
 from app.errors import (
@@ -64,10 +64,23 @@ class GenericRestSource(Source):
     async def search(
         self, query: str | None, offset: int, count: int | None
     ) -> list[dict]:
+        return (await self.search_page(query=query, offset=offset, count=count)).items
+
+    async def search_page(
+        self, query: str | None, offset: int, count: int | None
+    ) -> SearchPage:
         params = self._build_params(query=query, offset=offset, count=count)
         raw = await self._http_get(self._cfg.search.path, params)
         items = extract_items(raw, self._cfg.mapping.items_path)
-        return self._map_and_filter(items)
+        page_size = None if self._cfg.search.pagination.style == "none" else min(
+            count if count is not None else self._cfg.search.pagination.max_size,
+            self._cfg.search.pagination.max_size,
+        )
+        return SearchPage(
+            items=self._map_and_filter(items),
+            upstream_count=len(items),
+            page_size=page_size,
+        )
 
     async def get_asset(self, asset_id: str) -> dict:
         # 1. Cheapest and most reliable: the asset was returned by a recent

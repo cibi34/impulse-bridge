@@ -1,4 +1,4 @@
-"""Fallback files under the collection URI: served from the current source's
+"""Fallback files under /sources/{id}/files/: served from the current source's
 directory (also right after a reload), never from outside of it."""
 
 from fastapi.testclient import TestClient
@@ -12,8 +12,8 @@ from conftest import write_fallback
 def test_serves_files_next_to_the_manifest(config_dir):
     write_fallback(config_dir, "demo", files={"demo.glb": "GLB"})
     with TestClient(app) as client:
-        r = client.get("/collections/demo/demo.glb")
-        head = client.head("/collections/demo/demo.glb")
+        r = client.get("/sources/demo/files/demo.glb")
+        head = client.head("/sources/demo/files/demo.glb")
 
     assert r.status_code == 200
     assert r.text == "GLB"
@@ -21,20 +21,19 @@ def test_serves_files_next_to_the_manifest(config_dir):
     assert head.status_code == 200
 
 
-def test_api_routes_take_precedence_over_files(config_dir):
-    write_fallback(config_dir, "demo", files={"assets": "not me"})
+def test_unknown_source_is_404(config_dir):
     with TestClient(app) as client:
-        r = client.get("/collections/demo/assets")
+        r = client.get("/sources/nope/files/demo.glb")
 
-    assert r.json()["data"][0]["assetID"] == "demo"
+    assert r.status_code == 404
 
 
 def test_paths_outside_the_directory_are_rejected(config_dir):
     write_fallback(config_dir, "demo")
     (config_dir.parent / "data" / "secret.txt").write_text("secret", encoding="utf-8")
     with TestClient(app) as client:
-        encoded = client.get("/collections/demo/%2e%2e/secret.txt")
-        nested = client.get("/collections/demo/sub/%2e%2e/%2e%2e/secret.txt")
+        encoded = client.get("/sources/demo/files/%2e%2e/secret.txt")
+        nested = client.get("/sources/demo/files/sub/%2e%2e/%2e%2e/secret.txt")
 
     assert encoded.status_code == 404
     assert nested.status_code == 404
@@ -47,13 +46,13 @@ def test_after_reload_files_come_from_the_new_directory(config_dir):
     (new_dir / "manifest.json").write_text("[]", encoding="utf-8")
     (new_dir / "demo.glb").write_text("NEW", encoding="utf-8")
     with TestClient(app) as client:
-        before = client.get("/collections/demo/demo.glb").text
+        before = client.get("/sources/demo/files/demo.glb").text
         path.write_text(
             path.read_text(encoding="utf-8").replace("/demo/manifest.json", "/moved/manifest.json"),
             encoding="utf-8",
         )
         client.post("/admin/api/reload")
-        after = client.get("/collections/demo/demo.glb").text
+        after = client.get("/sources/demo/files/demo.glb").text
 
     assert (before, after) == ("OLD", "NEW")
 
@@ -61,6 +60,6 @@ def test_after_reload_files_come_from_the_new_directory(config_dir):
 def test_no_files_without_static_mount(config_dir):
     write_fallback(config_dir, "demo", files={"demo.glb": "GLB"}, static_mount=False)
     with TestClient(app) as client:
-        r = client.get("/collections/demo/demo.glb")
+        r = client.get("/sources/demo/files/demo.glb")
 
     assert r.status_code == 404

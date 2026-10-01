@@ -66,7 +66,7 @@ def _load_raw_yaml(path: Path) -> tuple[str, dict | None, str | None]:
 async def list_sources() -> dict:
     """List all source configs found on disk, with their loaded status."""
     out: list[dict] = []
-    loaded_ids = {c["id"] for c in registry.list_collections()}
+    loaded_ids = {c["id"] for c in registry.list_meta()}
     error_by_file = dict(registry.errors())
 
     for path in _list_yaml_files():
@@ -112,7 +112,7 @@ async def get_source(collection_id: str) -> dict:
         "parsed": parsed,
         "valid": validation["valid"],
         "errors": validation["errors"],
-        "loaded": collection_id in {c["id"] for c in registry.list_collections()},
+        "loaded": collection_id in {c["id"] for c in registry.list_meta()},
     }
 
 

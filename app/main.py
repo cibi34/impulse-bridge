@@ -6,7 +6,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 # Load .env into os.environ BEFORE Settings/loader use ${VAR} expansion. The
 # YAML loader resolves ${VAR} against os.environ, and pydantic-settings doesn't
@@ -14,8 +14,10 @@ from fastapi.responses import FileResponse
 load_dotenv()
 
 from app.admin import api as admin_api  # noqa: E402
-from app.api import assets, collections, files, health  # noqa: E402
-from app.api.responses import CODE_INTERNAL, impulse_response  # noqa: E402
+from app.admin import collections as admin_collections  # noqa: E402
+from app.api import collections, files, health, sources, web_collections  # noqa: E402
+from app.api.responses import CODE_INTERNAL, http_status_for, impulse_response  # noqa: E402
+from app.curation import close_store, open_store  # noqa: E402
 from app.errors import BridgeError  # noqa: E402
 from app.loading import load_sources  # noqa: E402
 from app.logging_conf import configure_logging  # noqa: E402
@@ -36,10 +38,12 @@ logger = logging.getLogger("impulse_bridge")
 async def lifespan(app: FastAPI):
     configure_logging(settings.log_level)
     logger.info("Impulse Bridge starting (config dir: %s)", settings.config_dir)
+    open_store(settings.database_file)
     await load_sources()
     yield
     logger.info("Impulse Bridge stopping")
     await registry.clear()
+    close_store()
 
 
 app = FastAPI(
@@ -64,22 +68,36 @@ app.add_middleware(
 )
 
 
+def _is_web_api(request: Request) -> bool:
+    """The web app API (/api/...) uses plain JSON errors; everything else
+    answers in the Impulse envelope."""
+    return request.url.path.startswith("/api/")
+
+
 @app.exception_handler(BridgeError)
-async def bridge_error_handler(_request: Request, exc: BridgeError):
+async def bridge_error_handler(request: Request, exc: BridgeError):
+    if _is_web_api(request):
+        return JSONResponse(
+            status_code=http_status_for(exc.code),
+            content={"detail": exc.message, "code": exc.code},
+        )
     return impulse_response(data=[], code=exc.code, message=exc.message)
 
 
 @app.exception_handler(Exception)
-async def unhandled_error_handler(_request: Request, exc: Exception):
+async def unhandled_error_handler(request: Request, exc: Exception):
     logger.exception("Unhandled error: %s", exc)
+    if _is_web_api(request):
+        return JSONResponse(status_code=500, content={"detail": "Internal error", "code": CODE_INTERNAL})
     return impulse_response(data=[], code=CODE_INTERNAL, message="Internal bridge error")
 
 
 app.include_router(health.router)
 app.include_router(collections.router)
-app.include_router(assets.router)
+app.include_router(sources.router)
+app.include_router(web_collections.router)
 app.include_router(admin_api.router)
-# Catch-all file route under /collections/{id}/ — must come after the API routes.
+app.include_router(admin_collections.router)
 app.include_router(files.router)
 
 

@@ -1,27 +1,29 @@
-# Impulse Bridge
+# IMPULSE Curator (impulse-bridge)
 
-An adapter bridge between the [Impulse 3D cultural-heritage platform](https://impulse-project.eu/) and external archives (Europeana, Wikimedia Commons, IIIF, Smithsonian Open Access).
+A collection creator for the [IMPULSE](https://euimpulse.eu/) cultural-heritage platform. Users search open archives (Europeana, Wikimedia Commons, Smithsonian Open Access, IIIF manifests), pick assets, and save them as **curated collections**. Each curated collection is served to Impulse and its Unity clients through the Impulse Collections-and-Assets API.
 
-The bridge presents itself to Impulse as just another asset-service node speaking the Impulse Collections-and-Assets API. Internally, each "virtual collection" is backed by a YAML config that describes how to query and map an external archive. Adding a new archive is normally a YAML-only change — no Python code required.
+The archives are configured as **sources**: one YAML file per archive describes how to query and map it. Adding a new archive is normally a YAML-only change — no Python code required.
 
 ## What it does
 
 ```
-            ┌──────────────┐    /collections                  ┌──────────────────┐
-Unity ────► │   Impulse    │ ─────────────────────────────►  │   Impulse        │
-            │   Platform   │ ◄─────────────────────────────  │   Bridge         │
-            └──────────────┘    {code, message, data}         │  (this project)  │
-                                                              └────────┬─────────┘
-                                                                       │
-                                                  ┌────────────────────┼────────────────────┐
-                                                  ▼                    ▼                    ▼
-                                          ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-                                          │  Europeana   │    │  Wikimedia   │    │  Smithsonian │
-                                          │     API      │    │  Commons API │    │  Open Access │
-                                          └──────────────┘    └──────────────┘    └──────────────┘
+ Web app (browser)                          Impulse platform / Unity
+   │  search sources, pick assets              │  GET /collections/{id}/assets
+   ▼                                           ▼
+┌───────────────────────────────────────────────────────────────────┐
+│  IMPULSE Curator                                                  │
+│   /api/sources/...      search the archives (live, cached)        │
+│   /api/collections/...  create & edit curated collections         │
+│   /collections/...      Impulse API, served from SQLite snapshots │
+└───────────────┬───────────────────────────────────────────────────┘
+                │ live search + asset lookups
+     ┌──────────┼───────────────┬─────────────────┐
+     ▼          ▼               ▼                 ▼
+ Europeana  Wikimedia      Smithsonian       IIIF manifests
+            Commons        Open Access       (e.g. Wellcome)
 ```
 
-Asset content is **not** proxied — Unity downloads bytes directly from the original host. The bridge only serves metadata and resolved URLs.
+Asset content is **not** proxied — browsers and Unity load media directly from the original hosts. The bridge serves metadata and URLs. When an asset is added to a collection, its metadata is stored as a snapshot, so Unity requests never wait for an upstream archive.
 
 ## Quick start
 
@@ -38,19 +40,21 @@ cp .env.example .env
 .venv\Scripts\python -m uvicorn app.main:app --port 8080
 ```
 
-Visit `http://localhost:8080/collections` — you should see all configured virtual collections.
+Visit `http://localhost:8080/api/sources` — you should see all configured sources.
 
-## Endpoints (Impulse-compatible)
+## Endpoints
+
+### Impulse API (consumed by Impulse / Unity)
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/health` | Liveness, lists registered source IDs |
-| GET | `/collections` | List all virtual collections |
-| GET | `/collections/{id}` | Single collection's metadata |
-| GET | `/collections/{id}/assets` | Search assets in a collection. Supports `?s=<pattern>`, `?o=<offset>`, `?c=<count>` |
-| GET | `/collections/{id}/asset/{asset_id}` | Single asset detail |
+| GET | `/collections` | Curated collections an administrator listed |
+| GET | `/collections/{id}` | A curated collection's metadata (every collection, listed or not) |
+| GET | `/collections/{id}/assets` | Its assets. Supports `?s=<pattern>`, `?o=<offset>`, `?c=<count>` |
+| GET | `/collections/{id}/asset/{asset_id}` | Single asset |
+| GET | `/health` | Liveness, source ids and number of collections |
 
-All responses follow the Impulse envelope `{code, message, data}`. Codes used:
+All responses follow the Impulse envelope `{code, message, data}`. Illegal `o`/`c` values return the entire result set, as the spec requires. Codes used:
 
 | code | meaning |
 |---|---|
@@ -63,23 +67,45 @@ All responses follow the Impulse envelope `{code, message, data}`. Codes used:
 | 20 | Bridge configuration error (e.g. missing API key, auth rejected) |
 | 99 | Internal bridge error |
 
+### Web app API (consumed by the browser app)
+
+Plain JSON; errors are `{"detail": "...", "code": <int>}` with a matching HTTP status.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/sources` | Configured sources |
+| GET | `/api/sources/{id}/assets` | Search a source: `?s=`, `?o=`, `?c=` (≤ 100), `?type=image` or `model`. Returns `items` and `next_offset` |
+| GET | `/api/sources/{id}/assets/{asset_id}` | One asset of a source |
+| POST | `/api/collections` | Create a collection from `items: [{source, asset_id}]`. Returns the **edit key** (once) |
+| GET | `/api/collections?ids=a,b` | Overviews of several collections ("My collections") |
+| GET | `/api/collections/{id}` | Public view; with the edit key: editor view incl. hidden assets |
+| PATCH / DELETE | `/api/collections/{id}` | Edit name, description, organization, email / delete |
+| POST | `/api/collections/{id}/items` | Add assets |
+| PATCH / DELETE | `/api/collections/{id}/items/{asset_id}` | Show/hide in Unity (`published`) / remove |
+| PUT | `/api/collections/{id}/order` | Reorder |
+| POST | `/api/collections/{id}/refresh` | Re-fetch all snapshots from the sources |
+| POST | `/api/collections/{id}/submitted` | Record that it was submitted to the Impulse team |
+| POST | `/api/collections/{id}/key` | Replace the edit key |
+
+Write endpoints need `Authorization: Bearer <edit key>` and are rate-limited per client.
+
+### Admin API (behind basic auth in production)
+
+`/admin/api/sources/...` (source configs: list, edit, test, reload) and `/admin/api/collections/...` (list, `listed` / `disabled` flags, delete, issue a new edit key).
+
 ## Example requests
 
 ```bash
-# Wikimedia Commons, search "van gogh", first 3 results
-curl 'http://localhost:8080/collections/wikimedia-commons-images/assets?s=van+gogh&c=3'
+# Search Wikimedia Commons, first 3 results
+curl 'http://localhost:8080/api/sources/wikimedia-commons-images/assets?s=van+gogh&c=3'
 
-# Pagination: next page
-curl 'http://localhost:8080/collections/wikimedia-commons-images/assets?s=van+gogh&o=3&c=3'
+# Create a curated collection from two assets
+curl -X POST http://localhost:8080/api/collections -H 'Content-Type: application/json' \
+  -d '{"name": "Demo", "items": [{"source": "bridge-demo", "asset_id": "demo-cube"},
+                                 {"source": "wikimedia-commons-images", "asset_id": "151972"}]}'
 
-# Single asset by ID
-curl 'http://localhost:8080/collections/wikimedia-commons-images/asset/151972'
-
-# IIIF manifest assets (manuscript pages as images)
-curl 'http://localhost:8080/collections/iiif-wellcome-vererbung/assets?c=3'
-
-# Local fallback demo (always works, even offline)
-curl 'http://localhost:8080/collections/bridge-demo/assets'
+# What Unity sees
+curl http://localhost:8080/collections/<collection-id>/assets
 ```
 
 ## Adding a new source
@@ -152,7 +178,7 @@ cache:
   ttl_seconds: 600
 ```
 
-Restart the bridge. The new collection shows up in `/collections` immediately.
+Reload (admin **↻**, `POST /admin/api/reload`) or restart the bridge. The new source shows up in `/api/sources` immediately.
 
 ### Pattern 2: Filesystem / static (fallback)
 
@@ -197,61 +223,49 @@ Each entry in `mapping.fields` resolves to a value for one Impulse asset field:
 
 ## How requests flow
 
-1. Impulse / Unity calls `GET /collections/{id}/assets?s=foo&o=10&c=20`.
-2. FastAPI routes the request; the registry looks up the Source by `id`.
-3. The Source builds an upstream URL: auth params, default query, search-pattern translation, pagination translation.
-4. The HTTP layer hits the cache (in-process TTL keyed by source+path+sorted-params). On miss, calls the upstream; one retry on timeout.
-5. Raw JSON is cached, then handed to the transform engine.
-6. JMESPath extracts each item; the mapping produces an Impulse asset dict; filter rules drop incomplete or wrong-mime items.
-7. Result is wrapped in `{code, message, data}` and returned.
+**Searching (web app):** `GET /api/sources/{id}/assets` → the registry finds the source → the source builds the upstream URL (auth, default query, search pattern, pagination) → the HTTP layer answers from the in-process TTL cache or calls the upstream (one retry on timeout) → JMESPath maps each item to an Impulse asset, filter rules drop incomplete ones.
+
+**Adding to a collection:** the server looks each asset up in its source (usually a cache hit right after a search), makes relative URIs absolute and stores the asset as a snapshot in SQLite (`data/curator.db`).
+
+**Serving Unity:** `GET /collections/{id}/assets` reads the snapshots — no upstream request.
 
 ## Project layout
 
 ```
 impulse-bridge/
 ├── app/
-│   ├── main.py              # FastAPI app + lifespan + error handlers
+│   ├── main.py              # FastAPI app, lifespan, error handlers, routers
 │   ├── settings.py          # Pydantic settings (env-driven)
-│   ├── registry.py          # collection_id → Source map
+│   ├── loading.py           # (re)load source configs into the registry
+│   ├── registry.py          # source id → Source map, atomic hot-swap
 │   ├── cache.py             # TTL cache for raw upstream responses
+│   ├── ratelimit.py         # per-client limits for anonymous writes
 │   ├── errors.py            # BridgeError hierarchy + Impulse code mapping
-│   ├── logging_conf.py
-│   ├── api/                 # HTTP layer (collections, assets, health, responses)
+│   ├── api/                 # Impulse API, web app API (sources, collections), files, health
+│   ├── admin/               # admin API (source configs, collections)
+│   ├── curation/            # curated collections: SQLite db, store, service
 │   ├── config/              # YAML schema (pydantic) + loader (env expansion)
 │   ├── transform/           # JMESPath engine + helpers
-│   └── adapter/
-│       ├── base.py          # Source protocol
-│       ├── rest.py          # GenericRestSource (the 95% case)
-│       ├── fallback.py      # FilesystemSource (demo / offline)
-│       ├── factory.py       # builds the right Source from a SourceConfig
-│       └── custom/iiif.py   # Example custom adapter
-├── configs/sources/*.yaml   # one file per virtual collection
+│   └── adapter/             # Source protocol, REST, fallback, factory, custom/iiif.py
+├── configs/sources/*.yaml   # one file per source
 ├── data/fallback/           # local demo assets (manifest.json + media files)
-├── pyproject.toml
-├── .env.example
-└── tests/                   # (reserved for future unit tests)
+├── data/curator.db          # curated collections (created on first start, not in git)
+└── tests/
 ```
 
 ## Verification checklist
 
-Quick sanity check after any change:
-
 ```bash
-# 1. App starts (Pydantic validates YAMLs — bad config = startup error)
+# 1. Tests
+.venv\Scripts\python -m pytest -q
+
+# 2. App starts; broken source configs are reported, not fatal
 .venv\Scripts\python -m uvicorn app.main:app --port 8080
-
-# 2. All sources register
 curl http://localhost:8080/health
-curl http://localhost:8080/collections
 
-# 3. Fallback works offline
-curl http://localhost:8080/collections/bridge-demo/assets
-
-# 4. A no-key source works (Wikimedia)
-curl 'http://localhost:8080/collections/wikimedia-commons-images/assets?s=sunflower&c=3'
-
-# 5. Asset URLs actually load
-curl -I "$(curl -s 'http://localhost:8080/collections/wikimedia-commons-images/assets?s=sunflower&c=1' | python -c 'import sys,json; print(json.load(sys.stdin)["data"][0]["assetURI"])')"
+# 3. Sources answer (bridge-demo works offline, Wikimedia needs no key)
+curl 'http://localhost:8080/api/sources/bridge-demo/assets'
+curl 'http://localhost:8080/api/sources/wikimedia-commons-images/assets?s=sunflower&c=3'
 ```
 
 ## Known limitations
