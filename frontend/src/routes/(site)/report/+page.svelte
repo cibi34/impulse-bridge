@@ -1,9 +1,9 @@
 <script lang="ts">
 	import LegalPage from '#lib/components/LegalPage.svelte';
 
-	// Notice-and-action mechanism (Art. 16 DSA). The address is still a
+	// Notice-and-action mechanism (Art. 16 DSA). The address is a
 	// placeholder, like the rest of the legal content.
-	const REPORT_ADDRESS = '[report email address]';
+	const REPORT_ADDRESS = 'report@example.org';
 	const template = `Collection URL:
 [paste the address of the collection, or of the asset within it]
 
@@ -18,8 +18,8 @@ I believe in good faith that the information in this report is accurate and comp
 
 <LegalPage title="Report content">
 	<p>
-		If you think a collection or its description is unlawful or breaks our terms of use, tell us. We
-		review every report and act on it without undue delay.
+		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut
+		labore et dolore magna aliqua.
 	</p>
 
 	<h2>How to report</h2>

@@ -38,6 +38,14 @@ services:
       - --log.level=INFO
       - --accesslog=true
 
+    # Access logs contain IP addresses: keep them bounded (3 x 10 MB), which
+    # also keeps the disk from filling up. See docs/legal-pages.md.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
     ports:
       - "80:80"
       - "443:443"

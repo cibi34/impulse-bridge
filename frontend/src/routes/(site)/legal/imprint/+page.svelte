@@ -3,30 +3,30 @@
 </script>
 
 <LegalPage title="Imprint">
-	<p>Information according to § 5 DDG (Digitale-Dienste-Gesetz) and § 18 MStV.</p>
+	<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
 
 	<h2>Provider</h2>
 	<address>
-		[Organisation name and legal form, e.g. “K8 Institut für strategische Ästhetik gGmbH”]<br />
-		[Street and number]<br />
-		[Postcode, city]<br />
-		[Country]
+		Lorem Ipsum gGmbH<br />
+		Dolor Street 1<br />
+		12345 Sit Amet<br />
+		Consectetur
 	</address>
 
 	<h2>Represented by</h2>
-	<p>[Managing director(s)]</p>
+	<p>Lorem Ipsum, Dolor Sit</p>
 
 	<h2>Contact</h2>
-	<p>Email: [contact email address]<br />Phone: [phone number]</p>
+	<p>Email: lorem@example.org<br />Phone: +00 000 0000000</p>
 
 	<h2>Register entry</h2>
-	<p>[Register court], [register number]</p>
+	<p>Lorem ipsum dolor, HRB 00000</p>
 
 	<h2>VAT identification number</h2>
-	<p>[VAT ID according to § 27a UStG, if available]</p>
+	<p>XX000000000</p>
 
-	<h2>Responsible for the content according to § 18 (2) MStV</h2>
-	<address>[Name]<br />[Address]</address>
+	<h2>Responsible for the content</h2>
+	<address>Lorem Ipsum<br />Dolor Street 1, 12345 Sit Amet</address>
 
 	<h2>Project</h2>
 	<p>

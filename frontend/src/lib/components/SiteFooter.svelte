@@ -12,9 +12,9 @@
 		{#if !compact}
 			<p class="caption tertiary">
 				Views and opinions expressed are however those of the author(s) only and do not necessarily
-				reflect those of the European Union or [granting authority]. Neither the European Union nor
-				the granting authority can be held responsible for them. IMPULSE — grant agreement No
-				101132704.
+				reflect those of the European Union or the European Research Executive Agency (REA). Neither
+				the European Union nor the granting authority can be held responsible for them. IMPULSE —
+				grant agreement No 101132704.
 			</p>
 		{/if}
 	</div>

@@ -27,6 +27,7 @@
 		{alt}
 		loading={eager ? 'eager' : 'lazy'}
 		decoding="async"
+		crossorigin="anonymous"
 		referrerpolicy="no-referrer"
 		onerror={() => (failed = true)}
 	/>

@@ -6,53 +6,43 @@
 <LegalPage title="Terms of use">
 	<h2>1. The service</h2>
 	<p>
-		IMPULSE Curator lets you search open cultural-heritage archives and save a selection of their
-		assets as a collection, which the IMPULSE platform and its Unity clients can load. The service
-		is provided by [provider, see imprint] free of charge. There is no claim to a particular
-		availability.
+		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut
+		labore et dolore magna aliqua.
 	</p>
 
 	<h2>2. Your collections</h2>
 	<ul>
-		<li>
-			Collections and their assets are public at their URL. Don't put personal data of others into
-			names or descriptions.
-		</li>
-		<li>
-			Names and descriptions must not be unlawful, discriminatory, misleading or offensive, and must
-			not infringe the rights of others.
-		</li>
-		<li>Keep your edit link private: anyone who has it can change or delete the collection.</li>
-		<li>
-			[Licence for texts you write, e.g. you grant the provider a non-exclusive right to publish
-			them as part of the collection.]
-		</li>
+		<li>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.</li>
+		<li>Nisi ut aliquip ex ea commodo consequat.</li>
+		<li>Duis aute irure dolor in reprehenderit in voluptate velit esse.</li>
 	</ul>
 
 	<h2>3. Rights in the assets</h2>
 	<p>
-		The assets remain with the institutions that hold them and are subject to the licences and
-		rights statements shown with each asset. A collection points to them; it does not change their
-		rights. Please respect the licence of every asset when you use it.
+		Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim
+		id est laborum.
 	</p>
 
 	<h2>4. Moderation</h2>
 	<p>
-		We may hide, lock or delete collections that break these terms or the law, in particular after a
-		report. We will inform you of the reasons where we can reach you. [Procedure and statement of
-		reasons according to Art. 17 DSA, contact for complaints.]
+		Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque
+		laudantium, totam rem aperiam.
 	</p>
 
 	<h2>5. Reporting content</h2>
 	<p>
-		You can report collections you consider unlawful or in breach of these terms:
-		<a href={resolve('report')}>Report content</a>. Our point of contact for authorities and users
-		under Art. 11 and 12 DSA is [contact address]; communication in English or German.
+		Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit:
+		<a href={resolve('report')}>Report content</a>.
 	</p>
 
 	<h2>6. Liability</h2>
-	<p>[Liability clause to be provided.]</p>
+	<p>
+		Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit.
+	</p>
 
 	<h2>7. Changes and applicable law</h2>
-	<p>[Changes to these terms; applicable law and place of jurisdiction.]</p>
+	<p>
+		Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae
+		consequatur.
+	</p>
 </LegalPage>

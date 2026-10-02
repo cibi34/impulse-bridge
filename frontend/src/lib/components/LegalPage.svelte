@@ -20,8 +20,8 @@
 	</header>
 	{#if draft}
 		<p class="draft" role="note">
-			<strong>Draft.</strong> This page is a placeholder. Text in [brackets] still has to be provided
-			and the content reviewed before launch.
+			<strong>Placeholder.</strong> This page contains dummy text; the final content will follow before
+			launch.
 		</p>
 	{/if}
 	<div class="prose">

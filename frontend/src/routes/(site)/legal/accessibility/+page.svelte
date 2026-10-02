@@ -4,46 +4,29 @@
 
 <LegalPage title="Accessibility">
 	<p>
-		We want IMPULSE Curator to be usable by everyone. It is designed and built to meet the Web
-		Content Accessibility Guidelines (WCAG) 2.2 at level AA. This statement applies to [website
-		address].
+		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut
+		labore et dolore magna aliqua. This statement applies to https://impulse-bridge.octo-code.de.
 	</p>
 
 	<h2>What we do</h2>
 	<ul>
-		<li>
-			All functions work with the keyboard, with visible focus, including reordering assets (arrow
-			keys on the handle).
-		</li>
-		<li>
-			Text meets a contrast of at least 4.5:1 in dark and light appearance; the layout adapts to
-			zoom and small screens.
-		</li>
-		<li>
-			Pages use landmarks, headings and labelled controls, and announce changes such as search
-			results and saved edits to screen readers.
-		</li>
-		<li>Animations are reduced when your system asks for reduced motion.</li>
+		<li>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.</li>
+		<li>Nisi ut aliquip ex ea commodo consequat.</li>
+		<li>Duis aute irure dolor in reprehenderit in voluptate velit esse.</li>
 	</ul>
 
 	<h2>Status and known limitations</h2>
-	<p>[Conformance status after testing: fully / partially / not compliant.]</p>
-	<ul>
-		<li>
-			Images and metadata come from third-party archives. Many images have no text description; we
-			show their titles and creators instead.
-		</li>
-		<li>[Further limitations found in testing.]</li>
-	</ul>
-
-	<h2>Feedback</h2>
 	<p>
-		If you find a barrier, please tell us: [contact email address]. We will get back to you within
-		[number] weeks.
+		Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim
+		id est laborum.
 	</p>
 
-	<h2>Enforcement</h2>
-	<p>[Enforcement procedure / arbitration body, depending on the applicable law.]</p>
+	<h2>Feedback</h2>
+	<p>Sed ut perspiciatis unde omnis iste natus error: lorem@example.org.</p>
 
-	<p class="footnote">This statement was prepared on [date].</p>
+	<h2>Enforcement</h2>
+	<p>
+		Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia
+		consequuntur magni dolores.
+	</p>
 </LegalPage>

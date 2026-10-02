@@ -28,7 +28,7 @@
 		<button type="button" class="summary" onclick={onreview}>
 			<span class="thumbs" aria-hidden="true">
 				{#each thumbs as src (src)}
-					<img {src} alt="" referrerpolicy="no-referrer" />
+					<img {src} alt="" crossorigin="anonymous" referrerpolicy="no-referrer" />
 				{/each}
 			</span>
 			<span class="count" role="status">{plural(selection.count, 'asset')} selected</span>
