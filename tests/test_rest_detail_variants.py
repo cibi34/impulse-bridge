@@ -1,5 +1,5 @@
-"""Detail lookup variants: exact `{asset_id}` against a Smithsonian-shaped
-content endpoint (envelope differs from search, item shape is the same), and
+"""Detail lookup variants: exact `{asset_id}` against a content endpoint
+whose envelope differs from search (the item shape is the same), and
 reversible `base32` assetIDs with the `{asset_id_from_base32}` placeholder."""
 
 from urllib.parse import urlparse
@@ -17,8 +17,8 @@ from app.transform.helpers import base32_id
 BASE = "https://api.example.org"
 
 ROWS = {
-    "ld1-1643407190095-1643407198918-2": "Sweet flag",
-    "edanmdm-nmah_1981.0296.06": "Underscore & dots",
+    "rec-1643407190095-2": "Sweet flag",
+    "inv_1981.0296.06": "Underscore & dots",
 }
 
 
@@ -27,7 +27,7 @@ def _row(rid: str) -> dict:
         "id": rid,
         "title": ROWS[rid],
         "content": {
-            "descriptiveNonRepeating": {
+            "record": {
                 "online_media": {
                     "media": [
                         {
@@ -46,7 +46,7 @@ def _cfg(id_transform: str, detail_path: str) -> SourceConfig:
     return SourceConfig.model_validate(
         {
             "collection": {
-                "id": "test-si",
+                "id": "test-detail",
                 "name": "Test",
                 "organization": "Test",
                 "owner_id": "t@example.org",
@@ -72,10 +72,10 @@ def _cfg(id_transform: str, detail_path: str) -> SourceConfig:
                     "assetID": {"expr": "id", "transform": id_transform},
                     "title": {"expr": "title"},
                     "assetURI": {
-                        "expr": "content.descriptiveNonRepeating.online_media.media[0].content"
+                        "expr": "content.record.online_media.media[0].content"
                     },
                     "previewURI": {
-                        "expr": "content.descriptiveNonRepeating.online_media.media[0].thumbnail"
+                        "expr": "content.record.online_media.media[0].thumbnail"
                     },
                     "contentType": {"literal": "image/jpeg"},
                 },
@@ -122,24 +122,24 @@ def upstream():
 async def test_exact_lookup_reuses_search_fields_with_detail_items_path(upstream):
     src = GenericRestSource(_cfg("slugify", "/content/{asset_id}"))
     try:
-        asset = await src.get_asset("ld1-1643407190095-1643407198918-2")
+        asset = await src.get_asset("rec-1643407190095-2")
     finally:
         await src.aclose()
-    assert asset["assetID"] == "ld1-1643407190095-1643407198918-2"
+    assert asset["assetID"] == "rec-1643407190095-2"
     assert asset["title"] == "Sweet flag"
-    assert asset["assetURI"].endswith("ld1-1643407190095-1643407198918-2.jpg")
+    assert asset["assetURI"].endswith("rec-1643407190095-2.jpg")
     req = upstream.calls.last.request
-    assert urlparse(str(req.url)).path == "/content/ld1-1643407190095-1643407198918-2"
+    assert urlparse(str(req.url)).path == "/content/rec-1643407190095-2"
     assert "api_key=K" in str(req.url)  # auth still injected on detail calls
 
 
 async def test_slugified_unsafe_id_cannot_be_looked_up_exactly(upstream):
     """Documents the limitation that motivates base32: slugify turns
-    'edanmdm-nmah_1981.0296.06' into an id the exact endpoint does not know."""
+    'inv_1981.0296.06' into an id the exact endpoint does not know."""
     src = GenericRestSource(_cfg("slugify", "/content/{asset_id}"))
     try:
         with pytest.raises(AssetNotFound):
-            await src.get_asset("edanmdm-nmah-1981-0296-06")
+            await src.get_asset("inv-1981-0296-06")
     finally:
         await src.aclose()
 
@@ -155,14 +155,14 @@ async def test_base32_ids_are_id_schema_safe_and_reversible(upstream):
         assert all(re.fullmatch(r"[a-z0-9][a-z0-9-]*", i) for i in ids)
 
         cache._store.clear()  # defeat the seen-index: force the upstream lookup
-        target = base32_id("edanmdm-nmah_1981.0296.06")
+        target = base32_id("inv_1981.0296.06")
         asset = await src.get_asset(target)
     finally:
         await src.aclose()
     assert asset["assetID"] == target
     assert asset["title"] == "Underscore & dots"
     assert urlparse(str(upstream.calls.last.request.url)).path == (
-        "/content/edanmdm-nmah_1981.0296.06"
+        "/content/inv_1981.0296.06"
     )
 
 
@@ -180,6 +180,6 @@ async def test_base32_lookup_unknown_upstream_id_is_not_found(upstream):
     src = GenericRestSource(_cfg("base32", "/content/{asset_id_from_base32}"))
     try:
         with pytest.raises(AssetNotFound):
-            await src.get_asset(base32_id("edanmdm-nmah_0000"))
+            await src.get_asset(base32_id("inv_0000"))
     finally:
         await src.aclose()

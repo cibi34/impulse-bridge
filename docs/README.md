@@ -14,7 +14,7 @@ These are repository docs. The running app does not serve them; read them on the
 
 | Term | Meaning |
 |---|---|
-| **Source** | An external archive (Europeana, Wikimedia Commons, Smithsonian, an IIIF manifest, a local folder). One YAML file in `configs/sources/` each. Searched by the web app through `/api/sources/…`. Not an Impulse collection. |
+| **Source** | An external archive (Europeana, Wikimedia Commons, an IIIF manifest, a local folder). One YAML file in `configs/sources/` each. Searched by the web app through `/api/sources/…`. Not an Impulse collection. |
 | **Curated collection** | A visitor's selection of assets, stored in SQLite (`data/curator.db`) and served through the Impulse API at `/collections/{id}`. |
 | **Snapshot** | The Impulse asset dict of a source asset, copied into the collection when the asset is added. Unity is served from snapshots, never from the upstream archive. |
 | **Edit key / edit link** | Secret that lets someone change a collection: `/c/{id}/edit#key=…`. Shown once at creation; an admin or the editor can replace it. |
@@ -40,6 +40,7 @@ These are repository docs. The running app does not serve them; read them on the
 | 05 | [Cookbook](05-cookbook.md) | Recipes: add and test a source, map JSON, asset lookups, how a curated collection reaches Unity, … |
 | 06 | [Operations](06-operations.md) | Running, environment variables, endpoint reference, mail, rate limits, backups, troubleshooting |
 | 07 | [Deployment](07-deployment.md) | Docker + Traefik on a VPS (Oracle Cloud example), basic auth on `/admin`, first-run checklist |
+| — | [Legal pages](legal-pages.md) | What imprint, privacy, terms, accessibility and report pages must cover, and the app's facts for them (no cookie consent needed) |
 
 The Impulse specification itself is in the repository root: [`Collections-and-assets-schema,-discovery-and-access.md`](../Collections-and-assets-schema,-discovery-and-access.md).
 

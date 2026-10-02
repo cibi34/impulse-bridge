@@ -18,7 +18,7 @@
 		},
 		{
 			q: 'Where do the assets come from?',
-			a: 'From open archives: Europeana, Wikimedia Commons, the Smithsonian and IIIF collections such as Wellcome Collection. The files stay with them; a collection points to them.'
+			a: 'From open archives: Europeana, Wikimedia Commons and IIIF collections such as Wellcome Collection. The files stay with them; a collection points to them.'
 		}
 	];
 </script>
@@ -38,8 +38,8 @@
 		/>
 		<h1 id="hero-title">Curate cultural heritage for immersive worlds.</h1>
 		<p class="lead">
-			Search Europeana, Wikimedia Commons, the Smithsonian and Wellcome Collection, pick the works
-			you need, and hand IMPULSE a ready-made collection.
+			Search Europeana, Wikimedia Commons and Wellcome Collection, pick the works you need, and hand
+			IMPULSE a ready-made collection.
 		</p>
 		<div class="actions">
 			<a class="btn btn-primary btn-lg" href={resolve('explore')}>Start exploring</a>
@@ -63,7 +63,6 @@
 		<span class="tertiary">Search across</span>
 		<span>Europeana</span>
 		<span>Wikimedia Commons</span>
-		<span>Smithsonian Open Access</span>
 		<span>Wellcome Collection</span>
 	</div>
 </section>

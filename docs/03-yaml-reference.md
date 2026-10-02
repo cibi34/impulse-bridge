@@ -180,7 +180,7 @@ The Curator converts offset `o` and count `c` (the web app asks for 24 items per
 
 Both parameter names of a style must be set, otherwise no paging parameters are sent.
 
-Offsets count **upstream** items: the web app's next page starts at `o + <items the upstream returned>`, even if the filter dropped some of them. Read the upstream docs carefully: a parameter named `start` is usually an item offset, not a page number (Europeana, Smithsonian, Solr).
+Offsets count **upstream** items: the web app's next page starts at `o + <items the upstream returned>`, even if the filter dropped some of them. Read the upstream docs carefully: a parameter named `start` is usually an item offset, not a page number (Europeana, Solr).
 
 Offset-based, one-based (Europeana):
 
@@ -218,14 +218,14 @@ search:
 
 `pattern_when_empty` matters because the web app opens a source with an empty search, and some upstreams return nothing for an empty query (Europeana: use `"*"`). Set it to a broad query that returns something useful.
 
-`pattern_template` adds a filter to everything a visitor types, for upstreams that only have a query string and no separate filter parameter. Because it does not apply to the empty search, repeat the filter in `pattern_when_empty`. Smithsonian returns only CC0 media this way:
+`pattern_template` adds a filter to everything a visitor types, for upstreams that only have a query string and no separate filter parameter. Because it does not apply to the empty search, repeat the filter in `pattern_when_empty`. For example, only CC0 items from a Solr-style upstream:
 
 ```yaml
 search:
   query:
     pattern_param: q
-    pattern_when_empty: 'online_media_type:"Images" AND media_usage:CC0'
-    pattern_template: "({pattern}) AND media_usage:CC0"
+    pattern_when_empty: "type:image AND license:cc0"
+    pattern_template: "({pattern}) AND license:cc0"
     wildcard_translation:
       from: "*"
       to: "*"
@@ -305,11 +305,11 @@ mapping:
     scale:       { literal: "1" }
 ```
 
-### Example — value map (Smithsonian)
+### Example — value map
 
 ```yaml
 contentType:
-  expr: "content.descriptiveNonRepeating.online_media.media[0].type"
+  expr: "media[0].type"
   map:
     "Images":    "image/jpeg"
     "3D Images": "model/gltf-binary"
@@ -377,13 +377,13 @@ asset_detail:
 | `enabled` | bool | `false` | Without it (or without `path`), a lookup scans the default search result. |
 | `path` | string | — | URL path of the detail request. May contain placeholders. |
 | `query` | dict[str, str] | `{}` | The **complete** query of the detail request: it **replaces** `adapter.default_query` (a `query_param` API key is still added). Values may contain placeholders. |
-| `mapping` | MappingCfg | — | Omitted: the search mapping is reused. Given **without** `fields`: only `items_path` is overridden and the search fields are reused (same item, different envelope — Smithsonian: `response` vs. `response.rows`). Give `fields` only if the item shape differs. |
+| `mapping` | MappingCfg | — | Omitted: the search mapping is reused. Given **without** `fields`: only `items_path` is overridden and the search fields are reused (same item, different envelope, e.g. `response` vs. `response.rows`). Give `fields` only if the item shape differs. |
 
 ### Placeholders
 
 | Placeholder | Replaced by |
 |---|---|
-| `{asset_id}` | The requested `assetID`, verbatim. Use it when the upstream accepts your `assetID` directly (Wikimedia `pageids`, Smithsonian `/content/{id}`). |
+| `{asset_id}` | The requested `assetID`, verbatim. Use it when the upstream accepts your `assetID` directly (Wikimedia `pageids`, a REST `/items/{id}` endpoint). |
 | `{asset_id_regex}` | A case-insensitive regex matching every upstream id that **slugifies to** the requested id. For `transform: slugify` ids and Solr-style search endpoints that accept `field:/regex/`. Europeana: `europeana_id:/{asset_id_regex}/` turns `90402-sk-a-3262` into a pattern matching `/90402/SK_A_3262`. |
 | `{asset_id_from_base32}` | The original upstream id, decoded from a `transform: base32` id. For exact-match endpoints without regex search. An id that is not valid base32 is *Asset not found* without an upstream call. |
 
@@ -393,7 +393,7 @@ The response is mapped and filtered; the item whose mapped `assetID` equals the 
 
 | Upstream id | `assetID` mapping | Detail lookup |
 |---|---|---|
-| Already id-schema safe (`151972`, `ld1-1643407190095-…`) | `expr` only, or `slugify` (a no-op) | exact endpoint with `{asset_id}` — Wikimedia, Smithsonian |
+| Already id-schema safe (`151972`, `rec-1643407190095-2`) | `expr` only, or `slugify` (a no-op) | exact endpoint with `{asset_id}` — Wikimedia |
 | Not safe; upstream search is Solr/Lucene | `slugify` — readable | search endpoint with `field:/{asset_id_regex}/` — Europeana |
 | Not safe; only an exact endpoint | `base32` — opaque, reversible | exact endpoint with `{asset_id_from_base32}` |
 

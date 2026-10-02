@@ -12,7 +12,7 @@ from app.config.schema import SourceConfig
 SOURCES = Path(__file__).resolve().parent.parent / "configs" / "sources"
 
 
-def _source(pagination: dict) -> GenericRestSource:
+def _source(pagination: dict | None = None, query: dict | None = None) -> GenericRestSource:
     return GenericRestSource(
         SourceConfig.model_validate(
             {
@@ -23,7 +23,7 @@ def _source(pagination: dict) -> GenericRestSource:
                     "owner_id": "t@example.org",
                 },
                 "adapter": {"kind": "rest", "base_url": "https://api.example.org"},
-                "search": {"pagination": pagination},
+                "search": {"pagination": pagination or {}, "query": query or {}},
             }
         )
     )
@@ -68,8 +68,6 @@ def test_pagination_styles(pagination, offset, count, expected):
     [
         # Europeana's `start` is the 1-based position of the first record.
         ("europeana.yaml", "start", "1", "6"),
-        # Smithsonian's `start` is the 0-based row offset.
-        ("smithsonian.yaml", "start", "0", "5"),
         ("wikimedia-commons.yaml", "gsroffset", "0", "5"),
     ],
 )
@@ -82,8 +80,12 @@ def test_bundled_sources_page_by_item_offset(filename, first_param, first_page, 
 
 
 def test_pattern_template_wraps_user_searches_only():
-    source = GenericRestSource(load_one(SOURCES / "smithsonian.yaml"))
-    assert source._build_params(query="dinosaur", offset=0, count=5)["q"] == "(dinosaur) AND media_usage:CC0"
-    assert source._build_params(query=None, offset=0, count=5)["q"] == (
-        'online_media_type:"Images" AND media_usage:CC0'
+    source = _source(
+        query={
+            "pattern_param": "q",
+            "pattern_when_empty": "type:image AND license:cc0",
+            "pattern_template": "({pattern}) AND license:cc0",
+        }
     )
+    assert source._build_params(query="dinosaur", offset=0, count=5)["q"] == "(dinosaur) AND license:cc0"
+    assert source._build_params(query=None, offset=0, count=5)["q"] == "type:image AND license:cc0"

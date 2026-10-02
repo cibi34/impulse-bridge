@@ -8,7 +8,7 @@ In one sentence: **the Curator turns a visitor's selection from open archives in
 
 ## Why it exists
 
-The Impulse platform hosts collections that consortium partners upload. Many relevant assets, however, live in third-party archives: Europeana aggregates millions of items from European institutions, Wikimedia Commons holds open-licensed media, the Smithsonian publishes CC0 objects, and museums and libraries expose IIIF manifests.
+The Impulse platform hosts collections that consortium partners upload. Many relevant assets, however, live in third-party archives: Europeana aggregates millions of items from European institutions, Wikimedia Commons holds open-licensed media, and museums and libraries expose IIIF manifests.
 
 The Curator lets people browse those archives in one place, put together a themed selection, and hand it to Impulse as a collection. Media stays where it is hosted; the Curator stores only metadata and URLs.
 
@@ -41,10 +41,10 @@ Sources are **not** Impulse collections any more. Earlier versions exposed each 
    │  Admin           /admin, /admin/api/…  (basic auth at proxy) │ ◄── operators
    └───────────────┬──────────────────────────────────────────────┘
                    │ live search and asset lookups (cached)
-      ┌────────────┼───────────────┬────────────────┐
-      ▼            ▼               ▼                ▼
-  Europeana    Wikimedia      Smithsonian      IIIF manifests
-               Commons        Open Access      (e.g. Wellcome)
+      ┌────────────┼───────────────┐
+      ▼            ▼               ▼
+  Europeana    Wikimedia      IIIF manifests
+               Commons        (e.g. Wellcome)
 ```
 
 The Curator is a peer **asset-service node**, of the same kind that hosts the consortium's own collections. It is not the platform API: the platform keeps its own list of collections, and a curated collection gets into that list when the IMPULSE team registers its URI (see [05 — Cookbook, "How a curated collection reaches Unity"](05-cookbook.md#recipe-13--how-a-curated-collection-reaches-unity)).
@@ -62,14 +62,13 @@ Every response uses the spec's envelope `{code, message, data}`. Search (`s`, wi
 
 ## Sources in the box
 
-Five sources are configured out of the box. They are examples; operators add their own.
+Four sources are configured out of the box. They are examples; operators add their own.
 
 | Source id | Backend | Key needed | Notes |
 |---|---|---|---|
 | `bridge-demo` | Local files (`data/fallback/assets/`) | No | Placeholder `.glb` and `.png` assets. Works offline; a smoke test. |
 | `wikimedia-commons-images` | Wikimedia Commons (MediaWiki API) | No | Open-licensed images; titles cleaned with `file_title`. |
 | `europeana-public-domain-images` | Europeana Search API | Yes (`EUROPEANA_API_KEY`) | Open-licensed images from European institutions. |
-| `smithsonian-open-access` | Smithsonian Open Access API | Yes (`SMITHSONIAN_API_KEY`) | Only items with CC0 media (`media_usage:CC0`). |
 | `iiif-wellcome-vererbung` | One IIIF manifest | No | An illustrated 1929 book from the Wellcome Collection; shows the IIIF adapter. |
 
 ## What the Curator intentionally does not do

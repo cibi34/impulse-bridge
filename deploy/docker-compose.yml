@@ -11,7 +11,6 @@
 #   BRIDGE_BASIC_AUTH      — htpasswd-format string protecting /admin, /docs, /openapi.json
 #                            generate with:  docker run --rm httpd:2.4 htpasswd -nbB admin '<password>' | sed 's/\$/\$\$/g'
 #   EUROPEANA_API_KEY      — your Europeana API key
-#   SMITHSONIAN_API_KEY    — your Smithsonian Open Access API key
 
 services:
   bridge:
@@ -21,6 +20,14 @@ services:
       dockerfile: deploy/Dockerfile
     image: impulse-bridge:latest
     restart: unless-stopped
+
+    # Access logs contain IP addresses: keep them bounded (3 x 10 MB), which
+    # also keeps the disk from filling up. See docs/legal-pages.md.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
     # Compose reads .env for the ${...} values in this file; env_file also
     # passes all of its variables into the container (the image has no .env).

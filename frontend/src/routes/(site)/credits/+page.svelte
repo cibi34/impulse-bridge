@@ -26,12 +26,6 @@
 			>
 		</li>
 		<li>
-			<strong>Smithsonian Open Access</strong> — collection data and media released under CC0.
-			<a href="https://www.si.edu/openaccess" rel="noopener noreferrer" target="_blank"
-				>si.edu/openaccess</a
-			>
-		</li>
-		<li>
 			<strong>Wellcome Collection</strong> — digitised works via the IIIF standard; licences differ
 			per item.
 			<a href="https://wellcomecollection.org" rel="noopener noreferrer" target="_blank"

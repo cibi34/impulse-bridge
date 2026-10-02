@@ -69,7 +69,7 @@ Before visitors use the source, configure `asset_detail` (Recipe 8): adding asse
 
 ## Recipe 2 — A source that needs an API key
 
-1. Get a key from the provider (Europeana and Smithsonian keys are free).
+1. Get a key from the provider (Europeana keys are free).
 2. Add it to `.env`: `MY_PROVIDER_KEY=...` (in Docker: the project's `.env` next to `docker-compose.yml`).
 3. **Restart** the server (`docker compose up -d` in production) — environment variables are read once at start. YAML edits later need no restart.
 4. Reference the variable in the YAML:
@@ -196,8 +196,8 @@ To apply a filter to everything a visitor types, wrap the pattern — and repeat
 search:
   query:
     pattern_param: q
-    pattern_when_empty: 'online_media_type:"Images" AND media_usage:CC0'
-    pattern_template: "({pattern}) AND media_usage:CC0"
+    pattern_when_empty: "type:image AND license:cc0"
+    pattern_template: "({pattern}) AND license:cc0"
 ```
 
 ## Recipe 8 — Configure `asset_detail`
@@ -219,12 +219,12 @@ asset_detail:
     iiurlwidth: "1024"
 ```
 
-Same item, different envelope (Smithsonian):
+Same item, different envelope (a REST API whose detail endpoint wraps the item in `response`):
 
 ```yaml
 asset_detail:
   enabled: true
-  path: "/openaccess/api/v1.0/content/{asset_id}"
+  path: "/api/v1/content/{asset_id}"
   query: {}
   mapping:
     items_path: "response"  # search: response.rows; fields are reused

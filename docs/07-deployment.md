@@ -190,7 +190,6 @@ Edit `.env` (`nano .env`):
 | `BRIDGE_DOMAIN` | yes | Public hostname, e.g. `impulse-bridge.octo-code.de`. Compose derives `BRIDGE_PUBLIC_BASE_URL=https://${BRIDGE_DOMAIN}` from it — don't set that yourself; the compose value wins. |
 | `BRIDGE_BASIC_AUTH` | yes | htpasswd line for the admin, with every `$` doubled (below). |
 | `EUROPEANA_API_KEY` | for Europeana | Free at https://pro.europeana.eu/get-api |
-| `SMITHSONIAN_API_KEY` | for Smithsonian | Free at https://api.data.gov/signup/ |
 | `BRIDGE_CORS_ALLOW_ORIGINS` | recommended | Origins of the Impulse web frontend(s) that call `/collections` from a browser, comma-separated. `*` allows any. |
 | `BRIDGE_COLLECTION_OWNER_ID`, `BRIDGE_DEFAULT_ORGANIZATION` | no | Metadata published for every curated collection (defaults `impulse-curator`, `IMPULSE Curator`). |
 | `BRIDGE_SMTP_PASSWORD` | no | SMTP password from the environment instead of the database. |
@@ -234,7 +233,7 @@ Ready when the log shows `Registered 5 source(s), 0 config error(s)` and `Applic
 B=https://impulse-bridge.octo-code.de
 
 curl $B/health                          # {"code":0,…,"data":{"status":"ok","sources":[…],"collections":0}}
-curl $B/api/sources                     # the five sources
+curl $B/api/sources                     # the four sources
 curl -I $B/                             # 200, the web app
 curl -I $B/admin                        # 401 — basic auth enforced
 curl -I $B/admin/api/settings           # 401 — the admin API too
@@ -248,10 +247,10 @@ In a browser:
 
 ## Step 9 — First-run checklist
 
-- [ ] **Admin → Sources:** every source has a green dot. Open Europeana and Smithsonian and **Run test** — code 20 / "Upstream auth failed" means the API key in `.env` is missing or wrong (fix it, `docker compose up -d`). A missing key does not turn the dot red; only searches fail.
+- [ ] **Admin → Sources:** every source has a green dot. Open Europeana and **Run test** — code 20 / "Upstream auth failed" means the API key in `.env` is missing or wrong (fix it, `docker compose up -d`). A missing key does not turn the dot red; only searches fail.
 - [ ] **Admin → Settings → Email (SMTP):** server, port, encryption, username, password, sender. **Save settings**, then **Send a test email**.
 - [ ] **Admin → Settings → Submissions:** the address of the IMPULSE team that registers collections.
-- [ ] **Legal pages:** imprint, privacy, terms, accessibility and the report page (`frontend/src/routes/(site)/legal/*`, `…/report`) ship as drafts with placeholders. Fill them in and rebuild (`docker compose up -d --build`) before the site goes public.
+- [ ] **Legal pages:** imprint, privacy, terms, accessibility and the report page (`frontend/src/routes/(site)/legal/*`, `…/report`) ship with placeholder text; [legal-pages.md](legal-pages.md) lists what each must cover. Fill them in and rebuild (`docker compose up -d --build`) before the site goes public.
 - [ ] **End to end:** create a test collection in `/explore`, open its edit page, check `curl $B/collections/<id>/assets`, sign in by email once. Delete the test collection in the admin afterwards.
 - [ ] **CORS:** set `BRIDGE_CORS_ALLOW_ORIGINS` to the Impulse frontend origin(s) if `*` is too open.
 - [ ] **Backups:** schedule the database backup (below) and copy it off the VM.

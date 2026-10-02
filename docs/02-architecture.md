@@ -25,7 +25,7 @@ How the Curator is built, how requests travel through it, and how it meets the I
                     │   site settings, sign-in      + TTL cache (raw upstream JSON) │
                     └────────────────────────────────────────┬──────────────────────┘
                                                              ▼ HTTPS
-                                            Europeana, Wikimedia, Smithsonian, IIIF …
+                                            Europeana, Wikimedia, IIIF …
 ```
 
 ## Module layout

@@ -92,7 +92,7 @@ Precedence: process environment > `.env` in the working directory > defaults in 
 | `BRIDGE_MAX_ASSETS_PER_COLLECTION` | `500` | Size limit of a collection. (A single create request carries at most 500 items, an add request at most 200.) |
 | `BRIDGE_SMTP_PASSWORD` | — | SMTP password; overrides the one stored in the admin, for secrets that must stay out of the database. |
 | `BRIDGE_MAIL_LOG_ONLY` | `false` | Log emails (with their links) instead of sending them. Development only. |
-| `EUROPEANA_API_KEY`, `SMITHSONIAN_API_KEY` | — | Referenced by the bundled source configs as `${…}`. Any other `${VAR}` in a YAML is read the same way. |
+| `EUROPEANA_API_KEY` | — | Referenced by the bundled source configs as `${…}`. Any other `${VAR}` in a YAML is read the same way. |
 | `BRIDGE_DOMAIN`, `BRIDGE_BASIC_AUTH` | — | Docker Compose / Traefik only (see [07](07-deployment.md)). |
 | `CURATOR_BACKEND` | `http://127.0.0.1:8080` | `npm run dev` only: where the dev server proxies API calls. |
 
@@ -308,7 +308,6 @@ Impulse `code` values (also in web app API errors that come from a source):
 
 **Wikimedia 403 "robot policy".** Wikimedia requires a descriptive User-Agent; the REST adapter sends `IMPULSE-Curator/0.1 (+<BRIDGE_PUBLIC_BASE_URL>)` (`app/adapter/rest.py`), and the imprint on that site is the contact. Make sure `BRIDGE_PUBLIC_BASE_URL` is the real public address.
 
-**Smithsonian rate-limited.** Use a personal key from https://api.data.gov/signup/ in `SMITHSONIAN_API_KEY`.
 
 **Europeana returns items without media.** Many records only link to a landing page (`edmIsShownAt`). Keep `media: "true"` in `default_query` and `drop_if_missing: [assetURI, previewURI]`.
 
@@ -338,6 +337,7 @@ In place:
 - Edit links carry the key in the URL fragment, which browsers never send to the server; the web app stores it in `localStorage` and removes it from the address bar.
 - Session cookie: `HttpOnly`, `SameSite=Lax`, and `Secure` + `__Host-` prefix for an `https://` public base URL. Signed-in writes from another origin are refused.
 - CORS only on the Impulse API and local files; `/api` and `/admin` are same-origin only.
+- Archive images are loaded with `crossorigin="anonymous"` and `referrerpolicy="no-referrer"`: the browser sends no cookies and no referrer to the archives and ignores cookies they set (Wikimedia's image servers set an identifier cookie on every image otherwise). Together with the browser storage being limited to what visitors use themselves (selection, their collections and edit keys, appearance, the session cookie after sign-in), the site needs no cookie consent. An image server added later must send `Access-Control-Allow-Origin`, or its previews show as unavailable.
 - Security headers on every response (`X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, COOP, HSTS on https); the web app's CSP is hash-based.
 - Creator emails are never published; `owner_id` is a fixed value.
 - Rate limits on anonymous writes and sign-in.

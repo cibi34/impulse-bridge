@@ -1,6 +1,6 @@
 # IMPULSE Curator (impulse-bridge)
 
-A collection creator for the [IMPULSE](https://euimpulse.eu/) cultural-heritage platform (EU project, Horizon Europe GA 101132704). Users search open archives (Europeana, Wikimedia Commons, Smithsonian Open Access, IIIF manifests), pick assets, and save them as **curated collections**. Each curated collection is served to Impulse and its Unity clients through the Impulse Collections-and-Assets API.
+A collection creator for the [IMPULSE](https://euimpulse.eu/) cultural-heritage platform (EU project, Horizon Europe GA 101132704). Users search open archives (Europeana, Wikimedia Commons, IIIF manifests), pick assets, and save them as **curated collections**. Each curated collection is served to Impulse and its Unity clients through the Impulse Collections-and-Assets API.
 
 The archives are configured as **sources**: one YAML file per archive describes how to query and map it. Adding a new archive is normally a YAML-only change — no Python code required.
 
@@ -19,10 +19,10 @@ Developer and operator documentation: [`docs/`](docs/README.md).
 │   /collections/...      Impulse API, served from SQLite snapshots │
 └───────────────┬───────────────────────────────────────────────────┘
                 │ live search + asset lookups
-     ┌──────────┼───────────────┬─────────────────┐
-     ▼          ▼               ▼                 ▼
- Europeana  Wikimedia      Smithsonian       IIIF manifests
-            Commons        Open Access       (e.g. Wellcome)
+     ┌──────────┼───────────────┐
+     ▼          ▼               ▼
+ Europeana  Wikimedia      IIIF manifests
+            Commons        (e.g. Wellcome)
 ```
 
 Asset content is **not** proxied — browsers and Unity load media directly from the original hosts. The Curator serves metadata and URLs. When an asset is added to a collection, its metadata is stored as a snapshot, so Unity requests never wait for an upstream archive.
@@ -39,7 +39,7 @@ cd frontend && npm ci && npm run build && cd ..
 
 # 3. Copy env template and fill in any keys you have
 cp .env.example .env
-# Edit .env: EUROPEANA_API_KEY=...  SMITHSONIAN_API_KEY=...
+# Edit .env: EUROPEANA_API_KEY=...
 # (.env.example sets BRIDGE_MAIL_LOG_ONLY=true: sign-in links are printed to the console)
 
 # 4. Run
@@ -169,7 +169,7 @@ search:
   query:
     pattern_param: q           # the web app's search (?s=...) is sent as this param
     pattern_when_empty: "*"    # query used for an empty search
-    # pattern_template: "({pattern}) AND media_usage:CC0"   # optional: wraps every non-empty search (Smithsonian)
+    # pattern_template: "({pattern}) AND license:cc0"   # optional: wraps every non-empty search
 
 mapping:
   items_path: "results"        # JMESPath to the array of items
@@ -241,7 +241,6 @@ Each entry in `mapping.fields` resolves to a value for one Impulse asset field:
 | `bridge-demo` | fallback | Local placeholder assets in `data/fallback/`. Always works. |
 | `wikimedia-commons-images` | rest | No API key needed. Public Commons search via MediaWiki API. |
 | `europeana-public-domain-images` | rest | Needs `EUROPEANA_API_KEY` (free, register at [pro.europeana.eu](https://pro.europeana.eu/get-api)). |
-| `smithsonian-open-access` | rest | Needs `SMITHSONIAN_API_KEY` (free, register at [api.data.gov](https://api.data.gov/signup/)). Only items with CC0 media (`media_usage:CC0`). |
 | `iiif-wellcome-vererbung` | custom (IIIF) | Single manuscript from Wellcome Collection. Copy + edit YAML to add more IIIF sources. |
 
 ## How requests flow
@@ -309,7 +308,6 @@ curl 'http://localhost:8080/api/sources/wikimedia-commons-images/assets?s=sunflo
 
 - **Single process.** The source registry, the upstream cache and the rate-limit counters live in memory, and the database is a local SQLite file: run one uvicorn worker / one container.
 - **Cache TTL is global**, not per-source (cachetools simplification). Per-source `cache.ttl_seconds` is currently read but effectively shares the global TTL. Replace with `redis` + per-key TTL if you grow out of single-process.
-- **Smithsonian 3D content** is not reliably available via the openaccess REST API (3D models live in a separate Voyager-based portal at 3d.si.edu). The current config targets image-bearing items.
 - **IIIF cross-provider search** is not standardized; the bundled IIIF adapter handles one manifest per YAML config. Add one YAML per IIIF collection of interest.
 - **Single-asset lookups for sources without `asset_detail`** only work for assets that a recent search on this server returned (they are indexed for the cache TTL), or that appear in the default search result. All bundled REST sources configure `asset_detail`; see `docs/05-cookbook.md` ("Decision guide") for choosing between `{asset_id}`, `{asset_id_regex}` and `{asset_id_from_base32}` when adding a source.
 

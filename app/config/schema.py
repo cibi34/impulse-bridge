@@ -80,7 +80,7 @@ class PaginationCfg(BaseModel):
     """page_size style: number of the first page (0 or 1)."""
     offset_base: int = 0
     """offset_limit style: position of the first item (0 or 1). Europeana's
-    `start` counts from 1, Smithsonian's `start` from 0."""
+    `start` counts from 1."""
     max_size: int = 100
 
 
@@ -96,7 +96,7 @@ class QueryCfg(BaseModel):
     pattern_param: str | None = None
     pattern_when_empty: str = ""
     pattern_template: str | None = None
-    """Wraps a non-empty search pattern, e.g. "({pattern}) AND media_usage:CC0",
+    """Wraps a non-empty search pattern, e.g. "({pattern}) AND license:cc0",
     to always apply an upstream filter that has no parameter of its own."""
     wildcard_translation: WildcardCfg = Field(default_factory=WildcardCfg)
 
