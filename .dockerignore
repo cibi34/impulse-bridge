@@ -16,6 +16,8 @@ __pycache__
 .vscode
 .DS_Store
 node_modules
+frontend/build
+frontend/.svelte-kit
 
 # Don't ship the deployment scripts inside the image — they're host-side.
 deploy/traefik

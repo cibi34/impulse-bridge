@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8080
     config_dir: Path = Path("configs/sources")
+    frontend_dir: Path = Path("frontend/build")
+    """The web app's static build (npm run build in frontend/)."""
     data_dir: Path = Path("data")
     log_level: str = "INFO"
     default_cache_ttl: int = 600

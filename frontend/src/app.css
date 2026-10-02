@@ -1,0 +1,421 @@
+/*
+ * IMPULSE Curator — design tokens and base styles.
+ *
+ * Dark is the default; light and "system" switch `color-scheme` on <html>
+ * (see static/theme-init.js), and every token resolves through light-dark().
+ * All text colors meet WCAG AA (4.5:1) on the surfaces they are used on.
+ */
+
+:root {
+	color-scheme: dark;
+
+	/* Surfaces */
+	--bg: light-dark(#f5f5f7, #121214);
+	--bg-elevated: light-dark(#ffffff, #18181b);
+	--surface: light-dark(#ffffff, #1f1f23);
+	--surface-sunken: light-dark(#ececf0, #141416);
+	--control: light-dark(#e9e9ee, #232327);
+	--control-hover: light-dark(#dedee5, #2c2c31);
+	--raised: light-dark(#ffffff, #3a3a40);
+	--separator: light-dark(rgb(0 0 0 / 0.08), rgb(255 255 255 / 0.07));
+	--separator-strong: light-dark(rgb(0 0 0 / 0.14), rgb(255 255 255 / 0.12));
+
+	/* Text */
+	--text: light-dark(#1d1d1f, #f4f4f6);
+	--text-2: light-dark(#5e5e66, #a8a8b0);
+	--text-3: light-dark(#60606a, #8a8a93);
+	--text-on-action: #ffffff;
+
+	/* Brand and accents */
+	--magenta: #ec008c;
+	--blue: #72a1d6;
+	--yellow: #f7e240;
+	--action: #d10a7d;
+	--action-hover: #b8076d;
+	--accent-text: light-dark(#c4006f, #ff7cc2);
+	--accent-soft: light-dark(rgb(209 10 125 / 0.1), rgb(236 0 140 / 0.14));
+	--link: light-dark(#2f6fb5, #8fb8e6);
+	--focus: light-dark(#2f6fb5, #8fb8e6);
+	--brand-gradient: linear-gradient(90deg, #ec008c 0%, #c567a9 45%, #72a1d6 100%);
+
+	/* Status */
+	--success: #34c759;
+	--success-text: light-dark(#1a7f37, #5fdc83);
+	--success-soft: light-dark(rgb(52 199 89 / 0.14), rgb(52 199 89 / 0.14));
+	--warning-text: light-dark(#7a5c00, #f7e240);
+	--warning-soft: light-dark(#fdf6d8, rgb(247 226 64 / 0.12));
+	--danger-text: light-dark(#b42318, #ff8a8a);
+	--danger-soft: light-dark(rgb(180 35 24 / 0.1), rgb(255 92 92 / 0.14));
+
+	/* Glass and depth */
+	--glass: light-dark(rgb(245 245 247 / 0.8), rgb(18 18 20 / 0.78));
+	--glass-strong: light-dark(rgb(255 255 255 / 0.88), rgb(40 40 45 / 0.86));
+	--overlay: light-dark(rgb(30 30 40 / 0.35), rgb(5 5 7 / 0.6));
+	--shadow-sm: light-dark(0 1px 2px rgb(30 40 70 / 0.12), 0 1px 2px rgb(0 0 0 / 0.4));
+	--shadow-lg: light-dark(0 12px 40px rgb(30 40 70 / 0.16), 0 12px 40px rgb(0 0 0 / 0.45));
+
+	/* Shape */
+	--radius-sm: 8px;
+	--radius: 12px;
+	--radius-media: 14px;
+	--radius-panel: 18px;
+	--radius-pill: 999px;
+
+	/* Type */
+	--font: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+	/* Layout */
+	--sidebar-width: 264px;
+	--content-max: 1280px;
+	--gutter: clamp(16px, 3vw, 40px);
+}
+
+:root[data-theme='light'] {
+	color-scheme: light;
+}
+
+:root[data-theme='system'] {
+	color-scheme: light dark;
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	-webkit-text-size-adjust: 100%;
+	text-size-adjust: 100%;
+	scroll-padding-top: 88px;
+}
+
+body {
+	margin: 0;
+	min-height: 100dvh;
+	background: var(--bg);
+	color: var(--text);
+	font-family: var(--font);
+	font-size: 15px;
+	line-height: 1.5;
+	font-optical-sizing: auto;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	text-rendering: optimizeLegibility;
+}
+
+img,
+svg,
+video {
+	display: block;
+	max-width: 100%;
+}
+
+button,
+input,
+textarea,
+select {
+	font: inherit;
+	color: inherit;
+}
+
+button {
+	cursor: pointer;
+}
+
+button:disabled {
+	cursor: not-allowed;
+}
+
+a {
+	color: var(--link);
+	text-decoration-thickness: 1px;
+	text-underline-offset: 3px;
+}
+
+h1,
+h2,
+h3,
+h4,
+p {
+	margin: 0;
+	text-wrap: pretty;
+}
+
+h1,
+h2 {
+	text-wrap: balance;
+}
+
+:focus-visible {
+	outline: 2px solid var(--focus);
+	outline-offset: 3px;
+}
+
+::selection {
+	background: rgb(236 0 140 / 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}
+
+/* ---------- Typography helpers ---------- */
+
+.large-title {
+	font-size: clamp(28px, 4vw, 34px);
+	line-height: 1.15;
+	font-weight: 700;
+	letter-spacing: -0.025em;
+}
+
+.title {
+	font-size: 22px;
+	line-height: 1.3;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+}
+
+.headline {
+	font-size: 17px;
+	line-height: 1.35;
+	font-weight: 600;
+}
+
+.secondary {
+	color: var(--text-2);
+}
+
+.tertiary {
+	color: var(--text-3);
+}
+
+.footnote {
+	font-size: 13px;
+	line-height: 1.45;
+}
+
+.caption {
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+.mono {
+	font-family: var(--font-mono);
+	font-size: 0.92em;
+}
+
+.eyebrow {
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--accent-text);
+}
+
+.visually-hidden {
+	position: absolute !important;
+	/* Anchor it: an unpositioned absolute box sits at its static position,
+	   which behind a long truncated line can be far outside the page. */
+	top: 0;
+	left: 0;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+/* ---------- Buttons ---------- */
+
+.btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	min-height: 44px;
+	padding: 0 20px;
+	border: 0;
+	border-radius: var(--radius-pill);
+	background: var(--control);
+	color: var(--text);
+	font-size: 15px;
+	font-weight: 500;
+	line-height: 1;
+	text-decoration: none;
+	white-space: nowrap;
+	transition:
+		background-color 0.15s ease,
+		transform 0.1s ease;
+}
+
+.btn:hover:not(:disabled) {
+	background: var(--control-hover);
+}
+
+.btn:active:not(:disabled) {
+	transform: scale(0.98);
+}
+
+.btn:disabled {
+	opacity: 0.5;
+}
+
+.btn-primary {
+	background: var(--action);
+	color: var(--text-on-action);
+	font-weight: 600;
+}
+
+.btn-primary:hover:not(:disabled) {
+	background: var(--action-hover);
+}
+
+.btn-plain {
+	background: transparent;
+	color: var(--text-2);
+}
+
+.btn-plain:hover:not(:disabled) {
+	background: var(--control);
+	color: var(--text);
+}
+
+.btn-danger {
+	background: var(--danger-soft);
+	color: var(--danger-text);
+}
+
+.btn-danger:hover:not(:disabled) {
+	background: var(--danger-soft);
+	filter: brightness(1.15);
+}
+
+.btn-sm {
+	min-height: 36px;
+	padding: 0 14px;
+	font-size: 14px;
+}
+
+.btn-lg {
+	min-height: 50px;
+	padding: 0 26px;
+	font-size: 16px;
+}
+
+.btn-icon {
+	width: 44px;
+	padding: 0;
+}
+
+.btn-icon.btn-sm {
+	width: 36px;
+}
+
+/* ---------- Form fields ---------- */
+
+.field {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.field-label {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--text-2);
+}
+
+.field-hint {
+	font-size: 12px;
+	color: var(--text-3);
+}
+
+.field-error {
+	font-size: 13px;
+	color: var(--danger-text);
+}
+
+.input {
+	width: 100%;
+	min-height: 44px;
+	padding: 10px 14px;
+	border: 1px solid var(--separator-strong);
+	border-radius: var(--radius);
+	background: var(--surface-sunken);
+	color: var(--text);
+	line-height: 1.4;
+}
+
+.input::placeholder {
+	color: var(--text-3);
+}
+
+.input:focus-visible {
+	outline: 2px solid var(--focus);
+	outline-offset: 1px;
+	border-color: transparent;
+}
+
+.input[aria-invalid='true'] {
+	border-color: var(--danger-text);
+}
+
+textarea.input {
+	resize: vertical;
+	min-height: 88px;
+}
+
+/* ---------- Pills ---------- */
+
+.pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 10px;
+	border-radius: var(--radius-pill);
+	background: var(--control);
+	color: var(--text-2);
+	font-size: 12px;
+	font-weight: 500;
+	white-space: nowrap;
+}
+
+.pill-warning {
+	background: var(--warning-soft);
+	color: var(--warning-text);
+}
+
+.pill-success {
+	background: var(--success-soft);
+	color: var(--success-text);
+}
+
+.pill-accent {
+	background: var(--accent-soft);
+	color: var(--accent-text);
+}
+
+/* ---------- Panels ---------- */
+
+.panel {
+	border-radius: var(--radius-panel);
+	background: var(--surface);
+	border: 1px solid var(--separator);
+}
+
+.container {
+	width: 100%;
+	max-width: var(--content-max);
+	margin-inline: auto;
+	padding-inline: var(--gutter);
+}

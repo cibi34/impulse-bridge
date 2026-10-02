@@ -1,10 +1,9 @@
 import logging
 import mimetypes
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
@@ -19,6 +18,7 @@ from app.admin import settings as admin_settings  # noqa: E402
 from app.api import auth, collections, files, health, site, sources, web_collections  # noqa: E402
 from app.api.responses import CODE_INTERNAL, http_status_for, impulse_response  # noqa: E402
 from app.errors import BridgeError  # noqa: E402
+from app.frontend import mount_frontend  # noqa: E402
 from app.loading import load_sources  # noqa: E402
 from app.logging_conf import configure_logging  # noqa: E402
 from app.registry import registry  # noqa: E402
@@ -81,6 +81,21 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    headers = response.headers
+    headers.setdefault("X-Content-Type-Options", "nosniff")
+    headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    headers.setdefault("X-Frame-Options", "DENY")
+    headers.setdefault("Content-Security-Policy", "frame-ancestors 'none'")
+    headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    if settings.public_base_url.startswith("https://"):
+        headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+    return response
+
+
 def _is_web_api(request: Request) -> bool:
     """The web app API (/api/...) uses plain JSON errors; everything else
     answers in the Impulse envelope."""
@@ -117,30 +132,10 @@ app.include_router(admin_settings.router)
 app.include_router(files.router)
 
 
-@app.get("/", include_in_schema=False)
-async def index():
-    return FileResponse("static/index.html", media_type="text/html")
-
-
 @app.get("/admin", include_in_schema=False)
 async def admin_index():
     return FileResponse("static/admin.html", media_type="text/html")
 
 
-_DOCS_DIR = Path("docs")
-
-
-@app.get("/help", include_in_schema=False)
-async def help_index():
-    return FileResponse("static/help.html", media_type="text/html")
-
-
-@app.get("/help/files/{name}", include_in_schema=False)
-async def help_file(name: str):
-    # Path-sanitize: only allow plain *.md filenames in the docs directory.
-    if "/" in name or "\\" in name or ".." in name or not name.endswith(".md"):
-        raise HTTPException(status_code=404, detail="not found")
-    target = _DOCS_DIR / name
-    if not target.is_file():
-        raise HTTPException(status_code=404, detail="not found")
-    return FileResponse(target, media_type="text/markdown; charset=utf-8")
+# Last: everything that isn't an API route is the web app.
+mount_frontend(app)

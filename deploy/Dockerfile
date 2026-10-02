@@ -1,5 +1,15 @@
-# Impulse Bridge — production image.
+# IMPULSE Curator (impulse-bridge) — production image.
 # Multi-arch: builds the same way on Oracle Cloud ARM (Ampere) and on x86_64.
+
+# ---- 1. Web app: static SvelteKit build (Node only exists in this stage) ----
+FROM node:24-alpine AS web
+WORKDIR /web
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
+
+# ---- 2. Runtime: FastAPI serves the API and the built web app ----
 FROM python:3.12-slim
 
 # Non-root runtime user.
@@ -13,7 +23,7 @@ WORKDIR /app
 COPY pyproject.toml ./
 COPY app ./app
 COPY static ./static
-COPY docs ./docs
+COPY --from=web /web/build ./frontend/build
 
 RUN pip install --no-cache-dir --upgrade pip wheel && \
     pip install --no-cache-dir .
