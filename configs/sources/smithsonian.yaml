@@ -29,9 +29,11 @@ search:
     max_size: 100
   query:
     pattern_param: q
-    # Default: match items that have any online_media entry. Tightening to 3D:
-    # change to: 'online_media_type:"3D Images"'
-    pattern_when_empty: 'online_media_type:"Images"'
+    # Only items whose media are CC0: other items come without online_media in
+    # the API response (and may not be reused freely). Tightening to 3D:
+    # 'online_media_type:"3D Images" AND media_usage:CC0'
+    pattern_when_empty: 'online_media_type:"Images" AND media_usage:CC0'
+    pattern_template: "({pattern}) AND media_usage:CC0"
     wildcard_translation:
       from: "*"
       to: "*"
@@ -54,7 +56,7 @@ mapping:
     date:
       expr: "content.freetext.date[0].content"
     rights:
-      literal: "CC0 (Smithsonian Open Access)"
+      literal: "CC0"
     identifier:
       expr: "content.descriptiveNonRepeating.guid"
     assetURI:

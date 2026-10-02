@@ -218,12 +218,15 @@ search:
   query:
     pattern_param: query        # upstream param that receives Impulse's ?s=…
     pattern_when_empty: "*"     # query sent when ?s is omitted
+    pattern_template: "({pattern}) AND media_usage:CC0"   # optional, wraps a given ?s
     wildcard_translation:
       from: "*"                 # the Impulse wildcard character
       to: "*"                   # what to rewrite it to upstream (use "" if upstream doesn't support wildcards)
 ```
 
 `pattern_when_empty` matters in two cases: when Impulse omits the `s` parameter, and when the upstream API requires a non-empty query to return anything (Europeana). Set it to a broad filter that returns "anything useful".
+
+`pattern_template` adds a filter to every search the user types, for upstream APIs that only have a query string and no separate filter parameter. `{pattern}` is replaced by the (wildcard-translated) search pattern. Smithsonian uses it to return only items with CC0 media.
 
 ---
 

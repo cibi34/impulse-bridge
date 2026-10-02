@@ -53,6 +53,7 @@ def _label_to_str(label: Any) -> str | None:
 
 
 _IIIF_IMAGE_API_PATH = re.compile(r"/full/[^/]+/0/default\.\w+$")
+_MEANINGFUL = re.compile(r"\w")
 
 
 def _to_image_url(body_id: str, size: str = "max") -> str:
@@ -157,7 +158,10 @@ class IIIFManifestSource(Source):
             if not body_id:
                 continue
             canvas_id = canvas.get("id") or canvas.get("@id") or f"canvas-{idx}"
-            label = _label_to_str(canvas.get("label")) or f"{manifest_label} ({idx + 1})"
+            label = _label_to_str(canvas.get("label"))
+            if not label or not _MEANINGFUL.search(label):
+                # Many manifests label canvases "-" or leave them empty.
+                label = f"{manifest_label} — page {idx + 1}"
             asset = {
                 "assetID": slugify(canvas_id.rsplit("/", 1)[-1] or f"canvas-{idx}"),
                 "title": label,

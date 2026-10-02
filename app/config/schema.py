@@ -95,6 +95,9 @@ class QueryCfg(BaseModel):
 
     pattern_param: str | None = None
     pattern_when_empty: str = ""
+    pattern_template: str | None = None
+    """Wraps a non-empty search pattern, e.g. "({pattern}) AND media_usage:CC0",
+    to always apply an upstream filter that has no parameter of its own."""
     wildcard_translation: WildcardCfg = Field(default_factory=WildcardCfg)
 
 

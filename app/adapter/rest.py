@@ -190,12 +190,15 @@ class GenericRestSource(Source):
 
         # Search pattern
         q = (query or "").strip()
+        query_cfg = self._cfg.search.query
         if not q:
-            q = self._cfg.search.query.pattern_when_empty
+            q = query_cfg.pattern_when_empty
         else:
-            wc = self._cfg.search.query.wildcard_translation
+            wc = query_cfg.wildcard_translation
             if wc.from_ and wc.from_ != wc.to:
                 q = q.replace(wc.from_, wc.to)
+            if query_cfg.pattern_template:
+                q = query_cfg.pattern_template.replace("{pattern}", q)
         if self._cfg.search.query.pattern_param:
             params[self._cfg.search.query.pattern_param] = q
 

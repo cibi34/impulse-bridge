@@ -79,3 +79,11 @@ def test_bundled_sources_page_by_item_offset(filename, first_param, first_page, 
     page2 = source._build_params(query="x", offset=5, count=5)
     assert page1[first_param] == first_page
     assert page2[first_param] == second_page
+
+
+def test_pattern_template_wraps_user_searches_only():
+    source = GenericRestSource(load_one(SOURCES / "smithsonian.yaml"))
+    assert source._build_params(query="dinosaur", offset=0, count=5)["q"] == "(dinosaur) AND media_usage:CC0"
+    assert source._build_params(query=None, offset=0, count=5)["q"] == (
+        'online_media_type:"Images" AND media_usage:CC0'
+    )

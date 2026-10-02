@@ -48,7 +48,9 @@ mapping:
       expr: "dcDescription[0]"
       transform: strip_html
     creator:
-      expr: "dcCreator[0]"
+      # dcCreator mixes names and authority URIs (GND, Europeana agents): take
+      # the first name, else the label of the first linked agent.
+      expr: "(dcCreator[?!starts_with(@, 'http')] | [0]) || edmAgentLabel[0].def"
     date:
       expr: "year[0]"
     rights:
