@@ -14,6 +14,7 @@ from pathlib import Path
 from app.adapter.base import Source
 from app.adapter.factory import build_source
 from app.config.loader import load_all
+from app.errors import ConfigError
 from app.registry import registry
 from app.settings import settings
 
@@ -33,14 +34,13 @@ async def load_sources() -> None:
             continue
         try:
             source = build_source(cfg)
+        except ConfigError as e:
+            errors.append((path.name, str(e)))
+            continue
         except Exception as e:  # noqa: BLE001
             logger.exception("Failed to build source from %s", path.name)
             errors.append((path.name, str(e)))
             continue
-        source.collection_meta.setdefault(
-            "uri",
-            f"{settings.public_base_url.rstrip('/')}/collections/{cid}",
-        )
         sources[cid] = source
         files[cid] = path
 
