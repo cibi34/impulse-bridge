@@ -14,6 +14,8 @@
 	--bg-elevated: light-dark(#ffffff, #18181b);
 	--surface: light-dark(#ffffff, #1f1f23);
 	--surface-sunken: light-dark(#ececf0, #141416);
+	--editor-bg: light-dark(#ffffff, #141416);
+	--editor-active-line: light-dark(#f2f2f6, #232327);
 	--control: light-dark(#e9e9ee, #232327);
 	--control-hover: light-dark(#dedee5, #2c2c31);
 	--raised: light-dark(#ffffff, #3a3a40);
@@ -40,7 +42,7 @@
 
 	/* Status */
 	--success: #34c759;
-	--success-text: light-dark(#1a7f37, #5fdc83);
+	--success-text: light-dark(#146c2e, #5fdc83);
 	--success-soft: light-dark(rgb(52 199 89 / 0.14), rgb(52 199 89 / 0.14));
 	--warning-text: light-dark(#7a5c00, #f7e240);
 	--warning-soft: light-dark(#fdf6d8, rgb(247 226 64 / 0.12));

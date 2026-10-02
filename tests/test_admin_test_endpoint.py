@@ -46,3 +46,22 @@ def test_repeated_test_runs_report_upstream_url_and_response(config_dir):
         assert "q=cats" in run["upstream_url"]
         assert run["raw_upstream"] == {"items": [{"id": "x1"}]}
         assert run["transformed"] == [{"assetID": "x1"}]
+
+
+KEYED_YAML = YAML.replace("base_url: https://api.example.org", """base_url: https://api.example.org
+  auth: { type: query_param, name: wskey, value: s3cret-key }""")
+
+
+@respx.mock
+def test_the_api_key_is_masked_in_the_reported_upstream_url(config_dir):
+    cache._store.clear()
+    respx.get("https://api.example.org/search").mock(
+        return_value=httpx.Response(200, json={"apikey": "s3cret-key", "items": [{"id": "x1"}]})
+    )
+    with TestClient(app) as client:
+        run = client.post("/admin/api/test", json={"yaml": KEYED_YAML, "query": "cats"}).json()
+
+    assert "s3cret-key" not in str(run)
+    assert "wskey=***" in run["upstream_url"]
+    assert "q=cats" in run["upstream_url"]
+    assert run["raw_upstream"]["apikey"] == "***"

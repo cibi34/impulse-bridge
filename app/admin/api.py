@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from typing import Any
 
 import yaml
@@ -231,8 +232,8 @@ async def test_source(body: TestBody) -> dict:
             "valid": True,
             "errors": [{"loc": ["upstream"], "msg": msg}],
             "transformed": [],
-            "raw_upstream": getattr(source, "last_raw_response", None),
-            "upstream_url": getattr(source, "last_upstream_url", None),
+            "raw_upstream": _masked_raw(getattr(source, "last_raw_response", None), cfg),
+            "upstream_url": _masked_url(getattr(source, "last_upstream_url", None), cfg),
         }
     finally:
         closer = getattr(source, "aclose", None)
@@ -246,8 +247,8 @@ async def test_source(body: TestBody) -> dict:
         "valid": True,
         "errors": [],
         "transformed": transformed,
-        "raw_upstream": getattr(source, "last_raw_response", None),
-        "upstream_url": getattr(source, "last_upstream_url", None),
+        "raw_upstream": _masked_raw(getattr(source, "last_raw_response", None), cfg),
+        "upstream_url": _masked_url(getattr(source, "last_upstream_url", None), cfg),
     }
 
 
@@ -302,6 +303,32 @@ def _find_file_by_id(collection_id: str) -> Path | None:
         if parsed and (parsed.get("collection") or {}).get("id") == collection_id:
             return path
     return None
+
+
+def _masked_url(url: str | None, cfg: SourceConfig) -> str | None:
+    """The upstream URL with the API key replaced, for display: keys are
+    confidential (Europeana's terms) and end up in screenshots otherwise."""
+    auth = cfg.adapter.auth
+    if not url or auth.type != "query_param" or not auth.name or not auth.value:
+        return url
+    parts = urlsplit(url)
+    query = [(k, "***" if k == auth.name else v) for k, v in parse_qsl(parts.query, keep_blank_values=True)]
+    return urlunsplit(parts._replace(query=urlencode(query, safe="*:")))
+
+
+def _masked_raw(value: Any, cfg: SourceConfig) -> Any:
+    """The raw upstream JSON with the API key replaced wherever it appears
+    (Europeana echoes it back as "apikey")."""
+    secret = cfg.adapter.auth.value if cfg.adapter.auth.type != "none" else None
+    if not secret:
+        return value
+    if isinstance(value, str):
+        return value.replace(secret, "***")
+    if isinstance(value, list):
+        return [_masked_raw(v, cfg) for v in value]
+    if isinstance(value, dict):
+        return {k: _masked_raw(v, cfg) for k, v in value.items()}
+    return value
 
 
 def _free_path(filename: str) -> Path:

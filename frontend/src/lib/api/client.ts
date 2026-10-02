@@ -7,7 +7,9 @@
 export class ApiError extends Error {
 	constructor(
 		readonly status: number,
-		message: string
+		message: string,
+		/** The parsed response body, for callers that need more than the message. */
+		readonly body: unknown = null
 	) {
 		super(message);
 		this.name = 'ApiError';
@@ -30,6 +32,12 @@ function messageFrom(status: number, body: unknown): string {
 	if (body && typeof body === 'object' && 'detail' in body) {
 		const detail = (body as { detail: unknown }).detail;
 		if (typeof detail === 'string') return detail;
+		const issues = (detail as { errors?: unknown[] } | null)?.errors;
+		if (Array.isArray(issues)) {
+			return issues.length === 1
+				? '1 problem in the input'
+				: `${issues.length} problems in the input`;
+		}
 		if (Array.isArray(detail) && detail.length > 0) {
 			// FastAPI validation errors: [{loc, msg}, …]
 			const first = detail[0] as { msg?: string };
@@ -62,7 +70,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
 	if (response.status === 204) return undefined as T;
 	const body = await response.json().catch(() => null);
-	if (!response.ok) throw new ApiError(response.status, messageFrom(response.status, body));
+	if (!response.ok) throw new ApiError(response.status, messageFrom(response.status, body), body);
 	return body as T;
 }
 

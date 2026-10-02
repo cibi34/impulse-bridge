@@ -22,7 +22,6 @@ WORKDIR /app
 # layers for better caching.
 COPY pyproject.toml ./
 COPY app ./app
-COPY static ./static
 COPY --from=web /web/build ./frontend/build
 
 RUN pip install --no-cache-dir --upgrade pip wheel && \

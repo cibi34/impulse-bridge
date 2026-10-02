@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # Paths owned by the backend; they must never be answered with the web app.
 _BACKEND_PREFIXES = ("api/", "admin/api/", "collections", "sources/", "health", "docs", "openapi.json", "redoc")
 # Client-side routes (served from the SPA fallback with status 200).
-_APP_ROUTES = ("explore", "my", "signin", "c")
+_APP_ROUTES = ("explore", "my", "signin", "c", "admin")
 
 _IMMUTABLE = "public, max-age=31536000, immutable"
 _REVALIDATE = "no-cache"

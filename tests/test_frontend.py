@@ -33,7 +33,9 @@ def test_prerendered_pages(client):
     assert privacy.text == "PRIVACY"
 
 
-@pytest.mark.parametrize("path", ["/explore", "/explore?q=x", "/my", "/signin", "/c/abc", "/c/abc/edit"])
+@pytest.mark.parametrize(
+    "path", ["/explore", "/explore?q=x", "/my", "/signin", "/c/abc", "/c/abc/edit", "/admin", "/admin/sources"]
+)
 def test_app_routes_get_the_shell(client, path):
     r = client.get(path)
     assert (r.status_code, r.text) == (200, "SHELL")

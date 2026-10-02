@@ -43,6 +43,15 @@ def _out(site: SiteSettings) -> dict:
     data["smtp_password_from_env"] = bool(settings.smtp_password)
     data["mail_configured"] = site.mail_configured
     data["mail_log_only"] = settings.mail_log_only
+    # Deployment settings from the environment, shown read-only.
+    data["server"] = {
+        "public_base_url": settings.public_base_url,
+        "collection_owner_id": settings.collection_owner_id,
+        "default_organization": settings.default_organization,
+        "max_assets_per_collection": settings.max_assets_per_collection,
+        "config_dir": str(settings.config_dir),
+        "database": str(settings.database_file),
+    }
     return data
 
 
