@@ -1,32 +1,34 @@
 # 05 — Cookbook
 
-Practical recipes for the most common things you'll do with the bridge. Each recipe ends with a YAML you can paste into the admin UI's **New source ▾ → REST API (generic)** template.
+Recipes for common tasks. Source recipes use the admin's **Sources** page (`/admin/sources`, see [04 — Admin UI](04-admin-ui.md)); every YAML can also be written to `configs/sources/` directly, followed by **Reload from disk**.
 
-## Recipe 1 — Add a new REST archive (no auth)
+Examples use `http://localhost:8080`; replace it with your public address in production (and add `-u admin:<password>` for `/admin/api/…`).
 
-**When to use:** the upstream has a public JSON API that returns a list of items with media URLs.
+## Recipe 1 — Add a REST source (no auth)
 
-1. Click **+ New source ▾ → REST API (generic)** in the admin UI.
-2. Fill in the **Collection** section — `id` (lowercase-hyphens), `name`, `organization`, `owner_id`.
-3. Set `adapter.base_url` to the API root.
-4. In the **Search** section, set `path` and the pagination params.
-5. Open the **Test** tab and run with an empty query — verify you get raw JSON back.
-6. Look at the **Raw upstream response** pane. Find the array of items (its JMESPath) and the field names for title, URL, etc.
-7. Go to **Form → Mapping**: set `items_path` and fill in the rows for `assetID`, `title`, `assetURI`, `previewURI`, `contentType`, `rights`.
-8. Re-run **Test**. The right pane (Mapped Impulse output) should now contain proper Impulse asset dicts.
-9. **Save & Reload**.
+**When:** the archive has a public JSON search API that returns items with media URLs.
+
+1. **Sources → New → REST API (generic search/discovery).** The template opens in the editor, unsaved.
+2. Set `collection.id` (lowercase, digits, hyphens), `name`, `description`, `organization`, `owner_id`.
+3. Set `adapter.base_url`, `search.path`, the pagination parameters and `search.query.pattern_param`.
+4. **Run test** with an empty pattern. Open **Raw upstream response**: find the array of items and the fields for id, title, media URL, thumbnail, licence.
+5. Set `mapping.items_path` and the fields `assetID`, `title`, `assetURI`, `previewURI`, `contentType`, `rights`, `contributor`, `scale`.
+6. Run the test again until **Mapped assets** look right and the thumbnails show.
+7. **Create source.** The status turns **Live**; the source appears in `/explore` and in `GET /api/sources`.
+
+An illustrative config (Openverse):
 
 ```yaml
 collection:
   id: openverse-images
   name: "Openverse Images"
+  description: "Openly licensed images indexed by Openverse."
   organization: "WordPress Foundation"
   owner_id: "you@example.org"
-  published: 1
 
 adapter:
   kind: rest
-  base_url: "https://api.openverse.engineering/v1"
+  base_url: "https://api.openverse.org/v1"
   auth:
     type: none
   default_query:
@@ -47,47 +49,42 @@ search:
 mapping:
   items_path: "results"
   fields:
-    assetID:    { expr: "id", transform: slugify }
-    title:      { expr: "title", default: "Untitled" }
-    creator:    { expr: "creator" }
-    rights:     { expr: "license" }
-    identifier: { expr: "foreign_landing_url" }
-    assetURI:   { expr: "url" }
-    previewURI: { expr: "thumbnail" }
+    assetID:     { expr: "id" }            # a UUID: already id-schema safe
+    title:       { expr: "title", default: "Untitled" }
+    creator:     { expr: "creator" }
+    rights:      { expr: "license" }
+    identifier:  { expr: "foreign_landing_url" }
+    assetURI:    { expr: "url" }
+    previewURI:  { expr: "thumbnail" }
     contentType: { literal: "image/jpeg" }
     contributor: { expr: "source" }
-    scale:      { literal: "1" }
+    scale:       { literal: "1" }
 
 filter:
   allowed_content_types: ["image/jpeg", "image/png"]
-  drop_if_missing: ["assetURI"]
-
-cache:
-  ttl_seconds: 600
+  drop_if_missing: ["assetURI", "previewURI"]
 ```
 
-## Recipe 2 — Add a REST archive with an API key
+Before visitors use the source, configure `asset_detail` (Recipe 8): adding assets to a collection looks every asset up again.
 
-**When to use:** the upstream requires an API key (Europeana, Smithsonian, Flickr, …).
+## Recipe 2 — A source that needs an API key
 
-1. Get the key from the provider (most are free for non-commercial use).
-2. Add the key to your `.env` file: `MY_PROVIDER_KEY=...`.
-3. **Restart the bridge once** so `.env` is reloaded. (Subsequent YAML edits hot-reload without a restart.)
-4. In the new source YAML, reference the env var in `adapter.auth.value`:
+1. Get a key from the provider (Europeana and Smithsonian keys are free).
+2. Add it to `.env`: `MY_PROVIDER_KEY=...` (in Docker: the project's `.env` next to `docker-compose.yml`).
+3. **Restart** the server (`docker compose up -d` in production) — environment variables are read once at start. YAML edits later need no restart.
+4. Reference the variable in the YAML:
 
 ```yaml
 adapter:
   kind: rest
   base_url: "https://api.example.org"
   auth:
-    type: query_param    # or "header" for "Authorization: Bearer …"
+    type: query_param      # or: header
     name: api_key
     value: "${MY_PROVIDER_KEY}"
 ```
 
-The bridge expands `${MY_PROVIDER_KEY}` at startup. If the variable is missing the value becomes an empty string and the upstream will return 401 — which the bridge surfaces as code `20` (configuration error) with a clear message in the admin UI.
-
-For Bearer-style header auth:
+Bearer token in a header:
 
 ```yaml
 adapter:
@@ -97,23 +94,21 @@ adapter:
     value: "Bearer ${MY_PROVIDER_TOKEN}"
 ```
 
-## Recipe 3 — Add a single IIIF manifest
+A missing variable becomes an empty string; the upstream then usually answers 401/403, shown as code `20` ("Upstream auth failed … check API key"). The test run shows the request with the key masked as `***`, so an empty `api_key=` in the **Upstream request** means the variable did not expand.
 
-**When to use:** an institution publishes an IIIF Presentation API manifest (most major libraries do).
+## Recipe 3 — Add an IIIF manifest
 
-1. Find the manifest URL on the institution's site (often available behind a "Get IIIF manifest" link on the object's page).
-2. Use the **IIIF Presentation API manifest** template in **+ New source ▾**.
-3. Replace the `base_url` with your manifest URL.
-4. Pick a meaningful `collection.id`.
-5. **Save & Reload**.
+1. Find the manifest URL (often behind a "IIIF manifest" link on the object page).
+2. **Sources → New → IIIF Presentation API manifest.**
+3. Set `adapter.base_url` to the manifest URL and give the source a meaningful `collection.id` and `name`.
+4. **Run test**, then **Create source**.
 
 ```yaml
 collection:
-  id: bnf-illuminations-bestiary
+  id: bnf-medieval-bestiary
   name: "BnF — Medieval Bestiary"
   organization: "Bibliothèque nationale de France"
   owner_id: "you@example.org"
-  published: 1
 
 adapter:
   kind: custom
@@ -122,54 +117,34 @@ adapter:
   timeout_seconds: 20
 ```
 
-The bundled IIIF adapter handles both Presentation API v2 (`sequences[].canvases[]`) and v3 (`items[]`). One canvas = one Impulse asset; the image URL is derived from each canvas's painting annotation.
-
-To expose multiple manifests, create one YAML per manifest. Each manifest becomes its own Impulse collection.
+The adapter handles Presentation API v2 and v3. One canvas = one asset: full-size and 400 px preview URLs come from the IIIF Image API; canvases without a usable label are titled "<manifest> — page N". One YAML per manifest. The manifest is read once per source and kept until the next reload.
 
 ## Recipe 4 — Map nested JSON with JMESPath
 
-The mapping engine uses [JMESPath](https://jmespath.org/). The most useful patterns:
-
 | Goal | Pattern |
 |---|---|
-| Take a top-level field | `id` |
+| Top-level field | `id` |
 | First element of a list | `dcTitle[0]` |
-| Coerce a number to string | `to_string(pageid)` |
-| Reach into a nested dict | `imageinfo[0].extmetadata.LicenseShortName.value` |
-| Find a list element matching a filter | `media[?type=='Images'] \| [0].content` |
-| Turn an object-shaped collection into a list | `values(query.pages \|\| \`{}\`)` |
-| Choose first non-empty value (coalesce) | `[title[0], dcTitle.def[0]] \| [?@] \| [0]` |
+| Number to string | `to_string(pageid)` |
+| Nested field | `imageinfo[0].extmetadata.LicenseShortName.value` |
+| First list element matching a filter | `media[?type=='Images'] \| [0].content` |
+| Object of items → list | ``values(query.pages \|\| `{}`)`` |
+| First non-empty of several | `[title[0], dcTitle.def[0]] \| [?@] \| [0]` |
+| First value that is not a URI, else a fallback | `(dcCreator[?!starts_with(@, 'http')] \| [0]) \|\| edmAgentLabel[0].def` |
 
-Test JMESPath in the **Test** tab: copy the raw upstream JSON, paste it into the [JMESPath playground](https://jmespath.org/), and iterate until the expression returns the value you want.
+Iterate in the test run: change the expression, **Run test**, compare **Mapped assets**. For harder expressions, paste the raw response into the playground at https://jmespath.org/.
 
-## Recipe 5 — Drop items that don't have a usable URL
+## Recipe 5 — Keep only usable assets
 
-Many archives return mixed records: some items have downloadable media, some don't. The Impulse 3D world cannot render a "metadata-only" record, so it's better to drop those before they reach the client.
-
-```yaml
-filter:
-  drop_if_missing:
-    - "assetURI"     # if there's no downloadable URL, the item is useless to Unity
-    - "previewURI"   # without a thumbnail the public browser UI looks broken
-```
-
-`drop_if_missing` runs **after** mapping. The fields named here are Impulse field names, not upstream field names.
-
-For Europeana specifically, requiring `edmIsShownBy` (mapped to `assetURI`) tends to remove ~30% of records and dramatically improves the user experience.
-
-## Recipe 6 — Filter by content type
-
-Restrict a source to images only:
+Unity cannot show a metadata-only record, and the web app needs a thumbnail. Drop such items and restrict the content types:
 
 ```yaml
 filter:
-  allowed_content_types:
-    - "image/jpeg"
-    - "image/png"
-    - "image/webp"
+  allowed_content_types: ["image/jpeg", "image/png", "image/webp", "model/gltf-binary"]
+  drop_if_missing: ["assetURI", "previewURI"]
 ```
 
-This filter applies to the **mapped** `contentType`, not the upstream's MIME field name. If the upstream returns a non-standard type code, normalize it first via a value map in the mapping:
+Both rules work on **mapped** Impulse fields. Normalize upstream type codes first with a value map:
 
 ```yaml
 mapping:
@@ -177,69 +152,65 @@ mapping:
     contentType:
       expr: "media.type"
       map:
-        "IMAGE":   "image/jpeg"
-        "VIDEO":   "video/mp4"
-        "MODEL":   "model/gltf-binary"
+        "IMAGE": "image/jpeg"
+        "MODEL": "model/gltf-binary"
       default: "image/jpeg"
 ```
 
-## Recipe 7 — Strip HTML from descriptions
+`contentType` also drives the web app's **Images / 3D models** filter (`image/…` / `model/…`).
 
-Wikimedia (and many others) returns HTML in description fields. Use `transform: strip_html`:
+For Europeana keep `media: "true"` in `default_query` and require `assetURI` (from `edmIsShownBy`): many records only link to a landing page.
+
+## Recipe 6 — Clean up text
 
 ```yaml
+title:
+  expr: "title"
+  transform: file_title     # "File:Young_Hare.jpg" -> "Young Hare"
 description:
   expr: "imageinfo[0].extmetadata.ImageDescription.value"
-  transform: strip_html
+  transform: strip_html     # removes tags; entities are kept
 ```
 
-`strip_html` is a regex-based tag remover. It is intentionally simple — it does not unescape HTML entities or normalize whitespace. For most cultural-heritage descriptions this is good enough.
-
-## Recipe 8 — Page-based vs offset-based pagination
-
-The Impulse spec uses `?o=offset&c=count`. The bridge converts:
+## Recipe 7 — Pagination and an always-on filter
 
 ```yaml
-# Wikimedia / MediaWiki — offset-based natively
+# Zero-based item offset (MediaWiki)
 search:
-  pagination:
-    style: offset_limit
-    offset_param: gsroffset
-    limit_param: gsrlimit
-    max_size: 50
+  pagination: { style: offset_limit, offset_param: gsroffset, limit_param: gsrlimit, max_size: 50 }
 
-# Europeana — offset-based, but `start` counts from 1
+# One-based item offset (Europeana: start=1 is the first record)
 search:
-  pagination:
-    style: offset_limit
-    offset_param: start
-    limit_param: rows
-    offset_base: 1
-    max_size: 100
+  pagination: { style: offset_limit, offset_param: start, limit_param: rows, offset_base: 1, max_size: 100 }
 
-# A hypothetical zero-based pages API
+# Page numbers starting at 1
 search:
-  pagination:
-    style: page_size
-    page_param: page
-    size_param: per_page
-    page_base: 0
-    max_size: 50
+  pagination: { style: page_size, page_param: page, size_param: per_page, page_base: 1, max_size: 50 }
 ```
 
-If the upstream really only does cursor-based pagination, set `style: cursor` and accept that the bridge won't honor `?o=` precisely — it will simply request `c=` items each call.
+If paging repeats or skips items in the web app, check `offset_base` / `page_base` first.
 
-## Recipe 9 — Configure asset_detail for a clean single-asset endpoint
+To apply a filter to everything a visitor types, wrap the pattern — and repeat the filter for the empty search, which is not wrapped:
 
-Without `asset_detail`, `GET /collections/{id}/asset/{aid}` only finds assets that a recent search on this bridge returned, or that appear in the default search result. This is brittle for large collections.
+```yaml
+search:
+  query:
+    pattern_param: q
+    pattern_when_empty: 'online_media_type:"Images" AND media_usage:CC0'
+    pattern_template: "({pattern}) AND media_usage:CC0"
+```
 
-If the upstream has a per-asset endpoint, configure `asset_detail`:
+## Recipe 8 — Configure `asset_detail`
+
+Every asset added to a collection, and every "Update from sources", is looked up with `get_asset()`. Right after a search that is a cache hit; later (refresh, adding from an old selection, an API client) it needs a real lookup. Without `asset_detail` the source can only scan its default search page.
+
+Exact endpoint, id passed verbatim (Wikimedia):
 
 ```yaml
 asset_detail:
   enabled: true
   path: "/w/api.php"
-  query:
+  query:                    # replaces default_query: list everything the endpoint needs
     action: "query"
     format: "json"
     pageids: "{asset_id}"
@@ -248,15 +219,20 @@ asset_detail:
     iiurlwidth: "1024"
 ```
 
-`{asset_id}` is substituted with the Impulse asset ID at request time. The query block here **replaces** `adapter.default_query` — list every parameter you need, including `format=json`. (This is intentional: search and detail endpoints typically take incompatible parameters — for MediaWiki, search uses `generator=search` while detail uses `pageids`.)
+Same item, different envelope (Smithsonian):
 
-If the upstream's detail endpoint returns a different JSON shape than search, also provide a `mapping` block inside `asset_detail`. If shapes match, omit it and the top-level mapping is reused.
+```yaml
+asset_detail:
+  enabled: true
+  path: "/openaccess/api/v1.0/content/{asset_id}"
+  query: {}
+  mapping:
+    items_path: "response"  # search: response.rows; fields are reused
+```
 
-### Variant: the assetID is slugified and cannot be reversed
+### Variant: the assetID is slugified
 
-Sources whose upstream ids contain uppercase letters or separators (Europeana: `/90402/SK_A_3262`) map them with `transform: slugify` (`90402-sk-a-3262`) to satisfy the Impulse id-schema. That transformation is lossy, so `{asset_id}` cannot be fed to an exact-match detail endpoint — Europeana's Record API answers `Invalid record identifier` for `/90402/sk_a_3262`.
-
-If the upstream search is Solr-based (Europeana, DPLA, Trove, most Blacklight sites), point `asset_detail` at the **search** endpoint and use `{asset_id_regex}`, which the bridge expands to a case-insensitive regex matching exactly the ids that slugify to the requested assetID:
+Europeana ids such as `/90402/SK_A_3262` become `90402-sk-a-3262` with `transform: slugify` — irreversible, so the exact Record API cannot be used. If the upstream search is Solr-based (Europeana, DPLA, Trove, Blacklight), query the search endpoint with `{asset_id_regex}`:
 
 ```yaml
 asset_detail:
@@ -268,119 +244,160 @@ asset_detail:
     rows: "1"
 ```
 
-Because the response has the search shape, the search mapping is reused; the bridge verifies that the mapped `assetID` of the returned item equals the requested one.
+### Variant: no regex search, but an exact endpoint
 
-### Variant: no regex-capable search, but an exact detail endpoint
-
-If the upstream cannot do regex queries but has a `GET /items/{id}` style endpoint, make the assetID reversible instead of readable: map it with `transform: base32` and decode it in the detail request with `{asset_id_from_base32}`:
+Make the id reversible instead of readable:
 
 ```yaml
 mapping:
   fields:
-    assetID: { expr: "id", transform: base32 }   # "edanmdm-nmah_1981.0296.06" -> "mvsgc3tnmrws23tn…"
+    assetID: { expr: "id", transform: base32 }
 
 asset_detail:
   enabled: true
-  path: "/openaccess/api/v1.0/content/{asset_id_from_base32}"
+  path: "/items/{asset_id_from_base32}"
   query: {}
-  mapping:
-    items_path: "response"    # detail wraps one row in "response"; fields are reused
 ```
-
-Base32 ids are id-schema safe for any input (`a-z2-7`), but opaque and ~1.6× longer. Only reach for it when the id is genuinely not id-schema safe — Smithsonian's current `ld1-…` ids, for instance, are safe as they are and use plain `{asset_id}`.
 
 ### Decision guide
 
-1. Does the upstream expose **any** identifier that is already lowercase letters, digits and hyphens (a numeric id, a UUID, a timestamp id)? Use it, no transform needed, `{asset_id}` for detail. Done.
-2. Otherwise, is the upstream search **Solr/Lucene-based** (Europeana, DPLA, Trove, Blacklight, most library discovery layers)? Use `slugify` for readable ids and `{asset_id_regex}` against the search endpoint.
-3. Otherwise, use `base32` and `{asset_id_from_base32}` against the exact detail endpoint.
-4. No detail endpoint at all and no regex search? Leave `asset_detail` disabled. Assets found through a search on this bridge stay retrievable for the cache TTL; anything else falls back to scanning the default search page.
+1. The upstream has an identifier that is already lowercase letters, digits and hyphens? Use it, `{asset_id}`.
+2. Otherwise, Solr/Lucene search? `slugify` + `{asset_id_regex}` on the search endpoint.
+3. Otherwise, `base32` + `{asset_id_from_base32}` on the exact endpoint.
+4. Neither? Leave `asset_detail` off. Adding assets right after a search still works (cache TTL); refreshes may report "Asset not found".
 
-## Recipe 10 — Test before saving
-
-The fastest way to iterate on a tricky mapping:
-
-1. Open the source in the admin UI.
-2. Go straight to the **Test** tab.
-3. Set a search term that returns interesting items.
-4. Run.
-5. Read the **Raw upstream response** — note which fields you need.
-6. Switch to **Form**, adjust the mapping rows.
-7. Switch back to **Test**, run again.
-8. Once the **Mapped Impulse output** looks right, **Save & Reload**.
-
-Nothing is written to disk until you click Save. You can iterate freely.
-
-## Recipe 11 — Build a fallback / offline collection
-
-Useful for demos, integration tests, and as a guaranteed-working stand-in:
-
-1. Create a directory under `data/fallback/<your-collection>/` and place your asset files there (e.g. `.glb`, `.jpg`).
-2. Write a `manifest.json` next to them, listing the assets in Impulse asset shape — see `data/fallback/assets/manifest.json` for an example.
-3. Create a YAML in `configs/sources/` using the **Fallback (local files)** template, pointing `manifest_path` at your new `manifest.json`.
-
-The fallback adapter serves the asset files via static-file routes under `/collections/{id}/`, matching the spec's relative-URI resolution.
-
-## Recipe 12 — Hide a collection without deleting it
-
-Set `published: 0`:
-
-```yaml
-collection:
-  published: 0
-```
-
-`GET /collections` still includes it in its output (with `published: 0`) but Impulse clients are expected to filter on this. Use this for staging changes or temporarily removing a problematic source without losing its config.
-
-If you want it gone from `/collections` entirely, **Delete** it via the admin UI or simply move/rename the YAML file out of `configs/sources/` and hit **↻**.
-
-## Recipe 13 — Rotate an API key
-
-1. Update the value in `.env`.
-2. Restart the bridge — `.env` is only read at process startup.
-3. (Optional) Open the admin UI and use **Test** on the affected source to confirm the new key works.
-
-The YAML files do not change; they keep referencing `${MY_API_KEY}` which now resolves to the new value.
-
-## Recipe 14 — Debug a "no items returned" problem
-
-Symptoms: `GET /collections/{id}/assets` returns `{"code": 0, "message": "OK", "data": []}` even though you'd expect results.
-
-In the admin UI's **Test** tab, look at:
-
-1. **Upstream URL** — does it look right? Is the search parameter being passed?
-2. **Raw upstream response** — does it contain items at all? If yes:
-   - Does `items_path` resolve to the right thing? (Empty `items_path` treats the response as the array.)
-   - Are items being dropped by `filter.allowed_content_types` or `filter.drop_if_missing`? Temporarily clear those filters and re-test.
-   - Are `assetURI` / `previewURI` being mapped to empty strings? Check the mapping rows.
-3. If the raw response is empty, your `pattern_when_empty` or `default_query` is too restrictive.
-
-## Recipe 15 — Verify against the live Impulse API
-
-Once your source is configured and tested, confirm Impulse-protocol compliance from outside the admin UI:
+Check a lookup:
 
 ```bash
-# List of all virtual collections, including your new one
-curl 'http://localhost:8080/collections'
-
-# Detail of your collection
-curl 'http://localhost:8080/collections/my-source'
-
-# First page of assets
-curl 'http://localhost:8080/collections/my-source/assets?c=5'
-
-# Search
-curl 'http://localhost:8080/collections/my-source/assets?s=van+gogh&c=3'
-
-# Single asset
-curl 'http://localhost:8080/collections/my-source/asset/some-asset-id'
-
-# Direct download of the first asset's URI (asserts that Unity can download it)
-curl -I "$(curl -s 'http://localhost:8080/collections/my-source/assets?c=1' | python -c 'import sys,json; print(json.load(sys.stdin)["data"][0]["assetURI"])')"
+curl http://localhost:8080/api/sources/<source-id>/assets/<assetID>
 ```
 
-Every response should match the Impulse envelope `{code, message, data}` and the asset shape from the spec.
+## Recipe 9 — A local (fallback) source
+
+For demos, offline use and assets that live on this server:
+
+1. Create `data/fallback/<name>/` with the media files.
+2. Write `data/fallback/<name>/manifest.json`: a JSON array of Impulse assets; `assetURI` / `previewURI` may be file names relative to that directory. See `data/fallback/assets/manifest.json`.
+3. **Sources → New → Fallback (local files)**, set `manifest_path: "data/fallback/<name>/manifest.json"`, **Create source**.
+
+The files are served at `/sources/<source-id>/files/<path>`; curated collections store those absolute URLs. Do not rename such a source or change `BRIDGE_PUBLIC_BASE_URL` once collections use it — the stored file URLs would break (see [06](06-operations.md#troubleshooting)).
+
+In Docker, `data/` is bind-mounted: put the files on the host and make them readable for uid 10001.
+
+## Recipe 10 — Edit files on disk, take a source offline
+
+- **Edited a YAML on the server?** **Sources → Reload from disk** (or `POST /admin/api/reload`). Broken files get a red dot; all others stay live.
+- **Take a source offline:** **Delete** it in the editor, or move the file out of `configs/sources/` and reload. `collection.published: 0` has no effect. Existing collections keep their snapshots.
+
+## Recipe 11 — Rotate an API key
+
+1. Change the value in `.env`.
+2. Restart (`docker compose up -d`).
+3. **Sources → open the source → Run test** to confirm.
+
+The YAML does not change; it keeps referencing `${MY_API_KEY}`.
+
+## Recipe 12 — "No items" in a source
+
+The web app shows nothing, or `GET /api/sources/{id}/assets` returns `"items": []`. In the test run:
+
+1. **Upstream request** — right path, search parameter, paging parameters?
+2. **Raw upstream response** — does it contain items?
+   - Yes: does `items_path` resolve to them? Are all items dropped by `filter`? Clear the filter temporarily and run again. Are `assetURI` / `previewURI` empty after mapping?
+   - No: `default_query` or `pattern_when_empty` is too restrictive, or the API needs other parameters.
+3. Errors above the results show the upstream status (code `20`: key; `11`: rate limit; `12`: bad request).
+
+## Recipe 13 — How a curated collection reaches Unity
+
+```
+visitor          web app / Curator                    IMPULSE team        Unity
+───────          ─────────────────                    ────────────        ─────
+search, select ─► POST /api/collections
+                  → snapshots in SQLite, edit key
+edit, hide,    ─► /c/{id}/edit  (PATCH …, PUT …/order)
+reorder
+"Submit to     ─► mail program opens, pre-filled  ──► registers the
+ IMPULSE"         to the submission address           collection URI in
+                  (+ POST …/submitted)                the platform list ──► GET {uri}
+                                                                            GET {uri}/assets
+                                                                            GET {uri}/asset/{aid}
+admin "Listed" ─► appears in GET /collections (optional)
+```
+
+1. **Create.** In `/explore` the visitor selects assets and creates a collection. The server snapshots every asset (failures are reported, the rest is kept) and returns the edit key once; the web app stores it in the browser and opens `/c/{id}/edit`.
+2. **Curate.** On the edit page: name, description, order, **Visible in Unity** per asset, add more assets, **Update from sources**. Every change is in the Impulse API immediately — Unity reads SQLite.
+3. **Submit.** **Submit to IMPULSE** opens the visitor's mail program with a message to the **Submission address** (admin Settings). It contains the collection URI and its Impulse entry (`id`, `uri`, `name`, `description`, `organization`, `owner_id`, `published`). The dialog can also copy the text instead; if it is too long for a `mailto:` link (about 1,800 characters), the full text goes to the clipboard and the mail program opens with a short message to paste it into. Either way the collection is marked as submitted (`POST /api/collections/{id}/submitted`). Several collections can be submitted at once from **My collections**. Without a submission address, visitors are asked to send the details to their IMPULSE contact.
+4. **Register.** The IMPULSE team adds the collection URI to the platform's collection list. From then on, Unity loads `<uri>/assets`.
+5. **List (optional).** On **Admin → Collections**, switch **Listed** on so the collection also appears in the Curator's own `GET /collections`.
+
+Check what Unity gets:
+
+```bash
+curl http://localhost:8080/collections/<id>                 # metadata (code 1 if unknown or locked)
+curl http://localhost:8080/collections/<id>/assets          # visible assets, in order
+curl 'http://localhost:8080/collections/<id>/assets?s=sun*flower&o=0&c=10'
+curl http://localhost:8080/collections/<id>/asset/<assetID>
+curl http://localhost:8080/collections                      # listed collections only
+```
+
+## Recipe 14 — Create and edit a collection with the API
+
+```bash
+B=http://localhost:8080
+
+# Create (returns the edit key once)
+curl -s -X POST $B/api/collections -H 'Content-Type: application/json' -d '{
+  "name": "Demo",
+  "description": "Two assets",
+  "items": [{"source": "bridge-demo", "asset_id": "demo-cube"},
+            {"source": "wikimedia-commons-images", "asset_id": "151972"}]}'
+# → {"collection": {"id": "demo-k3m9x2", …}, "edit_key": "…", "failed": []}
+
+ID=demo-k3m9x2; KEY='<edit key>'
+
+# Add, hide, reorder, rename
+curl -s -X POST  $B/api/collections/$ID/items -H "Authorization: Bearer $KEY" \
+     -H 'Content-Type: application/json' -d '{"items": [{"source": "bridge-demo", "asset_id": "demo-sphere"}]}'
+curl -s -X PATCH $B/api/collections/$ID/items/<assetID> -H "Authorization: Bearer $KEY" \
+     -H 'Content-Type: application/json' -d '{"published": false}'
+curl -s -X PUT   $B/api/collections/$ID/order -H "Authorization: Bearer $KEY" \
+     -H 'Content-Type: application/json' -d '{"asset_ids": ["<id-1>", "<id-2>", "<id-3>"]}'
+curl -s -X PATCH $B/api/collections/$ID -H "Authorization: Bearer $KEY" \
+     -H 'Content-Type: application/json' -d '{"name": "Demo, renamed"}'
+```
+
+`asset_id` in requests is the **source's** assetID; in the collection each item gets its own `assetID` (e.g. `demo-cube-0d373d`), used for `/items/{assetID}` and `order`. `order` must list every item exactly once. The edit link for a browser is `<public base URL>/c/<id>/edit#key=<edit key>`.
+
+## Recipe 15 — A creator lost the edit link
+
+- **With email:** if the collection has an email address and email is set up, the creator signs in at `/signin` with that address and gets a one-time link; afterwards **My collections** lists all collections created with it.
+- **Without:** **Admin → Collections → key icon → Create new link**, then send the link to the creator. The old link stops working.
+
+## Recipe 16 — Deal with a reported collection
+
+Reports arrive by email (`/report` describes the procedure).
+
+1. **Admin → Collections**, search for the id from the reported URL.
+2. Switch **Locked** on: the collection disappears from the Impulse API and its pages, and its creator can no longer change it. Nothing is deleted.
+3. Unlock, or **Delete** it for good.
+
+## Recipe 17 — Check Impulse compliance
+
+```bash
+B=http://localhost:8080; ID=<collection id>
+
+curl -s $B/collections | python -m json.tool                     # envelope, listed collections
+curl -s "$B/collections/$ID/assets?o=abc"                        # illegal o → entire result set
+curl -s "$B/collections/$ID/assets?c=0"                          # illegal c → entire result set
+curl -s $B/collections/does-not-exist                            # {"code": 1, …} with HTTP 404
+curl -s $B/collections/$ID/asset/does-not-exist                  # {"code": 2, …} with HTTP 404
+
+# Can the first asset be downloaded directly (what Unity does)?
+curl -I "$(curl -s $B/collections/$ID/assets?c=1 | python -c 'import sys,json; print(json.load(sys.stdin)["data"][0]["assetURI"])')"
+```
 
 ---
+
+_Last verified against the code: October 2026._
 
 _Continue to [06 — Operations](06-operations.md)._

@@ -1,274 +1,201 @@
 # 04 — Admin UI
 
-The admin UI is the day-to-day tool for managing sources. It lives at `http://localhost:8080/admin` and talks to the bridge through the `/admin/api/...` endpoints.
+The admin area is part of the web app at `http://localhost:8080/admin`. It has three pages — **Collections**, **Sources** and **Settings** — and talks to the backend only through `/admin/api/…`.
 
-This doc walks through every section of the UI. For the underlying field semantics see [03 — YAML reference](03-yaml-reference.md).
+The app has **no admin login of its own**. In production the reverse proxy protects every path that starts with `/admin` (the pages and the API) with HTTP basic auth — see [07 — Deployment](07-deployment.md). Never expose `/admin` without it.
 
-## Layout
-
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ Impulse Bridge — Admin    [5 loaded / 5 on disk]    ☀ Light  Help  Browser  API
-├──────────────────────────┬───────────────────────────────────────────────────┤
-│ + New source ▾    ↻      │ Source detail header — id, status, actions        │
-├──────────────────────────│───────────────────────────────────────────────────│
-│                          │ [ Form ] [ YAML ] [ Test ]                        │
-│ ● europeana-public-…     │                                                   │
-│   rest · api.europeana.eu│ ┌─────────────────────────────────────────────┐  │
-│                          │ │  Currently selected tab's content           │  │
-│ ● bridge-demo            │ │                                             │  │
-│   fallback · …           │ │                                             │  │
-│                          │ │                                             │  │
-│ ● iiif-wellcome-…        │ │                                             │  │
-│   custom · iiif…         │ │                                             │  │
-│                          │ │                                             │  │
-│ ● smithsonian-open-…     │ │                                             │  │
-│   rest · api.si.edu      │ │                                             │  │
-│                          │ │                                             │  │
-│ ● wikimedia-commons-…    │ │                                             │  │
-│   rest · commons.wiki…   │ │                                             │  │
-│                          │ │                                             │  │
-└──────────────────────────┴───────────────────────────────────────────────────┘
-```
-
-Three sections: the **header**, the **sidebar**, and the **detail pane**.
+For field semantics of source configs see [03 — YAML reference](03-yaml-reference.md); for the endpoints see [06 — Operations](06-operations.md#admin-api).
 
 ## Header
 
 | Element | Purpose |
 |---|---|
-| Title | Just the product name. |
-| Count chip | "N loaded / M on disk" — N = sources currently in the live registry, M = YAML files found on disk. If N < M, some files failed validation (look for the red ● in the sidebar). |
-| ☀ Light / 🌙 Dark | Theme toggle. Preference persisted in `localStorage`. |
-| Help | Opens this documentation in the browser. |
-| Browser | Switch to the public browser UI (`/`) for visual asset inspection. |
-| API | Opens the auto-generated FastAPI Swagger UI at `/docs`. Useful for testing the Impulse-protocol endpoints directly. |
+| IMPULSE logo + **Admin** pill | — |
+| **Collections** / **Sources** / **Settings** | The three pages (`/admin`, `/admin/sources`, `/admin/settings`). |
+| Theme switcher | Light / dark / system; remembered in this browser. |
+| **Open the app** | Goes to `/explore`. |
 
-## Sidebar
+---
 
-The left column lists every YAML file in `configs/sources/`. Each entry shows:
+## Collections
 
-- A colored **status dot**:
-  - **● green** — config loaded and active in the registry
-  - **● red** — config exists on disk but failed to load (the row's second line shows the error)
-  - **● grey** — config not loaded for some other reason (rare)
-- The **display name** (from `collection.name`)
-- A **kind pill** — `rest`, `fallback`, or `custom`
-- A muted second line showing the upstream `base_url` or the error message
+`/admin` — every curated collection, newest change first (`GET /admin/api/collections`).
 
-Two controls at the top of the sidebar:
+### Overview
 
-- **+ New source ▾** — opens a dropdown with starter templates:
-  - **REST API (generic)** — fully-wired skeleton for any JSON API
-  - **IIIF Presentation API manifest** — wraps a single IIIF manifest as a collection
-  - **Fallback (local files)** — points at a local JSON manifest
-- **↻** — reloads every YAML file from disk into the live bridge without saving anything. Useful after editing files directly with a text editor. Broken files show a red status dot; all other sources keep running.
+- **Stats:** Total, Submitted, Listed, Locked.
+- **Search** by name, id, email or description (press Enter to apply).
+- **Show:** All · Submitted · Listed · Locked.
 
-Clicking a source loads it into the right pane. Clicking again is a no-op. If the current pane has unsaved changes, a confirmation dialog appears.
+### Table
 
-## Detail header
+| Column | Content |
+|---|---|
+| Collection | Name (links to the public page `/c/{id}`) and id |
+| Assets | Number of assets, visible or not |
+| Contact | The creator's email, if they gave one (never public) |
+| Status | **Submitted** *time ago* or **Not submitted**, plus when it was last updated |
+| Listed | Switch — see below; disabled while the collection is locked |
+| Locked | Switch — see below |
+| Actions | **New edit link** (key icon), **Delete** (bin icon) |
 
-When a source is selected (or a new one is being drafted), the right pane shows:
+### What the switches do
+
+| Action | Effect |
+|---|---|
+| **Listed** on | The collection appears in the Impulse API's `GET /collections`. Use it for collections the IMPULSE team has accepted. Unlisted collections are still served at their own URI. |
+| **Locked** on | `GET /collections/{id}…` answers code `1` (not found) and the collection disappears from `GET /collections`. Visitors get 404 on its pages; its editor still sees it, marked as locked, but every change is refused. Unlocking restores everything. |
+| **New edit link** | Creates a new edit key and shows the link `<origin>/c/{id}/edit#key=…` **once**. The previous edit link stops working immediately; a creator who signs in by email keeps access. Use it for a creator who lost the link. |
+| **Delete** | Removes the collection and all its items from the database after a confirmation. Impulse can no longer load it. Cannot be undone (except from a backup). |
+
+Admins cannot edit a collection's content here. If you must, create a new edit link and open it — that also takes the old link away from the creator.
+
+---
+
+## Sources
+
+`/admin/sources` — a YAML editor for the files in `configs/sources/`.
+
+```
+┌──────────────────────────┬──────────────────────────────────────────────────────┐
+│ Sources                  │ Wikimedia Commons Images                             │
+│ [New] [Reload from disk] │ [Live] wikimedia-commons.yaml   Revert Delete [Save] │
+│                          │ ┌──────────────────────────────────────────────────┐ │
+│ ● Bridge Demo Collection │ │ 1  collection:                                   │ │
+│   fallback-demo.yaml ·   │ │ 2    id: wikimedia-commons-images                │ │
+│   fallback               │ │ …   (YAML, syntax-highlighted, problems marked)  │ │
+│ ● Europeana Public …     │ └──────────────────────────────────────────────────┘ │
+│   europeana.yaml · rest  │ ✓ Valid configuration                                │
+│ ● Wikimedia Commons …    │ ┌ Test run ─────────────────── [pattern] [6] [Run] ┐ │
+│   wikimedia-commons.yaml │ │ Upstream request, assets, mapped JSON, raw JSON  │ │
+│   · rest                 │ └──────────────────────────────────────────────────┘ │
+└──────────────────────────┴──────────────────────────────────────────────────────┘
+```
+
+### Source list
+
+One entry per `*.yaml` / `*.yml` file (`GET /admin/api/sources`):
+
+- **Dot:** green — loaded and live; red — the file has a problem (parse error, schema error, duplicate id, or the source could not be built), the message is shown below; grey — not loaded.
+- **Name** (`collection.name`, else the id or the filename), then **filename · kind**.
+
+Clicking an entry opens it; the URL becomes `/admin/sources?file=<filename>`, so a file can be linked directly.
+
+| Button | Effect |
+|---|---|
+| **New** | Opens the template picker: **REST API (generic search/discovery)**, **IIIF Presentation API manifest**, **Fallback (local files)** (`GET /admin/api/templates`). The template is loaded into the editor as a new, unsaved file. |
+| **Reload from disk** | Re-reads every file and hot-swaps the registry (`POST /admin/api/reload`), e.g. after editing files with a text editor on the server. A toast reports how many sources are live and how many have problems; the open file is re-read if it has no unsaved changes. |
+
+### Editor
 
 | Element | Purpose |
 |---|---|
-| Title | The collection's `name`. |
-| `id: …` pill | The collection's `id`. |
-| Status pill | **Saved** if the in-memory state matches disk; **Unsaved changes** (amber) if not. |
-| Discard | Visible only when there are unsaved changes — reverts to the last saved YAML. |
-| Save & Reload | Persists changes to disk, validates, and triggers a registry hot-reload. Keyboard shortcut: **Ctrl+S**. |
-| Create & Reload | Same, for a new source. Refused if another source already uses the id — existing configs are never overwritten. Changing an existing source's id to one that is taken is refused as well. |
-| Delete | (Only for existing sources.) Asks for confirmation, then unlinks the YAML file and removes the collection from the registry. |
+| Title | `collection.name` of the file, or "New source" |
+| Status pill | **Live** (loaded), **Not running** (saved, but the source could not start — the reason is shown in a notice below), **Not loaded**, or **New — not saved** |
+| Filename | The file on disk |
+| **Unsaved changes** | Shown while the text differs from the saved file |
+| **Revert** | Back to the saved text |
+| **Delete** | Removes the file after a confirmation (`DELETE /admin/api/files/{filename}`). The source disappears from the web app; curated collections keep the assets they already contain. |
+| **Save** / **Create source** | Writes the text and hot-reloads (`PUT /admin/api/files/{filename}` / `POST /admin/api/files`) |
 
-## Tabs
+The editor is CodeMirror with YAML highlighting, line numbers and the usual shortcuts (undo, search with Ctrl/Cmd+F, …). There is no save shortcut; use the button.
 
-Three tabs share the same in-memory config object. Edits in one tab are reflected in the others when you switch:
+**Live validation.** About 0.4 s after you stop typing, the text is checked (`POST /admin/api/validate`) — YAML syntax first, then the schema with `${ENV_VAR}` expanded. Problems are underlined on their line in the editor and listed below it as *Line N · path · message*; clicking an entry jumps to the line. Schema errors point at the deepest key of the path that exists in the text, e.g. `search.pagination.style`. Without problems the list reads **Valid configuration**.
 
-- **Form** — structured editor with one section per top-level YAML block.
-- **YAML** — raw text editor on the same content. Edits here override the form on the next save.
-- **Test** — runs a live upstream call against the current (unsaved) configuration and shows the raw response next to the mapped Impulse output.
+**Saving** keeps the text exactly as typed — comments, ordering and formatting survive (line endings are not converted). The rules:
 
-If you edit in the YAML tab and then switch back to Form, the YAML is parsed and the form is re-rendered from it. If parsing fails, you get a toast and the form is not updated until you fix the syntax.
-
----
-
-## The Form tab
-
-### Section: Collection
-
-The Impulse-protocol metadata returned by `GET /collections` and `GET /collections/{id}`. Maps directly to YAML's `collection` block.
-
-| Field | Purpose |
+| Situation | Result |
 |---|---|
-| **ID** | The collection identifier. Validated against id-schema (lowercase, digits, hyphens). Cannot collide with another loaded source. |
-| **Name** | Display name shown in the Impulse UI and the public browser. |
-| **Description** | Free-text description, multi-line. Optional. |
-| **Organization** | Institution name. Returned in `GET /collections`. |
-| **Owner ID** | Email or identifier of the bridge operator responsible for this source. |
-| **Published** | `1` to expose to clients, `0` to hide (useful for staging changes). |
+| The text has problems | Not saved (422); the problems are shown in the editor |
+| The `collection.id` is already defined by another file | Not saved (409) — a file never takes over another file's source |
+| New file | Named after the id (`<id>.yaml`; `<id>-2.yaml` if that name is taken) |
+| Changed id in an existing file | Allowed — the file keeps its name and the source is renamed (see [03](03-yaml-reference.md#collection) for what that means for existing collections) |
+| Saved, but the source cannot start (e.g. the fallback manifest is missing) | Saved; toast "Saved, but the source could not start: …" and status **Not running** |
 
-### Section: Adapter
+Every save and delete reloads all sources atomically; a broken file elsewhere never stops the others.
 
-The adapter kind drives most of the rest of the form.
+Leaving the page or opening another file with unsaved changes asks for confirmation.
 
-#### Kind: `rest`
+Broken files can be opened and repaired: the editor works on the file by name, so even a file without a parsable id can be fixed and saved.
 
-| Field | Purpose |
-|---|---|
-| **Base URL** | The HTTPS root the bridge calls. All `search.path` and `asset_detail.path` are relative to this. |
-| **Auth Type** | `none`, `query_param`, or `header`. |
-| **Auth Name / Value** | (Only shown if auth is enabled.) The parameter or header name and value. Use `${ENV_VAR}` for secrets — they expand from `.env` at startup. |
-| **Timeout (sec)** | HTTP timeout. Default 10. |
-| **Default query params** | Key/value list. Sent with **every** search request. Use for static filters (`format=json`), aggregation flags (`profile=rich`), or content filters (`qf=TYPE:IMAGE`). The **+ add** button creates a new row; the **×** removes one. |
+### Test run
 
-#### Kind: `fallback`
-
-| Field | Purpose |
-|---|---|
-| **Manifest path** | Relative path to a JSON file containing pre-mapped Impulse assets. |
-| **Static mount** | If checked, the bridge serves the files in the manifest's directory under `/collections/{id}/` so relative `assetURI` values resolve correctly. Usually leave this on. |
-
-#### Kind: `custom`
-
-| Field | Purpose |
-|---|---|
-| **Custom class** | Dotted Python path to a class implementing the `Source` protocol. The class must exist in the running bridge process; you cannot add custom Python code through the UI. |
-| **Base URL / manifest URL** | Adapter-specific; for IIIF, the manifest URL. |
-| **Timeout (sec)** | HTTP timeout for any HTTP work the custom adapter does. |
-
-### Section: Search (REST only)
-
-How Impulse's pagination and search parameters are translated upstream.
-
-| Field | Purpose |
-|---|---|
-| **Search path** | Appended to the base URL on every search call. |
-| **Method** | `GET` (the only supported value in practice). |
-| **Search param (Impulse s=)** | The upstream parameter that receives Impulse's `?s=` value. |
-| **Default pattern (when ?s missing)** | Sent when the Impulse client did not supply `s`. Some upstreams require a non-empty query — `*` is a common choice. |
-| **Pagination style** | Switch between page/size, offset/limit, cursor, or none. The form changes shape to show only the parameters relevant for the chosen style. |
-| **Page/Size/Offset/Limit/Cursor params** | Names of the upstream parameters that receive the page or offset and the size or limit. |
-| **Page base** | `0` if upstream pages are zero-based, `1` if one-based. |
-| **Max page size** | Hard upper bound on the size sent upstream — protects against expensive queries. |
-
-### Section: Mapping
-
-The most important section. Translates upstream JSON into Impulse asset dictionaries.
-
-#### `items_path`
-
-A single JMESPath expression that resolves to the **array** of upstream items. Some examples:
-
-| Upstream shape | `items_path` |
-|---|---|
-| `{ "items": [...], "totalResults": 42 }` | `items` |
-| `{ "response": { "rows": [...], "rowCount": 7 } }` | `response.rows` |
-| `{ "query": { "pages": { "151972": {...}, "12345": {...} } } }` | `values(query.pages \|\| \`{}\`)` |
-| The whole response IS the array | leave blank |
-
-#### Mapping table
-
-Below `items_path` is a table with one row per Impulse asset field. By default it shows the **internal** (mandatory management) fields and **DC required** fields. Toggle **Show optional Dublin Core fields** to reveal the rest.
-
-Each row has five cells:
-
-| Cell | Meaning |
-|---|---|
-| **Impulse field** | The field name from the spec. Read-only. |
-| **Type** | `expr` (a JMESPath against the raw item) or `literal` (a constant value). |
-| **Value** | The expression or literal. |
-| **Default** | A fallback used when the expression returns nothing. |
-| **Transform** | One of `slugify`, `base32`, `strip_html`, `lower`, `upper`, or empty. Applied **after** the default and any value-map. For `assetID`, see the strategy table in [03 — YAML reference](03-yaml-reference.md#choosing-an-assetid-strategy). |
-
-Leaving a row blank means "don't populate this Impulse field". Filters in the next section can drop assets where required fields turned out empty.
-
-### Section: Filter
-
-Final pass before the asset is returned to the client.
-
-| Field | Purpose |
-|---|---|
-| **Allowed content types** | Comma-separated MIME types. An asset is dropped if its `contentType` (after mapping) is not in this list. Leave empty to allow any. |
-| **Drop if missing** | Comma-separated Impulse field names. An asset is dropped if **any** named field is missing/empty after mapping. Useful for upstreams that mix "has-media" and "no-media" items. |
-
-### Section: Asset detail (REST only)
-
-Optional per-asset lookup. If disabled, `GET /collections/{id}/asset/{aid}` falls back to scanning the default search result.
-
-| Field | Purpose |
-|---|---|
-| **Enabled** | Off by default. Turn on to use a dedicated upstream endpoint. |
-| **Path** | URL path for the detail endpoint. May contain a `{asset_id}` placeholder, e.g. `/items/{asset_id}`. |
-| **Detail query params** | Key/value list. **Replaces** (does not merge with) the adapter's `default_query`, because detail and search endpoints typically take different parameter sets. Values may contain `{asset_id}`. |
-
-### Section: Cache
-
-| Field | Purpose |
-|---|---|
-| **TTL (seconds)** | How long raw upstream responses are kept in memory. Default `600`. Currently shared with the global cache (see [02 — Architecture](02-architecture.md#cache)). |
-
----
-
-## The YAML tab
-
-A monospace textarea showing the same content as the Form, but as raw YAML. Anything you can do in the Form, you can do here, plus things the Form doesn't expose (comments, unusual ordering, niche features).
-
-Two notes:
-
-- **Edits here override the Form on the next switch.** A dot in the tab label (`YAML •`) means the textarea was edited and the Form will be re-rendered from it.
-- **Comments are not preserved across saves through the admin UI.** The bridge re-serializes the parsed config when saving. If you want comments in your YAML files, edit them directly on disk and use the **↻** button.
-
-A status banner under the textarea is:
-
-- **Green** — Pydantic considers the YAML valid.
-- **Red** — list of validation errors with `loc` and `msg`. The same list appears as a badge on the Form tab if you switch back without fixing.
-
----
-
-## The Test tab
-
-Runs the current (unsaved) configuration against the real upstream and shows what comes back.
+Below the editor. Runs the **editor's current text** — saved or not — against the real archive (`POST /admin/api/test`). Nothing is saved, and the live source is not touched: the test builds a throw-away source from the text.
 
 | Control | Purpose |
 |---|---|
-| **Query** | The search pattern. Empty = use the configured `pattern_when_empty`. |
-| **Count** | How many items to ask for. |
-| **Run test** | Sends the current YAML to `POST /admin/api/test`. The bridge constructs an ephemeral Source from the YAML, calls `search()`, and returns both the raw upstream JSON and the mapped Impulse assets. Nothing is saved. |
+| Search pattern | Empty: the config's `pattern_when_empty` |
+| Number of results | 1–50 (default 6) |
+| **Run test** | Runs one search |
 
-The result area shows:
+Results:
 
-- **Upstream URL** — the exact URL the bridge hit, including query string. Copy-paste into curl to verify outside the bridge.
-- **Raw upstream response** — the full JSON from the upstream, pretty-printed. Used to figure out which fields to map and where they live.
-- **Mapped Impulse output** — what each item looks like after the mapping/filter pipeline. Should match what Unity will see.
-- **Errors** — any validation or upstream errors are surfaced above the panes.
+| Part | Content |
+|---|---|
+| Errors | Validation, build or upstream errors, with their location (`adapter`, `upstream`, a YAML path) |
+| **Upstream request** | The exact URL that was requested, copyable. Query-parameter API keys are shown as `***`. |
+| Assets | "N assets after mapping and filters", with thumbnail, title, kind and rights |
+| **Mapped assets (JSON)** | What the mapping produced — what a snapshot would store |
+| **Raw upstream response** | The upstream JSON (first 60,000 characters), with the API key replaced by `***` wherever it appears |
+
+The test shares the server's upstream cache: if the same request was made recently, the raw response comes from the cache. The mapping is always applied fresh, so mapping changes show up immediately.
 
 Typical workflow:
 
-1. Pick a source. Open the **Test** tab. Click **Run test** with an empty query — confirm you get items.
-2. Open the **Form** tab. Notice that some Impulse field is empty or wrong.
-3. Look at the **Raw upstream response** in the **Test** tab — find the field you actually want.
-4. Open the **Form** tab again. Set the JMESPath in the mapping row for that Impulse field.
-5. Switch back to **Test**, click **Run test** again — see the new output.
-6. When happy, click **Save & Reload**. The change is persisted and live.
+1. Open a source (or **New** → a template). Run the test with an empty pattern — do you get items?
+2. Open **Raw upstream response** and find the fields you need.
+3. Edit the mapping in the editor; problems appear as you type.
+4. Run the test again and compare **Mapped assets**.
+5. **Save**. The source is live immediately; check it in `/explore`.
 
 ---
 
-## Keyboard shortcuts
+## Settings
 
-| Shortcut | Action |
+`/admin/settings` — settings stored in the database (`GET`/`PUT /admin/api/settings`). They take effect immediately; no restart.
+
+### Submissions
+
+| Field | Purpose |
 |---|---|
-| **Ctrl/Cmd + S** | Save & Reload the current source |
-| **Esc** | Close the delete-confirmation modal |
+| **Submission address** | Where "Submit to IMPULSE" emails go (the team that registers collections). The web app opens the visitor's mail program with a pre-filled message to this address. Without one, visitors are asked to copy the collection details and send them to their IMPULSE contact. |
+
+### Email (SMTP)
+
+Used for sign-in links and "Email me the edit link". Without a working setup, sign-in by email is hidden in the web app.
+
+| Field | Purpose |
+|---|---|
+| **Server**, **Port** | SMTP host and port (default 587) |
+| **Encryption** | **STARTTLS** (default), **SSL/TLS** (implicit TLS, usually port 465) or **None** |
+| **Username** | Optional; without it, no SMTP login is attempted |
+| **Password** | Write-only: never returned by the API. "Saved — type to replace" when one is stored; **Remove it** deletes it. Disabled when `BRIDGE_SMTP_PASSWORD` is set in the environment, which always wins. |
+| **Sender** | `From:` address, e.g. `IMPULSE Curator <curator@example.org>` |
+
+The status pill reads **Email is set up** (server and sender are set), **Email is not set up**, or **Log only (development)** when `BRIDGE_MAIL_LOG_ONLY=true` — then mails are written to the server log instead of being sent.
+
+**Revert** discards unsaved edits; **Save settings** stores only the fields that changed. Invalid values (e.g. a port outside 1–65535) are refused.
+
+### Send a test email
+
+Sends a test message with the **saved** settings (`POST /admin/api/settings/test-email`); disabled while there are unsaved changes. SMTP errors are shown as they come from the server (e.g. "The SMTP server rejected the username or password").
+
+### Server
+
+Read-only values from the environment (change them in `.env` and restart): public address (`BRIDGE_PUBLIC_BASE_URL`), `owner_id` of collections, default organization, assets per collection, source config directory, database file.
 
 ---
 
-## What the admin UI cannot do
+## What the admin cannot do
 
-- **Add custom Python adapter code.** The `custom_class` field points at code that must already exist in the bridge process. To add a new adapter implementation, edit `app/adapter/custom/` and restart the server.
-- **Edit `.env` or environment variables.** Secrets live outside the YAML on purpose. To rotate an API key, edit `.env` and restart.
-- **Replace the manifest file used by a fallback source.** The `manifest_path` points at a file the operator must maintain separately.
-- **Migrate IDs across collections.** Each collection's data lives upstream. If you rename a collection `id`, Impulse will see it as a new collection — there is no link between old and new.
+- **Change environment settings or API keys.** They live in `.env`; edit it and restart.
+- **Add Python adapters.** `custom_class` must point at code that is already deployed (`app/adapter/custom/`).
+- **Upload fallback files.** Manifests and media of fallback sources are maintained on disk.
+- **Edit a collection's content** — only list, lock, delete it or issue a new edit link.
+- **Authenticate anyone.** Access control for `/admin` is the reverse proxy's job.
 
 ---
+
+_Last verified against the code: October 2026._
 
 _Continue to [05 — Cookbook](05-cookbook.md)._

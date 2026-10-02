@@ -1,81 +1,81 @@
 # 03 — YAML reference
 
-Every external archive is described by **one YAML file** in `configs/sources/`. This document is a complete reference for that file. Each section maps directly to a Pydantic model in [`app/config/schema.py`](../app/config/schema.py); any field not listed here will be rejected as unknown (`extra="forbid"`).
+Every source (archive) is described by **one YAML file** in `configs/sources/` (`BRIDGE_CONFIG_DIR`). This document is the complete reference for that file. Each section maps to a Pydantic model in [`app/config/schema.py`](../app/config/schema.py); unknown fields are rejected (`extra="forbid"`), and the admin's Sources editor shows such errors on the offending line.
 
 ## Top-level structure
 
 ```yaml
-collection: ...     # Impulse-protocol metadata (always required)
-adapter: ...        # how the bridge talks to the upstream (always required)
-search: ...         # search & pagination (REST only)
-mapping: ...        # JMESPath rules to translate upstream JSON → Impulse asset
-filter: ...         # post-mapping drop rules
-asset_detail: ...   # optional per-asset lookup (REST only)
-cache: ...          # per-source cache TTL
+collection: ...     # describes the source: id, name, … (required)
+adapter: ...        # how to reach the upstream (required)
+search: ...         # search pattern and pagination (REST only)
+mapping: ...        # JMESPath rules: upstream JSON → Impulse asset
+filter: ...         # drop rules applied after mapping
+asset_detail: ...   # optional single-asset lookup (REST only)
+cache: ...          # cache TTL (advisory, see below)
 ```
 
-`collection` and `adapter` are mandatory. The rest have sensible defaults; omitting them means "use defaults".
+`collection` and `adapter` are required; every other block has defaults.
+
+## Environment variables
+
+Any string value can reference an environment variable as `${VAR}` (uppercase letters, digits, underscores). Values come from the process environment and `.env`, read once at start. A missing variable expands to an empty string — for an API key that usually means an upstream 401/403, reported as code `20`.
+
+Never write a secret into a YAML file; reference it. The admin test run masks query-parameter API keys as `***` in the URL it shows, and replaces the key wherever it appears in the raw response.
 
 ---
 
 ## `collection`
 
-Impulse-protocol metadata for this virtual collection. Returned verbatim by `GET /collections` and `GET /collections/{id}`.
+Describes the **source**. The block keeps its historical name; it no longer becomes an Impulse collection. `name`, `description` and `organization` are what the web app shows in its source picker (`GET /api/sources`).
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `id` | string | yes | Must match the Impulse **id-schema**: lowercase letters, digits, hyphens; must start with a letter or digit. Used as the path segment in `/collections/{id}`. |
-| `name` | string | yes | Human-readable name shown in the Impulse UI. |
-| `description` | string | no | One- or two-sentence description. May be null. |
-| `organization` | string | yes | The institution responsible for the source (e.g. "Europeana Foundation"). |
-| `owner_id` | string | yes | Email or identifier of the bridge operator responsible for this collection. |
-| `published` | int | no | `1` = visible to clients, `0` = hidden. Default `1`. |
+| `id` | string | yes | The source id. Impulse id-schema: lowercase letters, digits and hyphens, starting with a letter or digit. Used in `/api/sources/{id}/…` and `/sources/{id}/files/…`, and stored with every curated asset taken from this source. Must be unique across all files. |
+| `name` | string | yes | Display name in the web app. |
+| `description` | string | no | One or two sentences; shown in the web app. |
+| `organization` | string | yes | The institution behind the archive. |
+| `owner_id` | string | yes | Contact of whoever maintains this config. Required by the schema; not published anywhere. |
+| `published` | int | no | Accepted for compatibility (default `1`); **currently has no effect** — a source with `published: 0` is still offered. To take a source offline, delete its file or move it out of the config directory. |
 
-The `uri` field of the Impulse collection metadata is **not** specified here. The bridge fills it in at startup as `<public_base_url>/collections/<id>`, matching the spec's resolution semantics for relative asset URIs.
-
-### Example
+Changing a source's `id` is a rename: existing curated collections keep their snapshots, but "Update from sources" can no longer find those assets, and fallback file URLs stored as `/sources/<old id>/files/…` stop working.
 
 ```yaml
 collection:
   id: europeana-public-domain-images
   name: "Europeana Public Domain Images"
-  description: "Open-licensed images aggregated from European cultural heritage institutions."
+  description: "Open-licensed images aggregated from European cultural heritage institutions via Europeana."
   organization: "Europeana Foundation"
   owner_id: "bridge@impulse.eu"
-  published: 1
 ```
 
 ---
 
 ## `adapter`
 
-How the bridge connects to the upstream archive. The `kind` field selects which adapter implementation to use; some fields below are relevant only for specific kinds.
-
-| Field | Type | Required | For kind | Description |
+| Field | Type | Default | For kind | Description |
 |---|---|---|---|---|
-| `kind` | enum | yes | all | `rest` (generic REST API), `fallback` (local files), or `custom` (user-provided Python class). |
-| `base_url` | string | depends | rest, custom | Base URL for HTTP requests. For IIIF this is the manifest URL. |
-| `auth` | block | no | rest | Authentication details (see below). |
-| `timeout_seconds` | float | no | rest, custom | HTTP timeout in seconds. Default `10.0`. |
-| `default_query` | dict[str,str] | no | rest | Query params sent with every search request (static filters, format flags, etc.). |
-| `manifest_path` | string | yes (fallback) | fallback | Filesystem path to a JSON file containing pre-mapped Impulse assets. Relative paths resolve against the project root. |
-| `static_mount` | bool | no | fallback | If true, the bridge serves files from the manifest's directory under `/collections/{id}/`. Default `true`. |
-| `custom_class` | string | yes (custom) | custom | Dotted Python path to a class implementing the `Source` protocol (e.g. `app.adapter.custom.iiif.IIIFManifestSource`). |
+| `kind` | enum | — | all | `rest` (generic REST API), `fallback` (local files) or `custom` (Python class). |
+| `base_url` | string | — | rest, custom | Base URL of the API. Required for `rest`. For the IIIF adapter: the manifest URL. |
+| `auth` | block | `type: none` | rest | See below. |
+| `timeout_seconds` | float | `10.0` | rest, custom | HTTP timeout. The REST adapter retries once after a timeout. |
+| `default_query` | dict[str, str] | `{}` | rest | Query parameters sent with every **search** request (static filters, format flags). Not sent with `asset_detail` requests. |
+| `manifest_path` | string | — | fallback | JSON file with pre-mapped Impulse assets. Relative paths resolve against the working directory (the project root; `/app` in the Docker image). |
+| `static_mount` | bool | `true` | fallback | Serve the files next to the manifest at `/sources/{id}/files/<path>`, so relative `assetURI` / `previewURI` values work. |
+| `custom_class` | string | — | custom | Dotted path to a class implementing the `Source` protocol, e.g. `app.adapter.custom.iiif.IIIFManifestSource`. |
 
 ### `adapter.auth`
 
-```yaml
-auth:
-  type: query_param   # one of: none | query_param | header
-  name: wskey         # query/header name
-  value: "${EUROPEANA_API_KEY}"
-```
+| Field | Type | Description |
+|---|---|---|
+| `type` | `none` \| `query_param` \| `header` | Default `none`. |
+| `name` | string | Query parameter or header name. |
+| `value` | string | The secret, normally `"${VAR}"`. |
 
-Any string field, anywhere in the YAML, can reference an environment variable with the `${VAR}` syntax. Missing variables expand to the empty string, which usually leads to a 401/403 from the upstream — handled as code `20` (configuration error) by the bridge.
+A `query_param` key is added to search **and** detail requests; a `header` value is sent with every request.
 
 ### Examples
 
-#### REST API with key in query parameter
+REST API with the key in a query parameter (Europeana):
 
 ```yaml
 adapter:
@@ -93,7 +93,7 @@ adapter:
     profile: "rich"
 ```
 
-#### REST API without auth
+REST API without auth (Wikimedia Commons):
 
 ```yaml
 adapter:
@@ -111,7 +111,7 @@ adapter:
     iiurlwidth: "1024"
 ```
 
-#### REST API with header auth
+Header auth:
 
 ```yaml
 adapter:
@@ -123,7 +123,7 @@ adapter:
     value: "Bearer ${MY_TOKEN}"
 ```
 
-#### Fallback (local files)
+Fallback (local files):
 
 ```yaml
 adapter:
@@ -132,7 +132,7 @@ adapter:
   static_mount: true
 ```
 
-#### Custom adapter (IIIF)
+Custom adapter (IIIF):
 
 ```yaml
 adapter:
@@ -146,47 +146,43 @@ adapter:
 
 ## `search`
 
-How Impulse's `?s=`, `?o=`, `?c=` are translated into the upstream's parameters. **REST adapter only**; the fallback and custom adapters define their own search semantics.
+How the web app's search (`?s=`, `?o=`, `?c=` on `/api/sources/{id}/assets`) is translated into upstream parameters. **REST adapter only**; fallback and custom adapters search on their own.
 
-### `search.path`
-
-The path appended to `adapter.base_url`. Together they form the URL hit on every search.
-
-```yaml
-search:
-  path: "/search.json"
-```
-
-### `search.method`
-
-`GET` or `POST`. Default `GET`. (POST is supported in schema but only GET is currently exercised by the bundled sources.)
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `path` | string | `""` | Appended to `adapter.base_url`. |
+| `method` | `GET` \| `POST` | `GET` | Accepted by the schema; only `GET` is implemented. |
+| `pagination` | block | `style: offset_limit` | See below. |
+| `query` | block | — | See below. |
 
 ### `search.pagination`
 
-| Field | Type | Description |
-|---|---|---|
-| `style` | enum | `page_size`, `offset_limit`, `cursor`, or `none`. |
-| `page_param` | string | (page_size) upstream param for the page number. |
-| `size_param` | string | (page_size) upstream param for the page size. |
-| `page_base` | int | (page_size) 0 or 1 — zero-based or one-based pages. |
-| `offset_param` | string | (offset_limit) upstream param for the result offset. |
-| `offset_base` | int | (offset_limit) 0 or 1 — position of the first item. Default `0`. |
-| `limit_param` | string | (offset_limit / cursor) upstream param for the count. |
-| `cursor_param` | string | (cursor) upstream param that takes the cursor token. |
-| `cursor_response_path` | string | (cursor) JMESPath to extract the next-cursor from the response. |
-| `max_size` | int | Upper bound on the size sent upstream. Default `100`. |
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `style` | enum | `offset_limit` | `page_size`, `offset_limit`, `cursor` or `none`. |
+| `page_param` | string | — | (page_size) upstream parameter for the page number. |
+| `size_param` | string | — | (page_size) upstream parameter for the page size. |
+| `page_base` | int | `0` | (page_size) number of the first page, `0` or `1`. |
+| `offset_param` | string | — | (offset_limit) upstream parameter for the item offset. |
+| `offset_base` | int | `0` | (offset_limit) position of the first item, `0` or `1`. Europeana's `start` is 1-based. |
+| `limit_param` | string | — | (offset_limit, cursor) upstream parameter for the count. |
+| `cursor_param`, `cursor_response_path` | string | — | Accepted; not used (see `cursor`). |
+| `max_size` | int | `100` | Upper bound for the size sent upstream. |
 
-Impulse semantics: `o` is an offset, `c` is a count. The bridge converts them:
+The Curator converts offset `o` and count `c` (the web app asks for 24 items per page, or 12 per source when it searches all sources at once; the API caps `c` at 100):
 
-- **page_size**: `page = (offset / size) + page_base`, `size = min(count, max_size)`. The conversion assumes pages are full and roughly aligned with offset; if the upstream and Impulse offsets diverge across pages, the count of results may not match exactly — this is expected for page-based APIs.
-- **offset_limit**: `offset + offset_base`, `limit = min(count, max_size)`.
-- **cursor**: only the size is sent; the bridge does not retain state across requests. Cursor-based archives are best wrapped at the upstream side.
-- **none**: no pagination params sent.
+| Style | Sent upstream |
+|---|---|
+| `offset_limit` | `offset_param = o + offset_base`, `limit_param = min(c, max_size)` |
+| `page_size` | `page_param = o // size + page_base`, `size_param = size = min(c, max_size)` — exact only when `o` is a multiple of the size |
+| `cursor` | only `limit_param = min(c, max_size)`; no state is kept, so every request returns the first page |
+| `none` | nothing |
 
-Check the upstream docs carefully: a parameter called `start` is usually an
-item offset, not a page number (Europeana, Smithsonian, Solr).
+Both parameter names of a style must be set, otherwise no paging parameters are sent.
 
-#### Offset-based, one-based (Europeana)
+Offsets count **upstream** items: the web app's next page starts at `o + <items the upstream returned>`, even if the filter dropped some of them. Read the upstream docs carefully: a parameter named `start` is usually an item offset, not a page number (Europeana, Smithsonian, Solr).
+
+Offset-based, one-based (Europeana):
 
 ```yaml
 search:
@@ -199,7 +195,7 @@ search:
     max_size: 100
 ```
 
-#### Offset-based, zero-based (Wikimedia Commons)
+Offset-based, zero-based (Wikimedia Commons):
 
 ```yaml
 search:
@@ -213,143 +209,127 @@ search:
 
 ### `search.query`
 
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `pattern_param` | string | — | Upstream parameter that receives the search pattern. Without it, no pattern is sent. |
+| `pattern_when_empty` | string | `""` | Sent when the visitor's search is empty. Sent as is — not wrapped by `pattern_template`. |
+| `pattern_template` | string | — | Wraps every non-empty search; `{pattern}` is replaced by the (wildcard-translated) pattern. |
+| `wildcard_translation.from` / `.to` | string | `*` / `*` | Rewrites the wildcard character before sending; `to: ""` strips it for upstreams without wildcards. |
+
+`pattern_when_empty` matters because the web app opens a source with an empty search, and some upstreams return nothing for an empty query (Europeana: use `"*"`). Set it to a broad query that returns something useful.
+
+`pattern_template` adds a filter to everything a visitor types, for upstreams that only have a query string and no separate filter parameter. Because it does not apply to the empty search, repeat the filter in `pattern_when_empty`. Smithsonian returns only CC0 media this way:
+
 ```yaml
 search:
   query:
-    pattern_param: query        # upstream param that receives Impulse's ?s=…
-    pattern_when_empty: "*"     # query sent when ?s is omitted
-    pattern_template: "({pattern}) AND media_usage:CC0"   # optional, wraps a given ?s
+    pattern_param: q
+    pattern_when_empty: 'online_media_type:"Images" AND media_usage:CC0'
+    pattern_template: "({pattern}) AND media_usage:CC0"
     wildcard_translation:
-      from: "*"                 # the Impulse wildcard character
-      to: "*"                   # what to rewrite it to upstream (use "" if upstream doesn't support wildcards)
+      from: "*"
+      to: "*"
 ```
-
-`pattern_when_empty` matters in two cases: when Impulse omits the `s` parameter, and when the upstream API requires a non-empty query to return anything (Europeana). Set it to a broad filter that returns "anything useful".
-
-`pattern_template` adds a filter to every search the user types, for upstream APIs that only have a query string and no separate filter parameter. `{pattern}` is replaced by the (wildcard-translated) search pattern. Smithsonian uses it to return only items with CC0 media.
 
 ---
 
 ## `mapping`
 
-The heart of the adapter: how to translate upstream items into Impulse asset dictionaries.
+How upstream items become Impulse asset dicts. Snapshots in curated collections store exactly what this mapping produced when the asset was added.
 
 | Field | Type | Description |
 |---|---|---|
-| `items_path` | string | JMESPath against the upstream response that resolves to the **array** of items. For object-shaped responses (e.g. `query.pages` in MediaWiki), use `values(query.pages)`. |
-| `total_path` | string | (optional, informational only) JMESPath to the total-results count. Currently used only for logging. |
-| `fields` | dict[str, FieldMapping] | One entry per Impulse asset field you want to populate. Keys are Impulse field names (`assetID`, `title`, …). |
+| `items_path` | string | JMESPath to the **array** of items in the response. Empty: the response itself (a list, or one object). For object-shaped responses use `values(...)`, e.g. ``values(query.pages \|\| `{}`)``. Non-object entries are ignored. |
+| `total_path` | string | Accepted; currently not used. |
+| `fields` | dict[str, FieldMapping] | One entry per Impulse asset field. Keys are Impulse field names. |
 
-### Impulse asset field catalogue
+### Impulse asset fields
 
-The Impulse spec defines a fixed set of asset fields. The mapping table supports all of them:
+**Internal / management:** `assetID`, `assetURI`, `contentType`, `previewURI`, `published`, `scale`.
+**Dublin Core, required:** `contributor`, `description`, `identifier`, `rights`, `title`.
+**Dublin Core, optional:** `coverage`, `creator`, `date`, `format`, `language`, `publisher`, `relation`, `source`, `subject`, `type`.
 
-**Internal / management** (mandatory in the spec):
-- `assetID` — must follow id-schema after slugification
-- `assetURI` — direct downloadable URL (or relative literal resolved against the collection URI)
-- `contentType` — MIME type (used by Unity to pick a loader)
-- `previewURI` — thumbnail URL
-- `published` — usually `1`; set via `literal` if needed
-- `scale` — string, typically `"1"`
+Notes:
 
-**Dublin Core required**:
-- `contributor`, `description`, `identifier`, `rights`, `title`
+- `assetID` identifies the asset **within the source**: the web app adds assets by `(source id, assetID)`, and lookups use it. It must be a string that is stable over time. In a curated collection the item gets its own `assetID` (see [02](02-architecture.md#ids)).
+- `assetURI` and `previewURI` should be absolute and directly loadable by a browser and by Unity. Relative values (fallback sources) are made absolute as `/sources/{id}/files/<path>`.
+- `contentType` drives the web app's Images / 3D models filter (`image/…`, `model/…`) and Unity's loader choice.
+- `published` is always set to `1` when Impulse is served; you do not need to map it.
 
-**Dublin Core optional**:
-- `coverage`, `creator`, `date`, `format`, `language`, `publisher`, `relation`, `source`, `subject`, `type`
-
-### `FieldMapping` — one row per Impulse field
+### `FieldMapping`
 
 ```yaml
 fields:
   assetID:
     expr: "id"
     transform: slugify
-    default: "unknown"
 ```
 
 | Sub-field | Type | Description |
 |---|---|---|
-| `expr` | string | JMESPath evaluated against the raw upstream item. Mutually exclusive with `literal`. |
-| `literal` | any | Constant value. Use for fields the upstream doesn't provide (e.g. `contributor: "Wikimedia Commons"`). |
-| `default` | any | Used if `expr` returns null/empty. |
-| `transform` | enum | `slugify`, `base32`, `strip_html`, `file_title`, `lower`, or `upper`. Applied after default/value-map; only operates on strings. |
-| `map` | dict | Value substitution — if the JMESPath result equals a key, replace it with the value. Useful for normalizing MIME types or `type` codes. |
+| `expr` | string | JMESPath against the raw item. |
+| `literal` | any | A constant. If both are set, `literal` wins. |
+| `default` | any | Used when the result is `null`, `""`, `[]` or `{}`. |
+| `map` | dict | If the (string) result equals a key, it is replaced by the value. |
+| `transform` | enum | `slugify`, `base32`, `strip_html`, `file_title`, `lower`, `upper`. Runs last, on strings only. |
 
-#### Transform reference
+Order: `literal` or `expr` → `default` → `map` → `transform`. A field whose final value is `null` is left out of the asset. If evaluating any field raises, the item is skipped (logged as a warning).
+
+### Transforms
 
 | Transform | What it does |
 |---|---|
-| `slugify` | Lower-cases, replaces any non-alphanumeric run with a single hyphen, strips leading/trailing hyphens. Used to coerce upstream IDs into Impulse id-schema. **Lossy**: case and separators cannot be recovered — see `asset_detail` placeholders for how to look such ids up anyway. |
-| `base32` | Encodes the string as lowercase, unpadded base32 (`a-z2-7`). Always id-schema safe and **fully reversible** via the `{asset_id_from_base32}` placeholder, at the cost of opaque ids ~1.6× longer than the input. Use for upstream ids that are not id-schema safe and must be fed verbatim to an exact-match detail endpoint. |
-| `strip_html` | Removes HTML tags (Wikimedia returns HTML in description fields). |
-| `file_title` | Turns a media file name into a title: drops a `File:` prefix and the extension, underscores become spaces (`File:Young_Hare.jpg` → `Young Hare`). |
-| `lower` | `str.lower()` |
-| `upper` | `str.upper()` |
+| `slugify` | Lower-case; every run of non-alphanumerics becomes one hyphen; leading/trailing hyphens removed; empty → `untitled`. Makes ids id-schema safe. **Lossy**: case and separators cannot be recovered (see `{asset_id_regex}`). |
+| `base32` | Lowercase, unpadded base32 (`a-z2-7`). Id-schema safe for any input and **reversible** via `{asset_id_from_base32}`; opaque and about 1.6× longer. |
+| `strip_html` | Removes HTML tags (regex) and trims. Does not unescape entities. |
+| `file_title` | Turns a file name into a title: drops a `File:` / `Image:` / `Datei:` prefix and a media extension, underscores become spaces (`File:Young_Hare.jpg` → `Young Hare`). |
+| `lower` / `upper` | `str.lower()` / `str.upper()`. |
 
-#### Example — Wikimedia mapping
+### Example — Wikimedia Commons
 
 ```yaml
 mapping:
   items_path: "values(query.pages || `{}`)"
   fields:
-    assetID:
-      expr: "to_string(pageid)"
-    title:
-      expr: "title"
-    description:
-      expr: "imageinfo[0].extmetadata.ImageDescription.value"
-      transform: strip_html
-    creator:
-      expr: "imageinfo[0].extmetadata.Artist.value"
-      transform: strip_html
-    date:
-      expr: "imageinfo[0].extmetadata.DateTimeOriginal.value"
-      transform: strip_html
-    rights:
-      expr: "imageinfo[0].extmetadata.LicenseShortName.value"
-      default: "See source page for license"
-    identifier:
-      expr: "imageinfo[0].descriptionurl"
-    assetURI:
-      expr: "imageinfo[0].url"
-    previewURI:
-      expr: "imageinfo[0].thumburl"
-    contentType:
-      expr: "imageinfo[0].mime"
-    contributor:
-      literal: "Wikimedia Commons"
-    scale:
-      literal: "1"
+    assetID:     { expr: "to_string(pageid)" }
+    title:       { expr: "title", transform: file_title }
+    description: { expr: "imageinfo[0].extmetadata.ImageDescription.value", transform: strip_html }
+    creator:     { expr: "imageinfo[0].extmetadata.Artist.value", transform: strip_html }
+    date:        { expr: "imageinfo[0].extmetadata.DateTimeOriginal.value", transform: strip_html }
+    rights:      { expr: "imageinfo[0].extmetadata.LicenseShortName.value", default: "See source page for license" }
+    identifier:  { expr: "imageinfo[0].descriptionurl" }
+    assetURI:    { expr: "imageinfo[0].url" }
+    previewURI:  { expr: "imageinfo[0].thumburl" }
+    contentType: { expr: "imageinfo[0].mime" }
+    contributor: { literal: "Wikimedia Commons" }
+    scale:       { literal: "1" }
 ```
 
-#### Example — Smithsonian with a value map
+### Example — value map (Smithsonian)
 
 ```yaml
 contentType:
   expr: "content.descriptiveNonRepeating.online_media.media[0].type"
   map:
-    "Images":      "image/jpeg"
-    "3D Images":   "model/gltf-binary"
-    "Audio":       "audio/mpeg"
-    "Video":       "video/mp4"
+    "Images":    "image/jpeg"
+    "3D Images": "model/gltf-binary"
+    "Audio":     "audio/mpeg"
+    "Video":     "video/mp4"
   default: "image/jpeg"
 ```
-
-When the JMESPath evaluates to a string equal to one of the `map` keys, the value substitution wins. The transform (if any) runs **after** the value map.
 
 ### JMESPath cheatsheet
 
 | Expression | Meaning |
 |---|---|
-| `id` | top-level `id` field |
-| `items[0].title` | first item's title |
-| `creator[0]` | first element of a list |
-| `to_string(pageid)` | coerce a number to string (assetID must be a string) |
-| `values(query.pages)` | values of an object — turns `{a:…, b:…}` into `[…, …]` |
+| `id` | top-level field |
+| `title[0]` | first element of a list |
+| `to_string(pageid)` | number → string (`assetID` must be a string) |
+| `values(query.pages)` | values of an object: `{a: …, b: …}` → `[…, …]` |
 | `imageinfo[0].extmetadata.LicenseShortName.value` | nested traversal |
-| `content.media[?type=='Images'] \| [0].content` | filter list, take first match |
-| `\`{}\`` | a literal empty object |
+| `media[?type=='Images'] \| [0].content` | first list element matching a filter |
+| `(dcCreator[?!starts_with(@, 'http')] \| [0]) \|\| edmAgentLabel[0].def` | first non-URI value, else a fallback |
+| `` `{}` `` | a literal empty object |
 
 Full reference: https://jmespath.org/specification.html
 
@@ -357,114 +337,100 @@ Full reference: https://jmespath.org/specification.html
 
 ## `filter`
 
-Post-mapping drop rules. Applied to each asset after the mapping has produced it.
+Applied to every mapped asset (search results and detail lookups).
 
 | Field | Type | Description |
 |---|---|---|
-| `allowed_content_types` | list[string] | If non-empty, an asset is dropped unless its `contentType` is in this list. |
-| `drop_if_missing` | list[string] | An asset is dropped if any of these mapped fields is missing/empty. |
-
-### Examples
-
-Only keep images, and drop items where Europeana didn't expose a downloadable URL:
+| `allowed_content_types` | list[str] | If non-empty, assets whose `contentType` is not listed are dropped. |
+| `drop_if_missing` | list[str] | Assets with any of these (Impulse) fields missing or empty are dropped. |
 
 ```yaml
 filter:
-  allowed_content_types:
-    - "image/jpeg"
-    - "image/png"
-  drop_if_missing:
-    - "assetURI"
-    - "previewURI"
+  allowed_content_types: ["image/jpeg", "image/png"]
+  drop_if_missing: ["assetURI", "previewURI"]
 ```
 
-Take everything Wikimedia returns, including non-image types:
-
-```yaml
-filter:
-  allowed_content_types: []  # or omit the block entirely
-  drop_if_missing: ["assetURI"]
-```
+Dropping items without `assetURI` / `previewURI` is strongly recommended: such assets cannot be shown in the web app or loaded by Unity.
 
 ---
 
 ## `asset_detail`
 
-Optional per-asset lookup. **REST adapter only**.
+Optional single-asset lookup. **REST adapter only.** It matters more than it used to: adding an asset to a curated collection and "Update from sources" both call `get_asset()`.
 
 ```yaml
 asset_detail:
   enabled: true
-  path: "/w/api.php"        # may contain {asset_id} placeholder
+  path: "/w/api.php"          # may contain placeholders
   query:
     action: "query"
     format: "json"
-    pageids: "{asset_id}"   # substituted with the asset ID at request time
+    pageids: "{asset_id}"
     prop: "imageinfo"
     iiprop: "url|mime|extmetadata|size"
     iiurlwidth: "1024"
-  mapping: ...              # optional; if omitted, reuses the top-level mapping
+  # mapping: …                # optional
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `enabled` | bool | If `false` (the default), `get_asset()` falls back to scanning the default search result. |
-| `path` | string | URL path for the detail endpoint. May contain the placeholders below. |
-| `query` | dict[str, str] | Query parameters. **Replaces** (does not merge with) `adapter.default_query`, because search and detail typically take different params. Values may contain the placeholders below. |
-| `mapping` | MappingCfg | If omitted, the top-level `mapping` is reused. If given **without** `fields`, only `items_path` is overridden and the search fields are reused — for the common case where the detail endpoint wraps the same item in a different envelope (Smithsonian: `response` vs. `response.rows`). Provide `fields` only if the item shape itself differs. |
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | bool | `false` | Without it (or without `path`), a lookup scans the default search result. |
+| `path` | string | — | URL path of the detail request. May contain placeholders. |
+| `query` | dict[str, str] | `{}` | The **complete** query of the detail request: it **replaces** `adapter.default_query` (a `query_param` API key is still added). Values may contain placeholders. |
+| `mapping` | MappingCfg | — | Omitted: the search mapping is reused. Given **without** `fields`: only `items_path` is overridden and the search fields are reused (same item, different envelope — Smithsonian: `response` vs. `response.rows`). Give `fields` only if the item shape differs. |
 
 ### Placeholders
 
-| Placeholder | Substituted with |
+| Placeholder | Replaced by |
 |---|---|
-| `{asset_id}` | The requested Impulse asset id, verbatim. Use it when the upstream accepts your `assetID` directly (Wikimedia's `pageids`). |
-| `{asset_id_from_base32}` | The original upstream id, decoded from an `assetID` that was produced with `transform: base32`. Use it when the upstream has an exact-match detail endpoint but no regex-capable search. An asset id that is not valid base32 yields *Asset not found* without an upstream call. |
-| `{asset_id_regex}` | A case-insensitive regular expression that matches every upstream id which **slugifies to** the requested asset id. Use it when `assetID` is produced with `transform: slugify` — which is irreversible (case and separators are lost) — and the upstream offers a Solr-style search endpoint that accepts `field:/regex/` queries. Example (Europeana): `query: "europeana_id:/{asset_id_regex}/"` turns `90402-sk-a-3262` into `[^a-zA-Z0-9]*90402[^a-zA-Z0-9]+[sS][kK][^a-zA-Z0-9]+[aA][^a-zA-Z0-9]+3262[^a-zA-Z0-9]*`, which matches `/90402/SK_A_3262`. |
+| `{asset_id}` | The requested `assetID`, verbatim. Use it when the upstream accepts your `assetID` directly (Wikimedia `pageids`, Smithsonian `/content/{id}`). |
+| `{asset_id_regex}` | A case-insensitive regex matching every upstream id that **slugifies to** the requested id. For `transform: slugify` ids and Solr-style search endpoints that accept `field:/regex/`. Europeana: `europeana_id:/{asset_id_regex}/` turns `90402-sk-a-3262` into a pattern matching `/90402/SK_A_3262`. |
+| `{asset_id_from_base32}` | The original upstream id, decoded from a `transform: base32` id. For exact-match endpoints without regex search. An id that is not valid base32 is *Asset not found* without an upstream call. |
 
-Whatever the detail request returns is run through the mapping, and the bridge returns the item whose mapped `assetID` equals the requested one (if the detail mapping has no `assetID` field, the first item is returned).
+The response is mapped and filtered; the item whose mapped `assetID` equals the requested id is returned (if the mapping produces no `assetID`, the first item). A 404 from the detail request means *Asset not found* (code 2), not a malformed upstream.
 
-### Choosing an assetID strategy
+### Choosing an `assetID` strategy
 
 | Upstream id | `assetID` mapping | Detail lookup |
 |---|---|---|
 | Already id-schema safe (`151972`, `ld1-1643407190095-…`) | `expr` only, or `slugify` (a no-op) | exact endpoint with `{asset_id}` — Wikimedia, Smithsonian |
-| Not safe, upstream search is Solr/Lucene | `slugify` — readable | search endpoint with `field:/{asset_id_regex}/` — Europeana |
-| Not safe, upstream has only an exact endpoint | `base32` — opaque but reversible | exact endpoint with `{asset_id_from_base32}` |
+| Not safe; upstream search is Solr/Lucene | `slugify` — readable | search endpoint with `field:/{asset_id_regex}/` — Europeana |
+| Not safe; only an exact endpoint | `base32` — opaque, reversible | exact endpoint with `{asset_id_from_base32}` |
 
-Prefer the first row whenever the upstream offers any id-schema-safe identifier: it keeps ids readable and the lookup trivial.
+Prefer the first row whenever the upstream offers any id-schema-safe identifier.
 
 ### Lookup order
 
-Regardless of configuration, `get_asset()` first checks whether the asset was returned by a recent `search()` on this bridge: every search indexes its raw items by mapped `assetID` for the cache TTL, and a hit is re-mapped with the current mapping (so YAML edits still apply). This guarantees that any asset a client just discovered can be fetched, with no upstream round-trip.
-
-Only on a miss does the configured detail request run. When `asset_detail` is **disabled**, the miss instead triggers a default search whose result is scanned for a matching `assetID`. That is acceptable for small/static collections but not for big ones — enable `asset_detail` for production-quality detail lookups.
+1. If a recent search on this server returned the asset, its raw item is re-mapped with the current mapping — no upstream call (kept for the cache TTL).
+2. Otherwise the configured detail request runs.
+3. Without `asset_detail`, the default search result (no query, `max_size` items) is scanned. Fine for small, static sources; configure `asset_detail` for anything larger.
 
 ---
 
 ## `cache`
 
-Per-source cache TTL.
-
 ```yaml
 cache:
-  ttl_seconds: 600
+  ttl_seconds: 900
 ```
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `ttl_seconds` | int | `settings.default_cache_ttl` (env `BRIDGE_DEFAULT_CACHE_TTL`, default `600`) | How long upstream responses are cached. |
+| `ttl_seconds` | int | — | Intended TTL of this source's cached upstream responses. |
 
-Note: due to `cachetools.TTLCache` having one global TTL per instance, the per-source override is currently advisory. The bridge respects the **global** default; per-source values are read but converge to the global setting. Swap in a per-key TTL cache (or Redis) if precise per-source control becomes important.
+The cache is one `cachetools.TTLCache` with a single global TTL (`BRIDGE_DEFAULT_CACHE_TTL`, default `600` s). `ttl_seconds` is accepted but **not applied**; every source uses the global TTL.
 
 ---
 
 ## Full example — Europeana
 
+The bundled [`configs/sources/europeana.yaml`](../configs/sources/europeana.yaml), without most comments:
+
 ```yaml
 collection:
   id: europeana-public-domain-images
   name: "Europeana Public Domain Images"
-  description: "Open-licensed images aggregated from European cultural heritage institutions."
+  description: "Open-licensed images aggregated from European cultural heritage institutions via Europeana."
   organization: "Europeana Foundation"
   owner_id: "bridge@impulse.eu"
   published: 1
@@ -485,9 +451,10 @@ adapter:
 
 search:
   path: "/record/v2/search.json"
+  method: GET
   pagination:
     style: offset_limit
-    offset_param: start
+    offset_param: start      # 1-based item position
     limit_param: rows
     offset_base: 1
     max_size: 100
@@ -499,20 +466,20 @@ mapping:
   items_path: "items"
   total_path: "totalResults"
   fields:
-    assetID:    { expr: "id", transform: slugify }
-    title:      { expr: "title[0]", default: "Untitled" }
+    assetID:     { expr: "id", transform: slugify }
+    title:       { expr: "title[0]", default: "Untitled" }
     description: { expr: "dcDescription[0]", transform: strip_html }
-    creator:    { expr: "dcCreator[0]" }
-    date:       { expr: "year[0]" }
-    rights:     { expr: "rights[0]", default: "See source for license" }
-    identifier: { expr: "guid" }
-    assetURI:   { expr: "edmIsShownBy[0]" }
-    previewURI: { expr: "edmPreview[0]" }
+    creator:     { expr: "(dcCreator[?!starts_with(@, 'http')] | [0]) || edmAgentLabel[0].def" }
+    date:        { expr: "year[0]" }
+    rights:      { expr: "rights[0]", default: "See source for license" }
+    identifier:  { expr: "guid" }
+    assetURI:    { expr: "edmIsShownBy[0]" }
+    previewURI:  { expr: "edmPreview[0]" }
     contentType: { literal: "image/jpeg" }
     contributor: { expr: "dataProvider[0]" }
-    scale:      { literal: "1" }
-    subject:    { expr: "dcSubject[0]" }
-    language:   { expr: "dcLanguage[0]" }
+    scale:       { literal: "1" }
+    subject:     { expr: "dcSubject[0]" }
+    language:    { expr: "dcLanguage[0]" }
 
 filter:
   allowed_content_types: ["image/jpeg", "image/png"]
@@ -520,9 +487,8 @@ filter:
 
 asset_detail:
   enabled: true
-  # The assetID is a slugified record id, so the exact-match Record API cannot
-  # be used. Query the Search API case-insensitively via a Solr regex instead;
-  # the response shape equals a search response, so the mapping above is reused.
+  # assetID is a slugified record id, so the exact Record API cannot be used;
+  # look the record up case-insensitively through the Search API instead.
   path: "/record/v2/search.json"
   query:
     query: "europeana_id:/{asset_id_regex}/"
@@ -534,5 +500,7 @@ cache:
 ```
 
 ---
+
+_Last verified against [`app/config/schema.py`](../app/config/schema.py), October 2026._
 
 _Continue to [04 — Admin UI](04-admin-ui.md)._

@@ -1,112 +1,101 @@
 # 01 — Overview
 
-## What the bridge is
+## What the Curator is
 
-The Impulse Bridge is a small HTTP service. From the perspective of the Impulse 3D platform, it looks like an additional **asset-service node** speaking the Impulse Collections-and-Assets API. Internally, it forwards each request to an external digital-heritage archive — Europeana, Wikimedia Commons, Smithsonian Open Access, an IIIF manifest, or any other archive that exposes a JSON API — and translates the response back into the Impulse schema.
+IMPULSE Curator is a web app with a small HTTP backend, built for the EU project [IMPULSE](https://euimpulse.eu/) (Horizon Europe, GA 101132704). Visitors search open cultural-heritage archives, pick assets and save them as **curated collections**. Every curated collection is served through the Impulse **Collections-and-Assets API**, so the Impulse platform and its Unity clients can load it like any other Impulse collection.
 
-In one sentence: **the bridge makes any external archive look like a native Impulse collection**, without modifying the platform itself.
+In one sentence: **the Curator turns a visitor's selection from open archives into a native Impulse collection**, without copying any media and without changing the platform.
 
 ## Why it exists
 
-The Impulse platform has its own database for collections that consortium partners upload. That gives the consortium control over a curated, well-described set of assets, but it is closed: assets that live in third-party archives are not directly reachable from inside the 3D world.
+The Impulse platform hosts collections that consortium partners upload. Many relevant assets, however, live in third-party archives: Europeana aggregates millions of items from European institutions, Wikimedia Commons holds open-licensed media, the Smithsonian publishes CC0 objects, and museums and libraries expose IIIF manifests.
 
-Cultural-heritage assets relevant to the project sit in many places — Europeana aggregates millions of items from European institutions, Wikimedia Commons holds open-licensed media, the Smithsonian publishes CC0 objects (including 3D models), and individual museums expose IIIF manifests. The bridge lets Impulse users browse and place those assets in the 3D world **as if** they were part of an Impulse collection, while leaving the actual hosting where it already is.
+The Curator lets people browse those archives in one place, put together a themed selection, and hand it to Impulse as a collection. Media stays where it is hosted; the Curator stores only metadata and URLs.
+
+## Concepts
+
+| Concept | Where it lives | Who uses it |
+|---|---|---|
+| **Source** — an archive, described by one YAML file | `configs/sources/*.yaml`, loaded into an in-memory registry | The web app searches it via `/api/sources/…` |
+| **Curated collection** — a named, ordered list of assets | SQLite, `data/curator.db` | Visitors create and edit it in the web app; Impulse/Unity read it via `/collections/{id}` |
+| **Snapshot** — the asset's metadata at the time it was added | Inside the collection, in SQLite | Served to Unity; refreshed on demand ("Update from sources") |
+
+Sources are **not** Impulse collections any more. Earlier versions exposed each archive as a "virtual collection" under `/collections`; now `/collections` serves only curated collections.
 
 ## Where it sits
 
 ```
-                    ┌──────────────────────────────────┐
-   Unity client ──► │ Impulse Platform API (discovery) │
-                    └──────────────────────────────────┘
-                                  │  GET /collections
-                                  ▼
-                       returns a list including:
-              ┌────────────────────────┬────────────────────────┐
-              │ uri: …/leuven-vesalius  │ uri: …/wikimedia-…   │ ← bridge
-              │ uri: …/leuven-extras    │ uri: …/europeana-…   │ ← bridge
-              │ uri: …/leuven-slides    │ uri: …/iiif-…        │ ← bridge
-              └────────────────────────┴────────────────────────┘
-                            │                       │
-                            ▼                       ▼
-                ┌──────────────────────┐  ┌────────────────────┐
-                │ KU Leuven asset node │  │   Impulse Bridge   │  (this project)
-                │  (the platform's     │  │                    │
-                │   own collections)   │  │   ┌─────────────┐  │
-                └──────────────────────┘  │   │ /collections│  │
-                                          │   │ /…/assets   │  │
-                                          │   │ /…/asset/X  │  │
-                                          │   └─────────────┘  │
-                                          └──────────┬─────────┘
-                                                     │
-                                  ┌──────────────────┼──────────────────┐
-                                  ▼                  ▼                  ▼
-                          ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-                          │  Europeana  │    │  Wikimedia  │    │ Smithsonian │
-                          │    API      │    │   Commons   │    │ Open Access │
-                          └─────────────┘    └─────────────┘    └─────────────┘
+   Unity client ──► Impulse platform (collection list)
+                         │  registered collection URIs, e.g.
+                         │  https://curator.example/collections/masters-of-light-k3m9x2
+                         ▼
+   ┌──────────────────────────────────────────────────────────────┐
+   │  IMPULSE Curator                                             │
+   │                                                              │
+   │  Impulse API     /collections/{id}[/assets|/asset/{aid}]     │ ◄── Unity / platform
+   │                  served from SQLite snapshots                │
+   │                                                              │
+   │  Web app         /, /explore, /c/{id}, /c/{id}/edit, /my …   │ ◄── visitors (browser)
+   │  Web app API     /api/sources/…, /api/collections/…, …       │
+   │                                                              │
+   │  Admin           /admin, /admin/api/…  (basic auth at proxy) │ ◄── operators
+   └───────────────┬──────────────────────────────────────────────┘
+                   │ live search and asset lookups (cached)
+      ┌────────────┼───────────────┬────────────────┐
+      ▼            ▼               ▼                ▼
+  Europeana    Wikimedia      Smithsonian      IIIF manifests
+               Commons        Open Access      (e.g. Wellcome)
 ```
 
-The bridge is **not** the platform API. It is a peer asset-service node, of the same kind that hosts the consortium's own collections — just one that happens to delegate to external APIs.
+The Curator is a peer **asset-service node**, of the same kind that hosts the consortium's own collections. It is not the platform API: the platform keeps its own list of collections, and a curated collection gets into that list when the IMPULSE team registers its URI (see [05 — Cookbook, "How a curated collection reaches Unity"](05-cookbook.md#recipe-13--how-a-curated-collection-reaches-unity)).
 
-## What "looks like an Impulse asset-service node" means
+## The Impulse endpoints it implements
 
-The bridge implements exactly the four endpoints defined in the Impulse "Collections and assets schema, discovery and access" specification:
-
-| Specification endpoint | Bridge endpoint | Notes |
+| Specification endpoint | Curator endpoint | Notes |
 |---|---|---|
-| `GET <platform_api>/collections` | `GET /collections` | Lists all virtual collections configured on this bridge |
-| `GET <collection_uri>` | `GET /collections/{id}` | Single collection metadata |
-| `GET <collection_uri>/assets` | `GET /collections/{id}/assets` | Asset discovery, supports `?s=`, `?o=`, `?c=` |
-| `GET <collection_uri>/asset/<asset_id>` | `GET /collections/{id}/asset/{asset_id}` | Single asset detail |
+| `GET <platform_api>/collections` | `GET /collections` | Curated collections an administrator **listed** |
+| `GET <collection_uri>` | `GET /collections/{id}` | Every collection that is not locked, listed or not |
+| `GET <collection_uri>/assets` | `GET /collections/{id}/assets` | Assets visible in Unity; `?s=`, `?o=`, `?c=` |
+| `GET <collection_uri>/asset/<asset_id>` | `GET /collections/{id}/asset/{asset_id}` | One asset |
 
-Every response uses the spec's envelope `{code, message, data}`. Pagination (`o` and `c`) and search patterns (`s` with `*` wildcards) work exactly as the spec describes — the bridge translates them into each upstream archive's particular dialect.
+Every response uses the spec's envelope `{code, message, data}`. Search (`s`, with `*` wildcards) and paging (`o`, `c`) work inside the collection's own assets; illegal `o`/`c` values return the entire result set, as the spec requires.
 
-## What's in the box (default configuration)
+## Sources in the box
 
-The bridge ships with five virtual collections preconfigured. They are illustrative — operators are expected to add their own.
+Five sources are configured out of the box. They are examples; operators add their own.
 
-| Collection ID | Backend | Key needed | Highlights |
+| Source id | Backend | Key needed | Notes |
 |---|---|---|---|
-| `bridge-demo` | Local files | No | Three placeholder assets (.glb, .png). Always works, even offline. Useful as a smoke test. |
-| `wikimedia-commons-images` | Wikimedia Commons (MediaWiki API) | No | Open-licensed images. ~100 million items across all topics. |
-| `europeana-public-domain-images` | Europeana Record API | Yes (`EUROPEANA_API_KEY`) | Aggregated images from European cultural institutions. |
-| `smithsonian-open-access` | Smithsonian openaccess API | Yes (`SMITHSONIAN_API_KEY`) | CC0 objects from US museums. Image-focused by default. |
-| `iiif-wellcome-vererbung` | Single IIIF manifest | No | One illustrated 1929 book from the Wellcome Collection. Demonstrates the IIIF custom adapter. |
+| `bridge-demo` | Local files (`data/fallback/assets/`) | No | Placeholder `.glb` and `.png` assets. Works offline; a smoke test. |
+| `wikimedia-commons-images` | Wikimedia Commons (MediaWiki API) | No | Open-licensed images; titles cleaned with `file_title`. |
+| `europeana-public-domain-images` | Europeana Search API | Yes (`EUROPEANA_API_KEY`) | Open-licensed images from European institutions. |
+| `smithsonian-open-access` | Smithsonian Open Access API | Yes (`SMITHSONIAN_API_KEY`) | Only items with CC0 media (`media_usage:CC0`). |
+| `iiif-wellcome-vererbung` | One IIIF manifest | No | An illustrated 1929 book from the Wellcome Collection; shows the IIIF adapter. |
 
-## What the bridge intentionally does not do
+## What the Curator intentionally does not do
 
-These limitations are deliberate. They keep the bridge small and reduce legal, infrastructure, and operational risk:
+- **It does not re-host media.** Browsers and Unity load assets directly from the original hosts (`upload.wikimedia.org`, `iiif.wellcomecollection.org`, …). Only local fallback files are served by the Curator itself.
+- **It does not write to archives.** Sources are read-only.
+- **It does not register collections in the Impulse platform.** "Submit to IMPULSE" opens a pre-filled email to the IMPULSE team; the team adds the collection URI to the platform.
+- **It has no user accounts.** Editing is protected by an edit key; an optional passwordless sign-in by email lets creators reach their collections on other devices. The admin area relies on HTTP basic auth at the reverse proxy.
 
-- **It does not re-host asset bytes.** Unity downloads assets directly from the original host (`upload.wikimedia.org`, `iiif.wellcomecollection.org`, etc.). The bridge only ships metadata and resolved URLs. This avoids storage costs, bandwidth, license complications, and stale copies.
-- **It does not write to external archives.** It is read-only. There is no "upload to Europeana" path through the bridge.
-- **It does not implement cross-archive federation.** Each archive is a separate Impulse collection; the bridge does not merge results into a single virtual super-collection.
-- **It does not manage Impulse user accounts, permissions, or analytics.** Those belong to the platform itself.
+## A five-minute demo
 
-## When the bridge is the right tool
-
-- A user-curated external archive should be browsable from inside Impulse.
-- Adding archives should be cheap (a YAML file, not a code release).
-- The platform team does not want to take operational responsibility for caching, transforming, and serving external metadata.
-
-## When the bridge is not the right tool
-
-- The asset volume is so high that bandwidth or rate limits become a problem — push the operator toward a periodic ingest into the platform's own DB instead.
-- You need write access (uploads, annotations) into an external archive — that's a separate, source-specific integration.
-- The external "archive" is a single proprietary system with bespoke auth (OAuth + signed requests + custom pagination) — write a small wrapper service rather than stretching the declarative YAML adapter.
-
-## A 90-second demo flow for the consortium
-
-1. Open `http://localhost:8080/` in a browser. The public browser UI loads.
-2. From the **Collection** dropdown, pick "Wikimedia Commons Images".
-3. Search for `van gogh sunflowers`. Within a second, a grid of real Commons thumbnails appears.
-4. Click one. The detail modal shows mapped Dublin Core metadata and a direct link to the original image.
-5. Open `http://localhost:8080/admin`. The admin UI lists all configured sources.
-6. Pick the same Wikimedia source. The **Form** tab shows the structured config; the **YAML** tab shows the raw file; the **Test** tab can run a live query and show the raw upstream JSON side-by-side with the mapped Impulse output.
-7. Edit the title mapping (e.g. add `transform: strip_html`), click **Test** again, and observe the difference — without saving.
-8. Save. The change is written to disk and the registry is hot-reloaded. The public browser UI reflects the new mapping immediately.
-
-That covers everything the bridge does end-to-end.
+1. Open `http://localhost:8080/`. The home page explains the four steps (Find, Select, Create, Submit).
+2. Go to **Explore**, pick **Wikimedia Commons Images** (or **All sources**) and search for `sunflowers`.
+3. Select a few works. The selection bar at the bottom counts them; keep searching other sources if you like.
+4. Create the collection: give it a name and an optional description. The app opens the edit page and keeps the edit link in this browser.
+5. On the edit page, reorder assets, switch one off under **Visible in Unity**, and copy the **Collection URL**.
+6. Ask the Impulse API what Unity would get:
+   ```bash
+   curl http://localhost:8080/collections/<collection-id>/assets
+   ```
+   The hidden asset is missing; the others come back in your order.
+7. Open `http://localhost:8080/admin`. On **Collections**, switch **Listed** on — the collection now appears in `GET /collections`.
+8. On **Sources**, open `wikimedia-commons.yaml`, run a **Test run**, change a mapping (for example drop `transform: file_title`), run it again, and see the difference before saving anything.
 
 ---
 
-_Continue to [02 — Architecture](02-architecture.md) for the technical details._
+_Last verified against the code: October 2026._
+
+_Continue to [02 — Architecture](02-architecture.md)._

@@ -1,293 +1,339 @@
 # 02 — Architecture
 
-This document describes how the bridge is built, how a request travels through it, and how each component fulfils the Impulse Collections-and-Assets specification.
+How the Curator is built, how requests travel through it, and how it meets the Impulse Collections-and-Assets specification.
 
-## High-level component diagram
+## Components
 
 ```
-                       ┌──────────────────────────────────────────────────────┐
-                       │                    Impulse Bridge                    │
-                       │                                                      │
-   HTTP request ──────►│  ┌────────────┐    ┌────────────┐                   │
-   (from Impulse,      │  │ HTTP layer │───►│  Registry  │                   │
-    Unity, or admin    │  │  (FastAPI) │    │            │                   │
-    UI)                │  │  routers:  │    │  id→Source │                   │
-                       │  │  • public  │    │   map      │                   │
-                       │  │  • admin   │    └─────┬──────┘                   │
-                       │  └────────────┘          │                          │
-                       │         │                ▼                          │
-                       │         │     ┌────────────────────────────┐        │
-                       │         │     │   Adapter (per Source)     │        │
-                       │         │     │  ─ GenericRestSource       │        │
-                       │         │     │  ─ FallbackSource          │        │
-                       │         │     │  ─ Custom (e.g. IIIF)      │        │
-                       │         │     └─────────┬──────────────────┘        │
-                       │         │               │                           │
-                       │         │     ┌─────────▼──────┐    ┌─────────┐    │
-                       │         │     │ Transform engine│───►│  Cache  │    │
-                       │         │     │  (JMESPath)     │    │ (TTL)   │    │
-                       │         │     └─────────┬──────┘    └─────────┘    │
-                       │         │               │                           │
-                       │         ▼               ▼                           │
-                       │   ┌──────────────────────────────┐                 │
-                       │   │  Response wrapped in         │                 │
-                       │   │  Impulse envelope            │                 │
-                       │   │  {code, message, data}       │                 │
-                       │   └──────────────────────────────┘                 │
-                       └────────────────────────│─────────────────────────────┘
-                                                ▼
-                                       External upstream
-                                       (HTTPS to archive)
+                    ┌───────────────────────────────────────────────────────────────┐
+  Browser ─────────►│  FastAPI app (app/main.py)                                    │
+  (web app, admin)  │                                                               │
+                    │  Web app (frontend/build, app/frontend.py)                    │
+  Unity / Impulse ─►│                                                               │
+                    │  Impulse API ─────────┐      Web app API      Admin API       │
+                    │  /collections/…       │      /api/…           /admin/api/…    │
+                    │                       │        │    │            │     │      │
+                    │                       ▼        │    ▼            │     ▼      │
+                    │   ┌───────────────────────┐    │  ┌──────────┐   │  YAML files│
+                    │   │ Curation              │◄───┘  │ Registry │◄──┘  configs/  │
+                    │   │ store + service       │──────►│ id→Source│      sources/  │
+                    │   │ (app/curation/)       │snap-  └────┬─────┘                │
+                    │   └──────────┬────────────┘shots       │                      │
+                    │              ▼                         ▼                      │
+                    │   SQLite data/curator.db      Adapters (REST, fallback, IIIF) │
+                    │   collections, items,         + transform engine (JMESPath)   │
+                    │   site settings, sign-in      + TTL cache (raw upstream JSON) │
+                    └────────────────────────────────────────┬──────────────────────┘
+                                                             ▼ HTTPS
+                                            Europeana, Wikimedia, Smithsonian, IIIF …
 ```
 
 ## Module layout
 
 ```
 app/
-├── main.py             # FastAPI app, lifespan, exception handlers, route mounting
-├── settings.py         # Pydantic settings — reads env / .env
-├── registry.py         # In-memory collection_id → Source map (+ hot-reload primitives)
-├── cache.py            # TTL cache wrapper (cachetools) keyed by source+path+params
-├── errors.py           # BridgeError hierarchy; maps to Impulse `code` values
+├── main.py              # FastAPI app, lifespan, CORS, security headers, error handlers, routers
+├── settings.py          # Pydantic settings (BRIDGE_* env vars / .env)
+├── loading.py           # (re)load all source configs into the registry
+├── registry.py          # source id → Source map; atomic swap; RETIRE_GRACE_SECONDS
+├── cache.py             # in-process TTL cache for raw upstream responses
+├── errors.py            # BridgeError hierarchy with Impulse codes
+├── storage.py           # opens SQLite and hands the stores to endpoints (dependencies)
+├── site_settings.py     # admin-edited settings (submission address, SMTP) in SQLite
+├── auth.py              # login tokens and sessions (passwordless sign-in)
+├── mail.py              # SMTP sending, log-only mode
+├── ratelimit.py         # per-client sliding-window limits
+├── frontend.py          # serves the SvelteKit build (prerendered pages + SPA fallback)
 ├── logging_conf.py
 │
-├── api/                # Public, Impulse-protocol endpoints
-│   ├── responses.py    # impulse_response() — the single source of truth for {code, message, data}
-│   ├── health.py
-│   ├── collections.py  # /collections and /collections/{id}
-│   └── assets.py       # /collections/{id}/assets and /collections/{id}/asset/{asset_id}
+├── api/
+│   ├── collections.py   # Impulse API, served from curated collections
+│   ├── params.py        # o/c parsing per the spec (illegal values → everything)
+│   ├── responses.py     # impulse_response(): the {code, message, data} envelope
+│   ├── health.py        # /health
+│   ├── files.py         # /sources/{id}/files/{path}: local files of fallback sources
+│   ├── sources.py       # web app API: search sources
+│   ├── web_collections.py  # web app API: create / read / edit curated collections
+│   ├── auth.py          # web app API: sign-in by email link, sessions, /api/me/collections
+│   └── site.py          # web app API: /api/config
 │
-├── admin/              # Admin API used by the bundled admin UI (NOT part of the Impulse protocol)
-│   └── api.py          # /admin/api/sources, /admin/api/test, /admin/api/templates, …
+├── admin/
+│   ├── api.py           # sources by id, test runs, templates, reload
+│   ├── files.py         # source configs as files, live validation
+│   ├── validation.py    # YAML/schema validation with line numbers
+│   ├── collections.py   # list, lock, delete curated collections; new edit key
+│   └── settings.py      # site settings, test email
 │
-├── config/             # YAML schema and loader
-│   ├── schema.py       # Pydantic models that fully describe one source config
-│   └── loader.py       # YAML parse + ${ENV_VAR} expansion + validation
+├── curation/
+│   ├── db.py            # SQLite connection, versioned migrations
+│   ├── store.py         # data access (collections, items)
+│   └── service.py       # ids, edit keys, snapshots, Impulse serialization
 │
-├── transform/          # Mapping engine
-│   ├── engine.py       # transform_item / extract_items
-│   ├── jmes.py         # JMESPath thin wrapper
-│   └── helpers.py      # slugify, slug_to_regex, base32_id, strip_html, mime_from_url, …
+├── config/
+│   ├── schema.py        # Pydantic models of a source YAML
+│   └── loader.py        # YAML parsing, ${ENV_VAR} expansion, tolerant load_all()
+│
+├── transform/
+│   ├── engine.py        # transform_item(), extract_items()
+│   └── helpers.py       # slugify, base32_id, slug_to_regex, strip_html, file_title, matches_pattern …
 │
 └── adapter/
-    ├── base.py         # Source protocol — what every adapter must implement
-    ├── factory.py      # Build a Source from a SourceConfig
-    ├── rest.py         # GenericRestSource — the 95% case
-    ├── fallback.py     # FallbackSource — local JSON manifest + static file serving
-    └── custom/
-        └── iiif.py     # IIIFManifestSource — example of a hand-written adapter
+    ├── base.py          # Source protocol, SearchPage, search_page()
+    ├── factory.py       # SourceConfig → Source
+    ├── rest.py          # GenericRestSource
+    ├── fallback.py      # FallbackSource (local JSON manifest)
+    └── custom/iiif.py   # IIIFManifestSource
+
+frontend/                # SvelteKit 3 + Svelte 5, adapter-static
+├── src/routes/(site)/   # prerendered: home, legal pages, credits, report
+├── src/routes/(app)/    # SPA: explore, c/[id], c/[id]/edit, my, signin
+├── src/routes/(admin)/  # SPA: admin, admin/sources, admin/settings
+└── src/lib/             # API client, components, stores
 ```
 
-Three top-level external folders complete the picture:
+Other top-level folders:
 
 ```
-configs/sources/*.yaml    # One file per virtual collection
-data/fallback/            # Local demo assets (manifest.json + binary media)
-static/                   # The two bundled UIs (index.html, admin.html) and help viewer
-docs/                     # This documentation
+configs/sources/*.yaml   # one file per source
+data/fallback/           # demo files for the bridge-demo source
+data/curator.db          # curated collections, site settings, sign-in (created at first start)
+deploy/                  # Dockerfile, docker-compose.yml, Traefik, host bootstrap
+tests/                   # pytest
+docs/                    # this documentation
 ```
+
+## Three API surfaces
+
+| Surface | Paths | Response shape | Consumer | CORS |
+|---|---|---|---|---|
+| Impulse API | `/collections…`, `/health` | `{code, message, data}` envelope | Impulse platform, Unity | yes (`BRIDGE_CORS_ALLOW_ORIGINS`) |
+| Web app API | `/api/…` | Plain JSON; errors `{"detail": …}` | The bundled web app | no — same origin only |
+| Admin API | `/admin/api/…` | Plain JSON; errors `{"detail": …}` | The admin pages | no — same origin only |
+
+Also served: the web app itself (every path that is not a backend path), local fallback files at `/sources/{id}/files/{path}` (CORS-enabled, like the Impulse API), and FastAPI's `/docs` and `/openapi.json` (ReDoc is switched off).
+
+The CORS middleware ([`app/main.py`](../app/main.py)) skips every path that starts with `/api/` or `/admin`: those carry sessions and edit keys, so no other site gets CORS access to them.
 
 ## The contract with Impulse
 
-The bridge is a pure server to the Impulse platform: Impulse calls the bridge, the bridge never calls Impulse. The contract is the Impulse "Collections and assets schema, discovery and access" specification.
+The Curator is a pure server to Impulse: Impulse calls it, it never calls Impulse. The contract is [`Collections-and-assets-schema,-discovery-and-access.md`](../Collections-and-assets-schema,-discovery-and-access.md).
 
-### Endpoint mapping (spec → bridge)
+### Endpoint mapping
 
-| Specification endpoint | Bridge route | Backed by |
+| Specification endpoint | Route | Backed by |
 |---|---|---|
-| `GET <platform_api>/collections` | `GET /collections` | `app/api/collections.py` → `Registry.list_collections()` |
-| `GET <collection_uri>` | `GET /collections/{id}` | `app/api/collections.py` → `Registry.get(id).collection_meta` |
-| `GET <collection_uri>/assets` | `GET /collections/{id}/assets` | `app/api/assets.py` → `Source.search()` |
-| `GET <collection_uri>/asset/<asset_id>` | `GET /collections/{id}/asset/{asset_id}` | `app/api/assets.py` → `Source.get_asset()` |
+| `GET <platform_api>/collections` | `GET /collections` | `CollectionStore.list_listed()` — listed and not locked, ordered by name |
+| `GET <collection_uri>` | `GET /collections/{id}` | `CollectionStore.get()` — any collection that is not locked |
+| `GET <collection_uri>/assets` | `GET /collections/{id}/assets` | items with `published = 1`, in the editor's order |
+| `GET <collection_uri>/asset/<asset_id>` | `GET /collections/{id}/asset/{asset_id}` | one item; hidden items are *Asset not found* |
 
-Pagination (`?o=offset&c=count`) and search (`?s=pattern`) parameters are accepted exactly as written in the spec. Each adapter translates them into the upstream archive's own dialect.
+All four read SQLite only — no upstream request is made while serving Impulse.
 
-### Response envelope
+- **Search** `?s=`: case-insensitive match over `title`, `description`, `subject`, `creator`, `contributor`, `type` and `assetID`. `*` separates chunks that must all appear in order; empty or `*` matches everything (`matches_pattern()` in [`app/transform/helpers.py`](../app/transform/helpers.py)).
+- **Paging** `?o=&c=`: offset and count over the matching assets. Non-integers, a negative offset or a count below 1 return the entire result set ([`app/api/params.py`](../app/api/params.py)).
 
-Every public endpoint returns:
+### What Impulse sees
+
+Collection metadata (`impulse_collection()` in [`app/curation/service.py`](../app/curation/service.py)):
+
+| Field | Value |
+|---|---|
+| `id` | The collection id, e.g. `masters-of-light-k3m9x2` |
+| `uri` | `<BRIDGE_PUBLIC_BASE_URL>/collections/<id>` |
+| `name`, `description` | As the editor set them |
+| `organization` | As set via the API, else `BRIDGE_DEFAULT_ORGANIZATION` (the web app does not ask for it) |
+| `owner_id` | `BRIDGE_COLLECTION_OWNER_ID` for every collection — never the creator's email, because collection metadata is public |
+| `published` | Always `1` |
+
+Assets are the stored snapshot with two fields overridden: `assetID` (the collection's own id for the item) and `published: 1`.
+
+### Response envelope and codes
 
 ```json
 {"code": 0, "message": "OK", "data": <list-or-object>}
 ```
 
-The `data` field is an **array** for list endpoints (collections, asset discovery) and an **object** for single-resource endpoints (single collection metadata, single asset detail). On error, `data` is `[]` (lists) or `null` (objects) and `code` reflects what went wrong.
+`data` is a list for `/collections` and `/assets`, an object for a single collection or asset. Errors raised as `BridgeError` are answered with `data: []` and the matching code ([`app/api/responses.py`](../app/api/responses.py)).
 
-This shape is locked in one place — [`app/api/responses.py`](../app/api/responses.py) — so every endpoint goes through the same helper and cannot accidentally drift.
-
-### `code` reference
-
-| `code` | meaning | HTTP status | typical cause |
+| `code` | Meaning | HTTP status | Typical cause |
 |---|---|---|---|
-| 0 | OK | 200 | success |
-| 1 | Collection not found | 404 | unknown collection id |
-| 2 | Asset not found | 404 | unknown asset id within an existing collection |
-| 10 | Upstream source unavailable | 503 | network error, timeout, 5xx from upstream |
-| 11 | Upstream rate limit reached | 503 | upstream returned 429 |
-| 12 | Upstream returned malformed data | 502 | upstream returned non-JSON or 4xx other than 401/403 |
-| 20 | Bridge configuration error | 500 | missing API key, 401/403 from upstream, invalid YAML at startup |
-| 99 | Internal bridge error | 500 | unhandled exception |
+| 0 | OK | 200 | — |
+| 1 | Collection not found | 404 | Unknown or locked collection; unknown source id (web app API) |
+| 2 | Asset not found | 404 | Unknown or hidden asset; asset not found in a source |
+| 10 | Upstream source unavailable | 503 | Network error, timeout, upstream 5xx |
+| 11 | Upstream rate limit reached | 503 | Upstream answered 429 |
+| 12 | Upstream returned malformed data | 502 | Non-JSON, or a 4xx other than 401/403 |
+| 20 | Configuration error | 500 | Missing or rejected API key (upstream 401/403), unbuildable source |
+| 99 | Internal error | 500 | Unhandled exception (logged with traceback) |
 
-## Request flow — asset discovery
+Codes 10–20 only appear in the web app API (source searches and lookups): the Impulse API never calls upstream.
 
-Tracing `GET /collections/wikimedia-commons-images/assets?s=van+gogh&c=3`:
+## Curated collections
+
+### Data model
+
+SQLite file `data/curator.db` (`BRIDGE_DATABASE_PATH` overrides it). One connection per process, serialized by a lock, WAL journal, foreign keys on. The schema version is `PRAGMA user_version`; [`app/curation/db.py`](../app/curation/db.py) applies missing entries of `MIGRATIONS` at start. Applied migrations are never edited — add a new one.
+
+| Table | Content |
+|---|---|
+| `collections` | id, name, description, organization, `owner_email` (optional, never public), `edit_key_hash`, `listed`, `disabled` (locked), `submitted_at`, `created_at`, `updated_at` |
+| `collection_items` | collection id, `asset_id` (collection-internal), `source_id` + `source_asset_id` (unique per collection), `position`, `published`, `asset` (snapshot JSON), `added_at`, `refreshed_at` |
+| `site_settings` | key/value JSON: submission address, SMTP account |
+| `login_tokens` | SHA-256 hashes of one-time sign-in tokens, email, expiry, `used_at` |
+| `sessions` | SHA-256 hashes of session ids, email, expiry |
+
+Deleting a collection deletes its items (`ON DELETE CASCADE`).
+
+### Ids
+
+| Id | Format | Source |
+|---|---|---|
+| Collection id | `<name slug, ≤ 48 chars>-<6 random chars>`, e.g. `masters-of-light-k3m9x2` | `new_collection_id()` — readable and unguessable; alphabet without `0/o/1/l` |
+| Item `assetID` | `<title slug>-<first 6 hex of sha1(source_id, source_asset_id)>` | `item_asset_id()` — stable for the same source asset; longer prefix on collision |
+| Edit key | 24 random bytes, URL-safe | `new_edit_key()` — only its SHA-256 hash is stored |
+
+### Snapshots
+
+When assets are added (`POST /api/collections`, `POST /api/collections/{id}/items`), `snapshot_items()` looks each one up with `source.get_asset()` — usually a cache hit right after the search that found it — at most 6 lookups in parallel. The result is stored as the item's `asset`.
+
+`absolutize()` makes relative `assetURI` / `previewURI` values (fallback sources) absolute: `<BRIDGE_PUBLIC_BASE_URL>/sources/<source id>/files/<path>`. Per the spec, relative URIs would resolve against the *collection* URI, which a curated collection does not share with its source.
+
+Assets that cannot be fetched (unknown source, asset not found, upstream error) are reported in `failed` and skipped; the rest is stored.
+
+`POST /api/collections/{id}/refresh` re-fetches every snapshot. Assets that are gone upstream keep their last snapshot and are reported.
+
+## Request flows
+
+### Searching a source (web app)
+
+`GET /api/sources/wikimedia-commons-images/assets?s=van+gogh&c=24`:
 
 ```
-1.  FastAPI matches the route in app/api/assets.py.
-       list_assets(collection_id="wikimedia-commons-images", s="van gogh", o=0, c=3)
-
-2.  Registry lookup
-       source = registry.get("wikimedia-commons-images")
-       → returns a GenericRestSource instance built from configs/sources/wikimedia-commons.yaml
-
-3.  Source.search()  (in app/adapter/rest.py)
-       3a. _build_params() consults the YAML:
-              - search.query.pattern_param      → ?gsrsearch=van+gogh
-              - adapter.default_query           → action=query, format=json, generator=search, …
-              - search.pagination (offset_limit) → ?gsroffset=0&gsrlimit=3
-       3b. Cache lookup keyed by source_id + path + sorted params.
-              Miss → continue. Hit → skip step 3c.
-       3c. HTTP GET against adapter.base_url + search.path
-              https://commons.wikimedia.org/w/api.php?…
-              On 4xx/5xx, raise a BridgeError; the exception handler turns it into the right `code`.
-       3d. Response body cached under the key from 3b.
-
-4.  Transform engine  (in app/transform/engine.py)
-       For each raw item from items_path:
-         For each Impulse field declared in mapping.fields:
-           - Evaluate JMESPath, apply default, apply value-map, apply transform.
-         Drop the item if it fails the filter (allowed_content_types / drop_if_missing).
-       Returns list[dict] in Impulse asset shape.
-
-5.  app/api/responses.py wraps the list in {code: 0, message: "OK", data: […]}.
-
-6.  FastAPI serializes and sends.
+1. app/api/sources.py   source = registry.get(id)          unknown id → 404, code 1
+                        o/c parsed; c defaults to 24, capped at 100
+2. adapter/base.py      search_page(source, …)
+3. adapter/rest.py      _build_params():
+                          default_query + auth query param
+                          search.query: pattern_param ← s (wildcards translated,
+                            pattern_template applied) or pattern_when_empty
+                          pagination: offset/limit or page/size
+                        _http_get(): cache hit → raw JSON; miss → GET upstream
+                          (one retry after a timeout), cache the raw JSON
+4. transform/engine.py  extract_items(items_path) → transform_item() per item
+                          → filter (allowed_content_types, drop_if_missing)
+                        each mapped asset's raw item is indexed by assetID in the cache
+5. app/api/sources.py   absolutize() relative URIs; optional ?type=image|model filter
+                        → {source, items, offset, next_offset}
 ```
 
-The cache caches **raw upstream JSON**, not transformed assets. Editing the YAML mapping therefore takes effect on the next request even if the cache is warm — no cache flush needed.
+`next_offset` is `offset + <items the upstream returned>` — counted before filtering — or `null` when the upstream returned fewer items than requested. A page can therefore hold fewer than `c` items.
 
-## Request flow — single asset
+### Creating a collection
 
-`GET /collections/wikimedia-commons-images/asset/151972`:
+`POST /api/collections` with `{name, description?, organization?, email?, items: [{source, asset_id}]}`:
 
-First, the source checks whether a recent `search()` on this bridge returned the asset: every search indexes its raw upstream items by mapped `assetID` in the TTL cache. On a hit the raw item is re-mapped with the current mapping and returned — no upstream call, and YAML mapping edits still take effect.
+1. Rate limit (30 per client and hour), body validation, size check (`BRIDGE_MAX_ASSETS_PER_COLLECTION`).
+2. Snapshots of all items (see above), duplicates removed.
+3. New collection id and edit key; one transaction inserts the collection and its items.
+4. Response `201` with the editor view of the collection, the **edit key** (only here, never again) and `failed`.
 
-On a miss, if the YAML has `asset_detail.enabled: true` and a `path` (it does for Wikimedia, with `pageids={asset_id}`, for Smithsonian, with `/content/{asset_id}`, and for Europeana, with a Solr regex built from `{asset_id_regex}`; `{asset_id_from_base32}` decodes `transform: base32` ids for exact endpoints), the source builds a fresh URL using `asset_detail.query` (which **replaces** `default_query`, not merges with it — because search and detail endpoints typically take different parameters), calls the upstream, runs the same transform, and returns the item whose mapped `assetID` matches.
+### Serving Unity
 
-If `asset_detail` is disabled, the source falls back to calling its own `search()` with no query, scanning the result for a matching `assetID`, and returning that. This only works for small collections. See [03 — YAML reference](03-yaml-reference.md#asset_detail) for the placeholders.
+`GET /collections/{id}/assets` → `CollectionStore.get()` (unknown or locked → code 1) → `items(published_only=True)` → `matches_pattern()` → slice by `o`/`c` → envelope. No upstream request.
 
-## Hot-reload mechanism
+## Sources
 
-Saving or deleting a source in the admin UI (`PUT`/`DELETE /admin/api/sources/...`) and the **↻** button (`POST /admin/api/reload`) call `load_sources()` in [`app/loading.py`](../app/loading.py):
+### The Source protocol
 
-1. `load_all(settings.config_dir)` — parses every YAML in `configs/sources/`, validates each against the Pydantic schema, expanding `${ENV_VAR}` references. A file that fails is recorded as an error and skipped.
-2. For each valid config, `build_source()` constructs the correct adapter (REST, fallback, or custom). Duplicate ids and adapters that fail to build are recorded as errors, too.
-3. `registry.swap()` replaces the whole `id → Source` map at once, so requests see either the old or the new set of sources — never an empty or half-loaded registry.
-4. The replaced sources are closed after a grace period (`RETIRE_GRACE_SECONDS`), so requests already running on them can finish.
-
-Errors are surfaced in the admin API's `/sources` response (red status dot in the UI); every valid source keeps being served. Net effect: changing a YAML file (via the admin UI, or directly on disk + **↻**) updates the live registry within milliseconds; no server restart required.
-
-## The Source protocol
-
-Every adapter implements the same minimal interface defined in [`app/adapter/base.py`](../app/adapter/base.py):
+[`app/adapter/base.py`](../app/adapter/base.py):
 
 ```python
 class Source(Protocol):
-    collection_meta: dict                   # what /collections/{id} returns
-    async def search(query, offset, count) -> list[dict]
-    async def get_asset(asset_id) -> dict
+    collection_meta: dict      # id, name, description, organization, … from the YAML `collection:` block
+    async def search(query, offset, count) -> list[dict]       # Impulse asset dicts
+    async def get_asset(asset_id) -> dict                       # or raise AssetNotFound
 ```
 
-That's it. The HTTP layer never knows whether it is talking to a REST adapter, a filesystem adapter, or a custom Python class. Adding a new adapter kind (GraphQL, SPARQL, …) means writing one class that satisfies this protocol and registering it via `adapter.kind: custom` in YAML.
+Adapters may also implement `search_page()` to report how many items the upstream returned before filtering (the REST adapter does); `search_page()` in `base.py` falls back to `search()` for the others. Adapters with an `aclose()` are closed when they are replaced or at shutdown.
 
-## The three adapter kinds
+### Adapter kinds
 
-### `kind: rest` — `GenericRestSource`
-
-The workhorse. Configured entirely from YAML. Handles:
-
-- Auth via `query_param` or `header`.
-- Three pagination styles: `page_size`, `offset_limit`, `cursor`, plus `none`.
-- Search-pattern translation (Impulse `s=` → upstream's own parameter, with optional wildcard rewriting).
-- Per-source default query parameters for static filters and headers.
-- One retry on transient timeouts.
-- Distinct error mapping: 429 → rate-limit, 401/403 → config error, 5xx → unavailable, other 4xx → malformed.
-- Two inspection attributes (`last_upstream_url`, `last_raw_response`) used by the admin UI's Test tab.
-
-Used by: Europeana, Wikimedia Commons, Smithsonian Open Access, and any future archive that exposes a JSON search API.
-
-### `kind: fallback` — `FallbackSource`
-
-Reads pre-mapped Impulse-schema JSON from `data/fallback/assets/manifest.json` and returns slices of it. Substring search across `title`, `description`, `subject`, `creator`, `contributor`, `type`, `assetID`. The files in the manifest's directory are served under `/collections/{id}/` ([`app/api/files.py`](../app/api/files.py)), so relative `assetURI` / `previewURI` values resolve correctly — matching the resolution semantics defined in the spec. The directory is looked up in the registry per request, so reloads take effect immediately.
-
-Used for: the `bridge-demo` collection, offline demos, and as a guaranteed-working fallback when external APIs are down.
-
-### `kind: custom` — user-provided Python class
-
-For archives that cannot be described declaratively. The YAML names a dotted Python path (`app.adapter.custom.iiif.IIIFManifestSource`); the factory imports the module, instantiates the class with the `SourceConfig`, and registers the result.
-
-Used for: IIIF Presentation API. One bundled implementation in [`app/adapter/custom/iiif.py`](../app/adapter/custom/iiif.py) handles both Presentation API v2 (`sequences[].canvases[]`) and v3 (`items[]` of Canvases), turning each canvas into one Impulse asset whose URLs are derived via the IIIF Image API.
-
-## Cache
-
-A single in-process `cachetools.TTLCache` keyed by `sha1(source_id|path|sorted_params)`. The cache stores **raw upstream JSON** (one entry per distinct upstream call). The default TTL is 10 minutes; each source can override via `cache.ttl_seconds`. Cache is cleared on `registry.clear()`.
-
-This is intentionally not Redis: single-process POC, no horizontal scaling, no persistence requirement. The interface (`BridgeCache.get/set`) is narrow enough that swapping in Redis later is a 20-minute job.
-
-## Errors are first-class
-
-Adapter errors are exceptions inheriting from `BridgeError`. Each subclass carries its own `code` value:
-
-```python
-class CollectionNotFound(BridgeError):  code = 1
-class AssetNotFound(BridgeError):       code = 2
-class UpstreamUnavailable(BridgeError): code = 10
-class UpstreamRateLimited(BridgeError): code = 11
-class UpstreamMalformed(BridgeError):   code = 12
-class ConfigError(BridgeError):         code = 20
-```
-
-A single FastAPI exception handler ([`app/main.py`](../app/main.py)) catches any `BridgeError`, runs it through `impulse_response(code, message)`, and sends the Impulse envelope. Unhandled exceptions become `code: 99` with HTTP 500 — but never an unwrapped Python traceback in the JSON.
-
-This means every endpoint, on every code path, returns the spec-shaped response. Impulse never has to handle anything outside the envelope.
-
-## Public vs. admin endpoints
-
-The bridge serves two API surfaces on the same port. They do **not** share a response shape on purpose:
-
-| Surface | Path prefix | Response shape | Audience |
+| `adapter.kind` | Class | Search | Single asset |
 |---|---|---|---|
-| Public (Impulse protocol) | `/collections`, `/health` | `{code, message, data}` (Impulse envelope) | Impulse platform, Unity client |
-| Admin | `/admin/api/...` | Plain JSON, FastAPI conventions | Bundled admin UI in the browser |
+| `rest` | `GenericRestSource` | Upstream search API, configured in YAML | Recently searched items, then `asset_detail`, else scan the default search page |
+| `fallback` | `FallbackSource` | `matches_pattern()` over a local JSON manifest | By `assetID` from the manifest |
+| `custom` | any class, e.g. `IIIFManifestSource` | Adapter-defined (IIIF: `title` + `identifier`, `*` chunks) | Adapter-defined |
 
-The admin API is **only** consumed by the bundled admin UI. It is therefore allowed to use FastAPI's normal patterns (HTTP 422 for validation, etc.) and not the Impulse envelope. The two surfaces never mix.
+`GenericRestSource` also handles auth (`query_param` or `header`), the error mapping (429 → 11, 401/403 → 20, 5xx/network → 10, 404 → 12 or *Asset not found* in a detail lookup, other 4xx → 12) and keeps `last_upstream_url` / `last_raw_response` for the admin test run. It sends a descriptive `User-Agent` with the public base URL as contact (Wikimedia's robot policy requires one).
 
-Two HTML pages are served on top:
+`IIIFManifestSource` reads one manifest (Presentation API v2 or v3); every canvas with a painting image becomes an asset, with Image API URLs for full size and a 400 px preview. The parsed manifest is kept for the lifetime of the source, i.e. until the next reload.
 
-- `GET /` → `static/index.html` (public browser UI for browsing assets visually)
-- `GET /admin` → `static/admin.html` (admin UI for editing configs)
-- `GET /help` → `static/help.html` (this documentation, rendered inline)
+### Single-asset lookup (REST)
 
-## Configuration loading
+1. **Recently searched:** every search indexes the raw upstream item under its mapped `assetID` (cache TTL). A hit is re-mapped with the current mapping — no upstream call. This is what makes "search, select, add to a collection" fast.
+2. **`asset_detail`** (if enabled): a configured upstream request with the placeholders `{asset_id}`, `{asset_id_regex}`, `{asset_id_from_base32}`; the item whose mapped `assetID` equals the request wins. See [03 — YAML reference](03-yaml-reference.md#asset_detail).
+3. **Otherwise:** scan the default search result (no query) for the id.
 
-At startup (and after every admin save / delete / reload), the bridge:
+### Cache
 
-1. Reads `.env` (via `python-dotenv`) into `os.environ`. This must happen at import time so `${ENV_VAR}` expansion in YAML works.
-2. Discovers `configs/sources/*.yaml` in `settings.config_dir`.
-3. For each file: parse YAML → substitute `${VAR}` references → validate against `SourceConfig` (Pydantic) → call `build_source()` → swap the new set of sources into the registry.
+One in-process `cachetools.TTLCache` (1024 entries) keyed by `sha1(source id, path, sorted params)`. It holds **raw upstream JSON**, so mapping changes take effect on the next request without a flush. The TTL is global (`BRIDGE_DEFAULT_CACHE_TTL`, default 600 s); per-source `cache.ttl_seconds` is read but not applied (see [03](03-yaml-reference.md#cache)). The cache is per process and lost on restart, which costs nothing but upstream requests.
 
-If any single file fails to validate, **the rest still load**. The failing file is reported in `Registry.errors()` and surfaced to the admin UI as a red status dot. This is deliberate: one operator's broken YAML must not take down the bridge for the other operators.
+## Loading and hot reload
 
-## What the bridge does NOT cache or persist
+[`app/loading.py`](../app/loading.py) runs at startup and after every admin save, delete and "Reload from disk":
 
-- **Transformed assets** are computed per-request from cached raw JSON.
-- **Pagination state** is stateless — the bridge does not remember cursors between requests (cursor-based upstream archives are converted to offset-based on a best-effort basis).
-- **Auth tokens** are not cached; the bridge sends the same `${ENV_VAR}` value every time.
-- **User sessions** do not exist. The bridge is a stateless adapter.
+1. `load_all()` parses every `*.yaml` / `*.yml` in `BRIDGE_CONFIG_DIR` (sorted by filename), expands `${ENV_VAR}` from the environment and validates against `SourceConfig`. A broken file is recorded as an error and skipped — it never stops the app or the other sources.
+2. Each valid config is built (`build_source()`). Duplicate ids (the first file wins) and configs that fail to build (missing fallback manifest, unknown custom class, …) are recorded as errors, too.
+3. `registry.swap()` replaces the whole map at once: requests see the old or the new set of sources, never a half-loaded one.
+4. Replaced sources are closed after `RETIRE_GRACE_SECONDS` (60 s, [`app/registry.py`](../app/registry.py)) so running requests can finish.
 
-This makes the bridge horizontally scalable in principle (multiple replicas, no shared state) once the cache is moved out of process.
+Errors appear in the admin's Sources list (red dot and message) and in the log. Curated collections are unaffected by reloads: they are served from SQLite. Only refreshing snapshots and fallback file URLs (`/sources/{id}/files/…`) need the source to exist under the same id.
+
+## Access model
+
+| Who | How | Can |
+|---|---|---|
+| Anyone | — | Search sources, read collections (visible assets only), create collections (rate-limited) |
+| Holder of the edit key | `Authorization: Bearer <key>`; the web app keeps it in `localStorage` and in the edit link's fragment (`#key=…`, never sent to the server in the URL) | Edit, reorder, hide, refresh, delete, replace the key, email the edit link |
+| Signed-in creator | Session cookie after a one-time email link; only for the email address the collection was created with | Same as the key holder, except emailing the edit link; writes must come from `BRIDGE_PUBLIC_BASE_URL`'s origin |
+| Admin | Basic auth at the reverse proxy (the app itself has no admin login) | Everything under `/admin`: list, lock, delete collections, new edit keys, sources, settings |
+
+A locked collection refuses every edit (403) and is hidden from the Impulse API and from other visitors.
+
+Sign-in details: links go only to addresses that collections were created with (at most 5 per address and hour; the response never tells whether one was sent), are valid for 15 minutes and once. Sessions last 30 days. The cookie is `HttpOnly`, `SameSite=Lax`, and — when `BRIDGE_PUBLIC_BASE_URL` is `https://…` — `Secure` with the `__Host-` prefix ([`app/auth.py`](../app/auth.py)).
+
+Rate limits are listed in [06 — Operations](06-operations.md#rate-limits).
+
+## The web app
+
+`frontend/` is a SvelteKit app built with `adapter-static` into `frontend/build` (`BRIDGE_FRONTEND_DIR`). [`app/frontend.py`](../app/frontend.py) serves it from FastAPI, after all API routes:
+
+- Prerendered pages (home, `/legal/*`, `/credits`, `/report`) are plain files.
+- App pages (`/explore`, `/my`, `/signin`, `/c/{id}`, `/c/{id}/edit`, `/admin…`) get the SPA fallback `200.html` with status 200; unknown paths get it with status 404.
+- Backend paths (`/api/`, `/admin/api/`, `/collections`, `/sources/`, `/health`, `/docs`, `/openapi.json`) never fall through to the web app.
+- Caching: `/_app/immutable/…` is `immutable` for a year, HTML `no-cache`, other static files one day.
+- Without a build, the API still works and every page answers 503 "The web app has not been built".
+
+The build sets a hash-based Content-Security-Policy; [`app/main.py`](../app/main.py) adds `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `Permissions-Policy`, `Cross-Origin-Opener-Policy` and — for an `https://` public base URL — HSTS.
+
+Pages: `/` (home with an interactive how-to), `/explore`, `/c/{id}` (public view), `/c/{id}/edit`, `/my`, `/signin`, `/legal/{imprint,privacy,terms,accessibility}`, `/credits`, `/report`, `/admin`, `/admin/sources`, `/admin/settings`.
+
+## What is stored where
+
+| State | Where | Survives a restart |
+|---|---|---|
+| Curated collections, snapshots | SQLite `data/curator.db` | yes — back it up |
+| Site settings (submission address, SMTP) | SQLite | yes |
+| Sign-in tokens, sessions | SQLite (hashes only) | yes |
+| Source configs | `configs/sources/*.yaml` | yes |
+| API keys, deployment settings | environment / `.env` | yes |
+| Source registry, upstream cache, rate-limit counters | process memory | no (rebuilt) |
+| Edit keys of a visitor's collections, current selection | the visitor's `localStorage` | in that browser |
+
+Because of the in-memory registry, cache and rate limits, the Curator runs as **one process** (one uvicorn worker, one container).
 
 ---
 
-_Last verified against [`Collections-and-assets-schema,-discovery-and-access.md`](../Collections-and-assets-schema,-discovery-and-access.md) v3.11 (28/11/2025)._
+_Last verified against [`Collections-and-assets-schema,-discovery-and-access.md`](../Collections-and-assets-schema,-discovery-and-access.md) v3.11 (28/11/2025) and the code, October 2026._
 
 _Continue to [03 — YAML reference](03-yaml-reference.md)._

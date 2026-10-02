@@ -1,245 +1,355 @@
 # 06 — Operations
 
-How to run, configure, and troubleshoot the bridge.
+How to run, configure, back up and troubleshoot the Curator. For the Docker deployment see [07 — Deployment](07-deployment.md).
 
-## System requirements
+## Requirements
 
-- Python 3.12 or newer (tested with 3.12 and 3.13).
-- No database, no Redis — everything is in-process.
-- Outbound HTTPS to the configured archives (no inbound dependencies beyond the bridge itself).
-- A few hundred MB of memory; CPU is negligible for any realistic POC traffic.
+| What | Version / note |
+|---|---|
+| Python | 3.12 or newer |
+| Node.js | 22.17 or newer, only to build the web app (`engine-strict`; the Docker build uses Node 24) |
+| SQLite | the one bundled with Python; nothing to install |
+| Network | outbound HTTPS to the archives; an SMTP server for sign-in and edit-link emails (optional) |
+| Process model | **one** process (one uvicorn worker): registry, cache and rate limits are in memory |
 
 ## Installation
 
 ```powershell
-# In the project directory
 python -m venv .venv
 .venv\Scripts\python -m pip install -e ".[dev]"
+
+cd frontend
+npm ci
+npm run build          # → frontend/build, served by FastAPI
+cd ..
 ```
 
-On Linux/macOS the same commands work with `.venv/bin/python`.
+On Linux/macOS use `.venv/bin/python`. Without the build, the API works and every page answers 503 "The web app has not been built".
 
-## Configuration
+## Running
 
-The bridge reads its configuration from three places, in order of precedence:
-
-1. Environment variables (or a `.env` file in the project root).
-2. The YAML files in `configs/sources/`.
-3. Compiled-in defaults in `app/settings.py`.
-
-### Environment variables
-
-Copy `.env.example` to `.env` and edit as needed. The bridge reads `.env` once at process start; restart the server to pick up changes.
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `BRIDGE_HOST` | `0.0.0.0` | Listen address (advisory — `uvicorn` honors its own `--host` flag if passed). |
-| `BRIDGE_PORT` | `8080` | Listen port. |
-| `BRIDGE_CONFIG_DIR` | `configs/sources` | Where the bridge looks for YAML files. |
-| `BRIDGE_DATA_DIR` | `data` | Root for fallback adapter data files. |
-| `BRIDGE_LOG_LEVEL` | `INFO` | Standard Python logging level. |
-| `BRIDGE_DEFAULT_CACHE_TTL` | `600` | Default cache TTL in seconds. |
-| `BRIDGE_PUBLIC_BASE_URL` | `http://localhost:8080` | Used to construct the `uri` field on each collection. Set this to the externally-visible URL if the bridge is behind a reverse proxy. |
-| `EUROPEANA_API_KEY` | _(empty)_ | Used by `configs/sources/europeana.yaml` via `${EUROPEANA_API_KEY}`. |
-| `SMITHSONIAN_API_KEY` | _(empty)_ | Used by `configs/sources/smithsonian.yaml`. |
-
-Any other variable referenced as `${MY_VAR}` in a YAML file should also live in `.env`.
-
-### Where to put API keys
-
-Inside YAML files, **never** hard-code secrets. Always use `${VAR}` and put the real value in `.env`. `.env` is excluded by `.gitignore`. `.env.example` is committed but contains only placeholder values.
-
-## Running the bridge
-
-### Foreground (development)
+### Backend
 
 ```powershell
+cp .env.example .env
 .venv\Scripts\python -m uvicorn app.main:app --port 8080
 ```
 
-The terminal will print structured logs. Press Ctrl+C to stop. **Do not** type curl commands in this window — uvicorn blocks the terminal. Open a second window for testing.
+- `http://localhost:8080/` — web app, `/admin` — admin (no login locally), `/docs` — OpenAPI UI.
+- Add `--reload` to restart on Python changes.
+- `.env.example` sets `BRIDGE_MAIL_LOG_ONLY=true`: sign-in and edit-link emails are written to the console, so you can copy the links from there.
+- The database `data/curator.db` is created and migrated at first start.
 
-### Background
-
-For longer-running test sessions, start uvicorn detached. On Windows PowerShell:
+Detached on Windows:
 
 ```powershell
 Start-Process -FilePath .venv\Scripts\python.exe `
     -ArgumentList "-m","uvicorn","app.main:app","--port","8080" `
     -RedirectStandardOutput bridge.log -RedirectStandardError bridge.err -NoNewWindow
-```
 
-To stop it later:
-
-```powershell
+# stop
 (Get-NetTCPConnection -LocalPort 8080 -State Listen).OwningProcess | ForEach-Object { Stop-Process -Id $_ -Force }
 ```
 
-### Behind a reverse proxy
+### Web app development
 
-Set `BRIDGE_PUBLIC_BASE_URL` to the external URL (e.g. `https://bridge.impulse.eu`). Forward `/collections/*`, `/admin/*`, `/help/*`, `/` to the bridge; the rest does not need to be exposed.
-
-### Containerized
-
-A Dockerfile is not bundled with the bridge (POC). For deployment, a Dockerfile would only need:
-
-```dockerfile
-FROM python:3.12-slim
-WORKDIR /app
-COPY . .
-RUN pip install -e .
-EXPOSE 8080
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+```bash
+cd frontend
+npm run dev            # http://localhost:5173
 ```
 
-Mount `configs/` and `.env` as volumes so they're operator-managed; the rest is immutable code.
+The dev server proxies `/api`, `/collections`, `/sources`, `/admin/api` and `/health` to `CURATOR_BACKEND` (default `http://127.0.0.1:8080`), so run the backend as well. Signed-in edits are only accepted from the origin of `BRIDGE_PUBLIC_BASE_URL`; to test sign-in through the dev server, start the backend with `BRIDGE_PUBLIC_BASE_URL=http://localhost:5173`.
+
+### Tests and checks
+
+```powershell
+.venv\Scripts\python -m pytest -q     # backend, ~135 tests, no network needed
+
+cd frontend
+npm test              # vitest unit tests
+npm run check         # svelte-check / TypeScript
+npm run lint          # prettier --check + eslint
+```
+
+## Configuration
+
+Precedence: process environment > `.env` in the working directory > defaults in [`app/settings.py`](../app/settings.py). Source configs live in `configs/sources/*.yaml`; site settings (submission address, SMTP) live in the database and are edited in the admin.
+
+### Environment variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `BRIDGE_PUBLIC_BASE_URL` | `http://localhost:8080` | The public address, **without** trailing path. Used for collection URIs, fallback file URLs stored in snapshots, sign-in and edit links, and the origin check of signed-in writes. An `https://` value also turns on secure `__Host-` session cookies and HSTS. In Docker it is set from `BRIDGE_DOMAIN`. |
+| `BRIDGE_CONFIG_DIR` | `configs/sources` | Source YAML files. |
+| `BRIDGE_DATA_DIR` | `data` | Directory of the default database file. (Fallback `manifest_path`s resolve against the working directory, not this.) |
+| `BRIDGE_DATABASE_PATH` | `<BRIDGE_DATA_DIR>/curator.db` | SQLite file. |
+| `BRIDGE_FRONTEND_DIR` | `frontend/build` | The web app build. |
+| `BRIDGE_LOG_LEVEL` | `INFO` | Python logging level. |
+| `BRIDGE_DEFAULT_CACHE_TTL` | `600` | TTL of the upstream cache, seconds. |
+| `BRIDGE_CORS_ALLOW_ORIGINS` | `*` | Comma-separated origins allowed to call the Impulse API (and fallback files) from a browser. Never applies to `/api` or `/admin`. |
+| `BRIDGE_COLLECTION_OWNER_ID` | `impulse-curator` | `owner_id` of every curated collection in the Impulse API. |
+| `BRIDGE_DEFAULT_ORGANIZATION` | `IMPULSE Curator` | `organization` of collections that have none. |
+| `BRIDGE_MAX_ASSETS_PER_COLLECTION` | `500` | Size limit of a collection. (A single create request carries at most 500 items, an add request at most 200.) |
+| `BRIDGE_SMTP_PASSWORD` | — | SMTP password; overrides the one stored in the admin, for secrets that must stay out of the database. |
+| `BRIDGE_MAIL_LOG_ONLY` | `false` | Log emails (with their links) instead of sending them. Development only. |
+| `EUROPEANA_API_KEY`, `SMITHSONIAN_API_KEY` | — | Referenced by the bundled source configs as `${…}`. Any other `${VAR}` in a YAML is read the same way. |
+| `BRIDGE_DOMAIN`, `BRIDGE_BASIC_AUTH` | — | Docker Compose / Traefik only (see [07](07-deployment.md)). |
+| `CURATOR_BACKEND` | `http://127.0.0.1:8080` | `npm run dev` only: where the dev server proxies API calls. |
+
+Never put secrets into YAML files; reference them as `${VAR}` and keep the values in `.env` (ignored by Git).
+
+## Endpoint reference
+
+### Impulse API
+
+Envelope `{code, message, data}`; CORS-enabled.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/collections` | Listed, unlocked collections, by name |
+| GET | `/collections/{id}` | Collection metadata; code 1 if unknown or locked |
+| GET | `/collections/{id}/assets` | Visible assets in order; `?s=` (`*` wildcards), `?o=`, `?c=`; illegal `o`/`c` → everything |
+| GET | `/collections/{id}/asset/{asset_id}` | One visible asset; code 2 otherwise |
+| GET, HEAD | `/health` | `{status, sources: [ids], collections: <count>}` |
+
+### Web app API
+
+Plain JSON. Errors are `{"detail": "…"}` with a matching status; errors that come from a source also carry the Impulse `code` (`{"detail": "…", "code": 1}`); request validation errors are FastAPI's `{"detail": [{loc, msg, …}]}`.
+
+"Edit" means `Authorization: Bearer <edit key>`, or the session of the email address the collection was created with.
+
+| Method | Path | Access | Purpose |
+|---|---|---|---|
+| GET | `/api/config` | — | `app_name`, `submission_email`, `sign_in_available`, `max_assets_per_collection` |
+| GET | `/api/sources` | — | Configured sources: `id`, `name`, `description`, `organization` |
+| GET | `/api/sources/{id}/assets` | — | Search: `?s=`, `?o=`, `?c=` (default 24, max 100), `?type=image\|model` → `{source, items, offset, next_offset}` |
+| GET | `/api/sources/{id}/assets/{asset_id}` | — | One asset of a source |
+| POST | `/api/collections` | create limit | `{name, description?, organization?, email?, items: [{source, asset_id}]}` → `201 {collection, edit_key, failed}` |
+| GET | `/api/collections?ids=a,b` | — | Overviews with up to 4 previews (≤ 100 ids; unknown and locked ids are left out) |
+| GET | `/api/collections/{id}` | optional | Public view (visible items); with edit access the editor view (all items, `email`, `locked`) |
+| PATCH | `/api/collections/{id}` | edit | `name`, `description`, `organization`, `email` (`""` removes it) |
+| DELETE | `/api/collections/{id}` | edit | Delete → 204 |
+| POST | `/api/collections/{id}/items` | edit | Add `{items: [{source, asset_id}]}` (1–200) → `{added, failed}`; assets already present are skipped |
+| PATCH | `/api/collections/{id}/items/{asset_id}` | edit | `{published: true\|false}` — visible in Unity |
+| DELETE | `/api/collections/{id}/items/{asset_id}` | edit | Remove → 204 |
+| PUT | `/api/collections/{id}/order` | edit | `{asset_ids: [...]}` — every item exactly once |
+| POST | `/api/collections/{id}/refresh` | edit | Re-fetch snapshots → `{refreshed, failed}` |
+| POST | `/api/collections/{id}/submitted` | edit | Record the submission → `{submitted_at}` |
+| POST | `/api/collections/{id}/email-link` | edit key only | Email the edit link to the collection's address → `202 {sent_to}` |
+| POST | `/api/collections/{id}/key` | edit | New edit key → `{edit_key}`; the old one stops working |
+| POST | `/api/auth/login` | login limit | `{email}` → `202`, always the same answer; 503 if email is not available |
+| POST | `/api/auth/verify` | — | `{token}` → session cookie, `{email}`; 400 if invalid or expired |
+| GET | `/api/auth/me` | — | `{email}` or `{email: null}` |
+| POST | `/api/auth/logout` | — | End the session → 204 |
+| GET | `/api/me/collections` | session | Overviews of the signed-in address's collections; 401 without session |
+
+Typical statuses: 401 no credentials (`WWW-Authenticate: Bearer`), 403 wrong key, someone else's collection, locked, or a signed-in write from another origin, 404 unknown, 422 invalid input or collection full, 429 rate limit (`Retry-After`).
+
+### Admin API
+
+Plain JSON; no app-level authentication — protect `/admin` at the proxy.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/admin/api/collections` | All collections incl. email, `listed`, `disabled`, `submitted_at` |
+| PATCH | `/admin/api/collections/{id}` | `{listed?, disabled?}` |
+| DELETE | `/admin/api/collections/{id}` | Delete with items → 204 |
+| POST | `/admin/api/collections/{id}/key` | New edit key → `{edit_key}` |
+| GET | `/admin/api/sources` | Every config file: `filename`, `id`, `name`, `kind`, `base_url`, `loaded`, `error`; plus `loaded_count`, `load_errors` |
+| POST | `/admin/api/reload` | Reload all files from disk; returns the same as `GET /admin/api/sources` |
+| GET | `/admin/api/files/{filename}` | `{filename, yaml, id, valid, errors: [{loc, msg, line}], loaded, load_error}` |
+| POST | `/admin/api/files` | Create from `{yaml}` → 201; file named after the id |
+| PUT | `/admin/api/files/{filename}` | Save `{yaml}` verbatim |
+| DELETE | `/admin/api/files/{filename}` | Delete the file |
+| POST | `/admin/api/validate` | `{yaml}` → `{valid, errors, id}`; never saves |
+| POST | `/admin/api/test` | `{yaml, query?, count=5}` → `{valid, errors, transformed, raw_upstream, upstream_url}`; API key masked |
+| GET | `/admin/api/templates` | Starter configs `{key, label, yaml}` |
+| GET / PUT / DELETE | `/admin/api/sources/{id}` | The same by source id (`PUT ?create=true` refuses existing ids). Not used by the admin pages; kept for scripts. |
+| GET | `/admin/api/settings` | Site settings without the password, plus `smtp_password_set`, `smtp_password_from_env`, `mail_configured`, `mail_log_only`, `server` |
+| PUT | `/admin/api/settings` | Change the fields sent; `smtp_password: ""` removes it |
+| POST | `/admin/api/settings/test-email` | `{to}` → `{sent_to}`; 502 with the SMTP error |
+
+File endpoints answer 422 `{"detail": {"errors": [...]}}` for invalid text and 409 when the id belongs to another file. Filenames must match `[A-Za-z0-9][A-Za-z0-9._-]*.yaml|.yml`.
+
+### Other
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET, HEAD | `/sources/{id}/files/{path}` | Files next to a fallback source's manifest (`static_mount: true`) |
+| GET | `/docs`, `/openapi.json` | FastAPI's API documentation |
+| GET | everything else | The web app |
 
 ## Health check
 
 ```bash
 curl http://localhost:8080/health
+# {"code":0,"message":"OK","data":{"status":"ok","sources":["europeana-public-domain-images","bridge-demo",…],"collections":3}}
 ```
 
-Returns the Impulse envelope. The `data` field includes the list of registered source IDs, which is useful for monitoring (e.g. alert if a known source disappears).
+`HEAD /health` works too, for monitors that only check the status. Alert when an expected source id is missing from `data.sources`.
 
-```json
-{"code": 0, "message": "OK", "data": {"status": "ok", "sources": ["bridge-demo", "wikimedia-commons-images", ...]}}
-```
-
-## Hot-reload vs server restart
+## What needs a restart
 
 | Change | Action |
 |---|---|
-| Edit a YAML file via the admin UI | Hot-reload happens automatically on Save. |
-| Edit a YAML file directly on disk | Click **↻** in the admin sidebar, or `POST /admin/api/reload`. |
-| Add or remove a YAML file | Same — hot-reload via the admin UI. |
-| Change a value in `.env` | **Restart the server.** `.env` is read once at process start. |
-| Change Python code (adapters, transform, …) | **Restart the server.** No code reload. |
-| Change `app/settings.py` defaults | **Restart the server.** |
+| A source YAML via the admin | Nothing — saving hot-reloads. |
+| A source YAML on disk, a new or removed file | **Reload from disk** in the admin, or `POST /admin/api/reload`. |
+| Site settings (submission address, SMTP) | Nothing — read on every use. |
+| `.env` / environment (API keys, `BRIDGE_*`) | **Restart.** |
+| Python code | **Restart** (or run with `--reload`). |
+| Web app code, legal pages | `npm run build` in `frontend/` (in Docker: rebuild the image). No backend restart needed for a local build. |
+| Database schema | Migrations run automatically at start. |
 
-## Error codes (reference)
+## Email
 
-Every public response has a `code` field. The full list:
+Emails sent by the server: sign-in links, "Email me the edit link", admin test emails. The **Submit to IMPULSE** email is *not* sent by the server — it opens the visitor's mail program.
 
-| `code` | meaning | HTTP status | typical fix |
-|---|---|---|---|
-| 0 | OK | 200 | — |
-| 1 | Collection not found | 404 | Check `/collections` — is the source registered? Did the YAML fail to load? |
-| 2 | Asset not found | 404 | Not returned by a recent search, and the detail lookup (or, without `asset_detail`, the default search) did not contain the id. Configure `asset_detail` for direct lookup; use `{asset_id_regex}` if the assetID is slugified. |
-| 10 | Upstream source unavailable | 503 | Network problem, timeout, or upstream 5xx. Retry; check upstream's status page. |
-| 11 | Upstream rate limit reached | 503 | Slow down; check the upstream's rate-limit policy. Increase `cache.ttl_seconds` to reduce request volume. |
-| 12 | Upstream returned malformed data | 502 | Often a 400 from the upstream — bad query syntax. Check **Test** tab's upstream URL. |
-| 20 | Bridge configuration error | 500 | Missing/invalid API key, 401/403 from upstream, or invalid YAML at startup. Check the `error` field in `/admin/api/sources`. |
-| 99 | Internal bridge error | 500 | Unhandled exception. Check the server logs. |
+Set up:
 
-## Common upstream issues
+1. **Admin → Settings → Email (SMTP):** server, port, encryption (STARTTLS on 587, or SSL/TLS on 465), username, password, sender (`IMPULSE Curator <curator@example.org>`). Email counts as set up when server and sender are set.
+2. **Save settings**, then **Send a test email**.
+3. Optionally keep the password out of the database: set `BRIDGE_SMTP_PASSWORD` and restart; the password field is then disabled.
+4. **Submissions → Submission address:** where "Submit to IMPULSE" goes.
 
-### "Upstream auth failed (401)"
+The sender domain should allow the SMTP server to send for it (SPF/DKIM), or the links land in spam. SMTP connections time out after 15 s.
 
-Cause: the API key environment variable is empty or wrong.
+Sign-in rules: links only go to addresses that collections were created with; the answer never reveals whether a mail was sent; at most 5 links per address and hour; a link works once, for 15 minutes; a session lasts 30 days. Without email, sign-in is hidden in the web app and `POST /api/auth/login` answers 503.
 
-Fix:
+Development: `BRIDGE_MAIL_LOG_ONLY=true` logs every mail at `WARNING` level with its text and link instead of sending it.
 
-1. Confirm the variable name in the YAML (`adapter.auth.value: "${YOUR_KEY}"`).
-2. Check `.env` contains the corresponding line with the real key.
-3. Restart the server (`.env` is read at startup, not at every request).
-4. In the admin UI's **Test** tab, run a query — the upstream URL pane shows the actual params sent. If `wskey=` is empty, the env var didn't expand.
+## Rate limits
 
-### Wikimedia 403 "robot policy"
+Per client IP, sliding window, in memory ([`app/ratelimit.py`](../app/ratelimit.py), [`app/api/auth.py`](../app/api/auth.py)):
 
-Cause: User-Agent header doesn't identify the operator.
+| Limit | Applies to | Value |
+|---|---|---|
+| Create | `POST /api/collections` | 30 per hour |
+| Write | every other write under `/api/collections/…` (shared budget) | 1,200 per hour |
+| Sign-in | `POST /api/auth/login` | 10 per hour |
+| Links per address | sign-in emails to one address | 5 per hour (silently skipped) |
 
-Fix: nothing — the bridge already sends a compliant User-Agent (`ImpulseBridge/0.1 (https://github.com/impulse-consortium/impulse-bridge; bridge@impulse.eu)`). If you fork the bridge for a different project, update the User-Agent string in `app/adapter/rest.py` accordingly.
+Exceeding a limit answers 429 with `Retry-After`. Counters reset on restart. Reads, the Impulse API and the admin are not limited.
 
-### Smithsonian DEMO_KEY rate-limited
+The client IP is `request.client.host`. Behind a reverse proxy, uvicorn must trust the proxy headers, otherwise all visitors share the proxy's address and its limits: the Docker image runs `uvicorn --proxy-headers --forwarded-allow-ips=*`.
 
-Cause: the DEMO_KEY is shared and very limited.
+## Backups
 
-Fix: register a free key at https://api.data.gov/signup/. Set `SMITHSONIAN_API_KEY` in `.env`. Restart.
+| What | Why |
+|---|---|
+| `data/curator.db` | **Everything visitors created:** collections, snapshots, edit-key hashes, site settings, sessions. Not in Git. |
+| `configs/sources/` | Source configs (may be edited in the admin). |
+| `.env` | Secrets and deployment settings. |
+| `data/fallback/` | Only if you added your own local files. |
 
-### Europeana returns items but no media URLs
+The database runs in WAL mode (`curator.db-wal`, `curator.db-shm` next to it). Do not copy the file while the server runs; use SQLite's backup API, which is safe while it runs:
 
-Cause: many Europeana records have only `edmIsShownAt` (a landing-page link), not `edmIsShownBy` (a direct media URL).
+```powershell
+# local
+.venv\Scripts\python -c "import sqlite3; sqlite3.connect('data/curator.db').backup(sqlite3.connect('data/curator-backup.db'))"
+```
 
-Fix: keep `filter.drop_if_missing: [assetURI, previewURI]`. This removes records that aren't usable in the 3D world. Also keep `media: "true"` in `default_query` to ask Europeana to pre-filter.
+```bash
+# Docker (the image has Python but no sqlite3 CLI); the file appears in the host's data/
+docker compose exec bridge python -c "import sqlite3; sqlite3.connect('data/curator.db').backup(sqlite3.connect('data/curator-backup.db'))"
+```
 
-### IIIF manifest 404 or schema mismatch
+Copy the backup off the machine. Restore: stop the server, replace `data/curator.db` with the backup, delete `curator.db-wal` and `curator.db-shm`, start.
 
-Cause: the manifest URL has moved, or the manifest uses an unusual structure (mixed v2/v3, or v3 without painting annotations).
-
-Fix:
-
-1. Confirm the manifest loads in a browser.
-2. In the admin UI's **Test** tab, the upstream URL and raw response will show what the bridge actually got back.
-3. If the manifest is in an exotic shape, extend `app/adapter/custom/iiif.py` to handle it.
-
-### CORS errors in Unity
-
-Cause: Unity is loading the asset URL directly (`upload.wikimedia.org`, `iiif.wellcomecollection.org`, …) and the host doesn't send a permissive `Access-Control-Allow-Origin`.
-
-Note: this is **not** a bridge issue — Unity goes around the bridge for asset bytes. Workarounds:
-
-- For Unity desktop/standalone builds: CORS doesn't apply.
-- For Unity WebGL builds: configure a CORS-proxy on the same origin as Unity. The bridge could be extended to proxy a subset of media URLs if needed — but the default design is intentional pass-through.
-
-## Observability
-
-Out of the box, the bridge logs:
-
-- Per-source load events at startup and after every hot-reload.
-- Per-request upstream URL (`DEBUG` level).
-- Per-request cache hit/miss (`DEBUG`).
-- Any caught exception with traceback (`ERROR`).
-
-For production monitoring:
-
-- Scrape `/health` periodically — alert if `data.sources` doesn't include expected IDs.
-- Tail logs for `Failed to build source` or `ERROR` lines.
-- Optionally instrument with `prometheus-fastapi-instrumentator` (one-line drop-in) for request rate and latency.
-
-## Performance characteristics
-
-- Each upstream request is async. A single bridge process can handle dozens of concurrent in-flight requests with negligible CPU.
-- The cache eliminates duplicate upstream calls for identical queries within `cache.ttl_seconds`. In tests, cache hits are ~15× faster than upstream calls.
-- Asset bytes never flow through the bridge — bandwidth is therefore decoupled from asset size.
-
-The practical bottleneck is upstream rate limits, not bridge resources.
-
-## Backup and recovery
-
-The bridge has no persistent state of its own. To back up:
-
-- `configs/sources/*.yaml` — the source configurations.
-- `data/` — only matters if you have fallback collections with local files.
-- `.env` — secrets and per-deployment overrides.
-
-That's it. Lose the cache, lose nothing. Lose the registry, lose nothing. Restore the three things above and the bridge comes back to exactly its previous state.
+Losing the cache or the registry loses nothing; both are rebuilt.
 
 ## Upgrading
 
-Pull the new code, install any new dependencies, restart:
-
 ```powershell
+# back up data/curator.db first
 git pull
 .venv\Scripts\python -m pip install -e ".[dev]"
-# Restart the server
+cd frontend; npm ci; npm run build; cd ..
+# restart the server
 ```
 
-Source configurations are stable across upgrades unless the YAML schema changes — in which case the changelog will call it out.
+New database migrations run at start (`Applying database migration N` in the log). There are no down-migrations: to go back, restore the backup taken before the upgrade.
+
+## Error codes
+
+Impulse `code` values (also in web app API errors that come from a source):
+
+| `code` | Meaning | HTTP | Typical fix |
+|---|---|---|---|
+| 0 | OK | 200 | — |
+| 1 | Collection / source not found | 404 | Unknown id, or the collection is locked. For a source: did its YAML load? (Admin → Sources) |
+| 2 | Asset not found | 404 | Hidden or removed asset; for a source, configure `asset_detail` (see [05, Recipe 8](05-cookbook.md#recipe-8--configure-asset_detail)). |
+| 10 | Upstream unavailable | 503 | Network, timeout or upstream 5xx; retry, check the archive's status. |
+| 11 | Upstream rate limit | 503 | Slow down; get a personal API key. |
+| 12 | Upstream malformed | 502 | Usually a 400 — bad query; check the test run's upstream request. |
+| 20 | Configuration error | 500 | Missing or wrong API key (upstream 401/403), source cannot be built. |
+| 99 | Internal error | 500 | See the server log (traceback). |
+
+## Troubleshooting
+
+### The web app
+
+| Symptom | Cause and fix |
+|---|---|
+| Every page: "The web app has not been built" (503) | Run `npm ci && npm run build` in `frontend/`, or check `BRIDGE_FRONTEND_DIR`. |
+| Sign-in is not offered | Email is not set up (Admin → Settings), and `BRIDGE_MAIL_LOG_ONLY` is off. |
+| "Cross-site request refused" when editing while signed in | The page's origin differs from `BRIDGE_PUBLIC_BASE_URL`. Set it to the exact address visitors use (scheme, host, port). |
+| Sign-in link never arrives | Only addresses with collections get links, at most 5 per hour. Check the log for "Sending the sign-in link failed" and test SMTP in the admin. |
+| Sign-in link or edit link points to `localhost` | `BRIDGE_PUBLIC_BASE_URL` is not set to the public address. |
+| "Too many requests" for everyone | Proxy headers are not trusted, so all visitors share one IP (see Rate limits). |
+| Adding an asset fails with "Asset not found" | The source cannot look the asset up again: configure `asset_detail`. |
+| Images of a local (fallback) source are broken in a collection | The source was renamed or removed, or `BRIDGE_PUBLIC_BASE_URL` changed after the asset was added: snapshots store absolute `/sources/{id}/files/…` URLs. Restore the source id, then **Update from sources** on the edit page. |
+| A collection is missing from `GET /collections` | It is not listed (Admin → Collections) or it is locked. Its own URI works unless it is locked. |
+
+### Sources
+
+**"Upstream auth failed (401)" / code 20.** The variable in `adapter.auth.value` is empty or wrong: check `.env`, restart, run the test — an empty `api_key=` (instead of `***`) in the upstream request means the variable did not expand.
+
+**A source has a red dot.** Its file failed to parse, validate or build; the message says why. The other sources keep running. Open the file in the editor — problems are marked on their lines.
+
+**Wikimedia 403 "robot policy".** Wikimedia requires a descriptive User-Agent; the REST adapter sends `IMPULSE-Curator/0.1 (+<BRIDGE_PUBLIC_BASE_URL>)` (`app/adapter/rest.py`), and the imprint on that site is the contact. Make sure `BRIDGE_PUBLIC_BASE_URL` is the real public address.
+
+**Smithsonian rate-limited.** Use a personal key from https://api.data.gov/signup/ in `SMITHSONIAN_API_KEY`.
+
+**Europeana returns items without media.** Many records only link to a landing page (`edmIsShownAt`). Keep `media: "true"` in `default_query` and `drop_if_missing: [assetURI, previewURI]`.
+
+**IIIF manifest fails.** Check that the URL loads in a browser and run the test. Exotic manifests (mixed v2/v3, v3 without painting annotations) need changes in `app/adapter/custom/iiif.py`.
+
+**Unity WebGL cannot load a media file (CORS).** Unity loads media directly from the archive's host; whether that host sends `Access-Control-Allow-Origin` is outside the Curator's control. Desktop builds are not affected. Files of local sources (`/sources/{id}/files/…`) are CORS-enabled by `BRIDGE_CORS_ALLOW_ORIGINS`.
+
+## Observability
+
+The log (stdout) contains: source loads and config errors at start and after every reload (`Registered N source(s), M config error(s)`), database migrations, failed mail sends, unhandled exceptions with traceback (`ERROR`), and — at `DEBUG` — cache hits. uvicorn adds the access log.
+
+For monitoring: poll `GET /health`; alert on `ERROR` lines and on `Source config … not loaded`.
+
+## Performance
+
+- Upstream calls are async; cached raw responses are reused for identical requests within the TTL.
+- The Impulse API reads SQLite only; it is independent of archive speed, rate limits and outages.
+- Media never flows through the Curator (except local fallback files).
+
+The practical bottleneck is upstream rate limits during searching, not the server.
 
 ## Security notes
 
-The current build is a POC and does **not** implement:
+In place:
 
-- Authentication on `/admin/*` or `/admin/api/*` — anyone with network access can edit sources.
-- HTTPS — terminate TLS at a reverse proxy (nginx, Caddy, Traefik, …).
-- Rate limiting on the bridge's own endpoints.
-- Audit logging of who changed which YAML.
+- Edit keys, login tokens and session ids are stored as SHA-256 hashes; edit keys are compared in constant time.
+- Edit links carry the key in the URL fragment, which browsers never send to the server; the web app stores it in `localStorage` and removes it from the address bar.
+- Session cookie: `HttpOnly`, `SameSite=Lax`, and `Secure` + `__Host-` prefix for an `https://` public base URL. Signed-in writes from another origin are refused.
+- CORS only on the Impulse API and local files; `/api` and `/admin` are same-origin only.
+- Security headers on every response (`X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, COOP, HSTS on https); the web app's CSP is hash-based.
+- Creator emails are never published; `owner_id` is a fixed value.
+- Rate limits on anonymous writes and sign-in.
 
-For local development this is fine. **Do not expose the bridge to the public internet without adding at least HTTPS and admin authentication.**
+Not in place — handled by the deployment:
 
-The simplest authentication option is HTTP Basic Auth at the reverse proxy, restricted to the `/admin/*` and `/admin/api/*` paths.
+- **No authentication on `/admin` and `/admin/api`.** Anyone who reaches them can change sources, settings and collections. Put them behind basic auth at the proxy (the bundled Traefik setup does).
+- **No TLS.** Terminate HTTPS at the proxy.
+- **No audit log** of admin changes.
 
 ---
 
-_Continue back to the [README](README.md) for the table of contents._
+_Last verified against the code: October 2026._
+
+_Continue to [07 — Deployment](07-deployment.md)._

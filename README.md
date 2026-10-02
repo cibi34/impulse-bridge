@@ -1,8 +1,10 @@
 # IMPULSE Curator (impulse-bridge)
 
-A collection creator for the [IMPULSE](https://euimpulse.eu/) cultural-heritage platform. Users search open archives (Europeana, Wikimedia Commons, Smithsonian Open Access, IIIF manifests), pick assets, and save them as **curated collections**. Each curated collection is served to Impulse and its Unity clients through the Impulse Collections-and-Assets API.
+A collection creator for the [IMPULSE](https://euimpulse.eu/) cultural-heritage platform (EU project, Horizon Europe GA 101132704). Users search open archives (Europeana, Wikimedia Commons, Smithsonian Open Access, IIIF manifests), pick assets, and save them as **curated collections**. Each curated collection is served to Impulse and its Unity clients through the Impulse Collections-and-Assets API.
 
 The archives are configured as **sources**: one YAML file per archive describes how to query and map it. Adding a new archive is normally a YAML-only change — no Python code required.
+
+Developer and operator documentation: [`docs/`](docs/README.md).
 
 ## What it does
 
@@ -23,7 +25,7 @@ The archives are configured as **sources**: one YAML file per archive describes 
             Commons        Open Access       (e.g. Wellcome)
 ```
 
-Asset content is **not** proxied — browsers and Unity load media directly from the original hosts. The bridge serves metadata and URLs. When an asset is added to a collection, its metadata is stored as a snapshot, so Unity requests never wait for an upstream archive.
+Asset content is **not** proxied — browsers and Unity load media directly from the original hosts. The Curator serves metadata and URLs. When an asset is added to a collection, its metadata is stored as a snapshot, so Unity requests never wait for an upstream archive.
 
 ## Quick start
 
@@ -32,15 +34,23 @@ Asset content is **not** proxied — browsers and Unity load media directly from
 python -m venv .venv
 .venv\Scripts\python -m pip install -e ".[dev]"
 
-# 2. Copy env template and fill in any keys you have
+# 2. Build the web app (Node.js 22.17+; in Windows PowerShell 5.1 use ";" instead of "&&")
+cd frontend && npm ci && npm run build && cd ..
+
+# 3. Copy env template and fill in any keys you have
 cp .env.example .env
 # Edit .env: EUROPEANA_API_KEY=...  SMITHSONIAN_API_KEY=...
+# (.env.example sets BRIDGE_MAIL_LOG_ONLY=true: sign-in links are printed to the console)
 
-# 3. Run
+# 4. Run
 .venv\Scripts\python -m uvicorn app.main:app --port 8080
 ```
 
-Visit `http://localhost:8080/api/sources` — you should see all configured sources.
+- `http://localhost:8080/` — the web app (without step 2 the API works, pages answer 503 "not built")
+- `http://localhost:8080/admin` — the admin (no login locally; in production it sits behind basic auth)
+- `http://localhost:8080/api/sources` — all configured sources
+
+The database `data/curator.db` is created on the first start. For working on the web app, `npm run dev` in `frontend/` serves it on port 5173 and proxies the API to the backend on port 8080 — see [docs/06-operations.md](docs/06-operations.md).
 
 ## Endpoints
 
@@ -49,9 +59,9 @@ Visit `http://localhost:8080/api/sources` — you should see all configured sour
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/collections` | Curated collections an administrator listed |
-| GET | `/collections/{id}` | A curated collection's metadata (every collection, listed or not) |
-| GET | `/collections/{id}/assets` | Its assets. Supports `?s=<pattern>`, `?o=<offset>`, `?c=<count>` |
-| GET | `/collections/{id}/asset/{asset_id}` | Single asset |
+| GET | `/collections/{id}` | A curated collection's metadata (every collection that is not locked, listed or not) |
+| GET | `/collections/{id}/assets` | Its assets that are visible in Unity, in order. Supports `?s=<pattern>`, `?o=<offset>`, `?c=<count>` |
+| GET | `/collections/{id}/asset/{asset_id}` | Single (visible) asset |
 | GET | `/health` | Liveness, source ids and number of collections |
 
 All responses follow the Impulse envelope `{code, message, data}`. Illegal `o`/`c` values return the entire result set, as the spec requires. Codes used:
@@ -64,34 +74,47 @@ All responses follow the Impulse envelope `{code, message, data}`. Illegal `o`/`
 | 10 | Upstream source unavailable |
 | 11 | Upstream rate limit reached |
 | 12 | Upstream returned malformed data |
-| 20 | Bridge configuration error (e.g. missing API key, auth rejected) |
-| 99 | Internal bridge error |
+| 20 | Configuration error (e.g. missing API key, auth rejected) |
+| 99 | Internal error |
+
+The Impulse API reads SQLite only; codes 10–20 only appear in the web app API, where sources are searched.
 
 ### Web app API (consumed by the browser app)
 
-Plain JSON; errors are `{"detail": "...", "code": <int>}` with a matching HTTP status.
+Plain JSON; errors are `{"detail": "..."}` with a matching HTTP status. Errors that come from a source also carry the Impulse code: `{"detail": "...", "code": <int>}`.
 
 | Method | Path | Purpose |
 |---|---|---|
+| GET | `/api/config` | Public settings the web app needs (submission address, whether sign-in is available, size limit) |
 | GET | `/api/sources` | Configured sources |
 | GET | `/api/sources/{id}/assets` | Search a source: `?s=`, `?o=`, `?c=` (≤ 100), `?type=image` or `model`. Returns `items` and `next_offset` |
 | GET | `/api/sources/{id}/assets/{asset_id}` | One asset of a source |
 | POST | `/api/collections` | Create a collection from `items: [{source, asset_id}]`. Returns the **edit key** (once) |
 | GET | `/api/collections?ids=a,b` | Overviews of several collections ("My collections") |
-| GET | `/api/collections/{id}` | Public view; with the edit key: editor view incl. hidden assets |
+| GET | `/api/collections/{id}` | Public view; with edit access: editor view incl. hidden assets |
 | PATCH / DELETE | `/api/collections/{id}` | Edit name, description, organization, email / delete |
 | POST | `/api/collections/{id}/items` | Add assets |
 | PATCH / DELETE | `/api/collections/{id}/items/{asset_id}` | Show/hide in Unity (`published`) / remove |
 | PUT | `/api/collections/{id}/order` | Reorder |
 | POST | `/api/collections/{id}/refresh` | Re-fetch all snapshots from the sources |
 | POST | `/api/collections/{id}/submitted` | Record that it was submitted to the Impulse team |
+| POST | `/api/collections/{id}/email-link` | Email the edit link to the collection's address (needs the edit key) |
 | POST | `/api/collections/{id}/key` | Replace the edit key |
+| POST | `/api/auth/login`, `/api/auth/verify` | Passwordless sign-in: request a one-time email link / redeem it for a session cookie |
+| GET / POST | `/api/auth/me`, `/api/auth/logout` | Current session / sign out |
+| GET | `/api/me/collections` | Collections created with the signed-in email address |
 
-Write endpoints need `Authorization: Bearer <edit key>` and are rate-limited per client.
+Write endpoints need `Authorization: Bearer <edit key>` or the session of the collection's email address, and are rate-limited per client.
 
 ### Admin API (behind basic auth in production)
 
-`/admin/api/sources/...` (source configs: list, edit, test, reload) and `/admin/api/collections/...` (list, `listed` / `disabled` flags, delete, issue a new edit key).
+The app has no admin login of its own: protect `/admin` (pages and API) at the reverse proxy.
+
+- `/admin/api/collections/...` — list, `listed` / `disabled` (locked) flags, delete, issue a new edit key
+- `/admin/api/sources`, `/admin/api/files/...`, `/admin/api/validate`, `/admin/api/test`, `/admin/api/templates`, `/admin/api/reload` — source configs as files: list, read, create, save (text kept verbatim), delete, live validation with line numbers, test runs (API keys masked), starter templates, reload from disk
+- `/admin/api/settings`, `/admin/api/settings/test-email` — submission address and SMTP account (password write-only), test email
+
+Full endpoint reference: [docs/06-operations.md](docs/06-operations.md#endpoint-reference).
 
 ## Example requests
 
@@ -110,20 +133,19 @@ curl http://localhost:8080/collections/<collection-id>/assets
 
 ## Adding a new source
 
-A source is one YAML file in `configs/sources/`. The bridge auto-discovers any `*.yaml` / `*.yml` files in that directory at startup.
+A source is one YAML file in `configs/sources/`. The Curator loads every `*.yaml` / `*.yml` file in that directory at startup and on every reload; a broken file only disables its own source. The easiest way to write one is the admin's **Sources** editor (`/admin/sources`): live validation with line-marked problems, starter templates and a test run against the real archive — see [docs/04-admin-ui.md](docs/04-admin-ui.md). Full field reference: [docs/03-yaml-reference.md](docs/03-yaml-reference.md).
 
 ### Pattern 1: REST API (most cases)
 
 For any external archive with a JSON search endpoint, write a YAML like this:
 
 ```yaml
-collection:
-  id: my-archive              # lowercase, digits, hyphens only (id-schema)
-  name: "My Archive"
+collection:                   # describes the source (historical name)
+  id: my-archive              # the source id: lowercase, digits, hyphens only (id-schema)
+  name: "My Archive"          # shown in the web app
   description: "..."
   organization: "Provider"
   owner_id: "you@example.org"
-  published: 1
 
 adapter:
   kind: rest
@@ -133,7 +155,7 @@ adapter:
     name: api_key
     value: "${MY_ARCHIVE_KEY}" # ${VAR} is expanded from the environment / .env
   timeout_seconds: 15
-  default_query:               # always sent
+  default_query:               # sent with every search
     format: json
 
 search:
@@ -145,8 +167,9 @@ search:
     page_base: 1               # 0 for zero-based APIs
     max_size: 100
   query:
-    pattern_param: q           # Impulse's ?s=... is sent as this param
-    pattern_when_empty: "*"    # query used when ?s is not provided
+    pattern_param: q           # the web app's search (?s=...) is sent as this param
+    pattern_when_empty: "*"    # query used for an empty search
+    # pattern_template: "({pattern}) AND media_usage:CC0"   # optional: wraps every non-empty search (Smithsonian)
 
 mapping:
   items_path: "results"        # JMESPath to the array of items
@@ -164,9 +187,9 @@ filter:
   allowed_content_types: ["image/jpeg", "image/png"]
   drop_if_missing: ["assetURI", "previewURI"]   # skip items missing these
 
-asset_detail:                  # optional: only if upstream has a per-asset endpoint
+asset_detail:                  # recommended: adding assets to a collection looks them up again
   enabled: true
-  path: "/items/{asset_id}"    # {asset_id} = the Impulse asset id verbatim
+  path: "/items/{asset_id}"    # {asset_id} = the source's assetID verbatim
   query:                       # complete query for this endpoint (default_query is NOT merged in)
     expand: full
   # If assetID is slugified (irreversible) and the upstream search is Solr-based,
@@ -178,11 +201,11 @@ cache:
   ttl_seconds: 600
 ```
 
-Reload (admin **↻**, `POST /admin/api/reload`) or restart the bridge. The new source shows up in `/api/sources` immediately.
+Saving in the admin hot-reloads all sources. For a file written to disk directly, use **Reload from disk** on the admin's Sources page (`POST /admin/api/reload`) or restart. The new source shows up in `/api/sources` and the web app immediately.
 
 ### Pattern 2: Filesystem / static (fallback)
 
-`adapter.kind: fallback` reads pre-built Impulse-schema JSON from disk. Useful for demos and for guaranteed-working offline mode. See `configs/sources/fallback-demo.yaml`.
+`adapter.kind: fallback` reads pre-built Impulse-schema JSON from disk. Useful for demos and for guaranteed-working offline mode. Files next to the manifest are served at `/sources/{id}/files/<path>`. See `configs/sources/fallback-demo.yaml`.
 
 ### Pattern 3: Custom Python (last resort)
 
@@ -218,7 +241,7 @@ Each entry in `mapping.fields` resolves to a value for one Impulse asset field:
 | `bridge-demo` | fallback | Local placeholder assets in `data/fallback/`. Always works. |
 | `wikimedia-commons-images` | rest | No API key needed. Public Commons search via MediaWiki API. |
 | `europeana-public-domain-images` | rest | Needs `EUROPEANA_API_KEY` (free, register at [pro.europeana.eu](https://pro.europeana.eu/get-api)). |
-| `smithsonian-open-access` | rest | Needs `SMITHSONIAN_API_KEY` (free, register at [api.data.gov](https://api.data.gov/signup/)). Default query targets items with online media. |
+| `smithsonian-open-access` | rest | Needs `SMITHSONIAN_API_KEY` (free, register at [api.data.gov](https://api.data.gov/signup/)). Only items with CC0 media (`media_usage:CC0`). |
 | `iiif-wellcome-vererbung` | custom (IIIF) | Single manuscript from Wellcome Collection. Copy + edit YAML to add more IIIF sources. |
 
 ## How requests flow
@@ -234,46 +257,61 @@ Each entry in `mapping.fields` resolves to a value for one Impulse asset field:
 ```
 impulse-bridge/
 ├── app/
-│   ├── main.py              # FastAPI app, lifespan, error handlers, routers
-│   ├── settings.py          # Pydantic settings (env-driven)
+│   ├── main.py              # FastAPI app, lifespan, CORS, security headers, error handlers, routers
+│   ├── settings.py          # Pydantic settings (BRIDGE_* env vars)
 │   ├── loading.py           # (re)load source configs into the registry
 │   ├── registry.py          # source id → Source map, atomic hot-swap
 │   ├── cache.py             # TTL cache for raw upstream responses
 │   ├── ratelimit.py         # per-client limits for anonymous writes
 │   ├── errors.py            # BridgeError hierarchy + Impulse code mapping
-│   ├── api/                 # Impulse API, web app API (sources, collections), files, health
-│   ├── admin/               # admin API (source configs, collections)
-│   ├── curation/            # curated collections: SQLite db, store, service
+│   ├── storage.py           # opens SQLite, provides the stores to endpoints
+│   ├── site_settings.py     # admin-edited settings (submission address, SMTP)
+│   ├── auth.py, mail.py     # passwordless sign-in (tokens, sessions), SMTP
+│   ├── frontend.py          # serves the web app build
+│   ├── api/                 # Impulse API, web app API (sources, collections, auth, config), files, health
+│   ├── admin/               # admin API (sources, files + validation, collections, settings)
+│   ├── curation/            # curated collections: SQLite db + migrations, store, service
 │   ├── config/              # YAML schema (pydantic) + loader (env expansion)
 │   ├── transform/           # JMESPath engine + helpers
 │   └── adapter/             # Source protocol, REST, fallback, factory, custom/iiif.py
+├── frontend/                # web app: SvelteKit 3 + Svelte 5, static build → frontend/build
 ├── configs/sources/*.yaml   # one file per source
 ├── data/fallback/           # local demo assets (manifest.json + media files)
-├── data/curator.db          # curated collections (created on first start, not in git)
-└── tests/
+├── data/curator.db          # curated collections, settings, sessions (created on first start, not in git)
+├── deploy/                  # Dockerfile (multi-stage), docker-compose.yml (Traefik), host bootstrap
+├── docs/                    # developer and operator documentation
+└── tests/                   # pytest
 ```
 
 ## Verification checklist
 
 ```bash
-# 1. Tests
+# 1. Backend tests (no network needed)
 .venv\Scripts\python -m pytest -q
 
-# 2. App starts; broken source configs are reported, not fatal
+# 2. Web app: unit tests, type check, lint
+cd frontend && npm test && npm run check && npm run lint && cd ..
+
+# 3. App starts; broken source configs are reported, not fatal
 .venv\Scripts\python -m uvicorn app.main:app --port 8080
 curl http://localhost:8080/health
 
-# 3. Sources answer (bridge-demo works offline, Wikimedia needs no key)
+# 4. Sources answer (bridge-demo works offline, Wikimedia needs no key)
 curl 'http://localhost:8080/api/sources/bridge-demo/assets'
 curl 'http://localhost:8080/api/sources/wikimedia-commons-images/assets?s=sunflower&c=3'
 ```
 
+## Deployment
+
+`deploy/Dockerfile` builds the web app in a Node stage and runs it with the backend in a Python stage; `deploy/docker-compose.yml` routes the container through Traefik, with HTTPS and basic auth on `/admin`, `/docs` and `/openapi.json`. `configs/` and `data/` (including `data/curator.db` — back it up) are bind-mounted from the host. `BRIDGE_PUBLIC_BASE_URL` must be the public https address. Step by step: [docs/07-deployment.md](docs/07-deployment.md).
+
 ## Known limitations
 
+- **Single process.** The source registry, the upstream cache and the rate-limit counters live in memory, and the database is a local SQLite file: run one uvicorn worker / one container.
 - **Cache TTL is global**, not per-source (cachetools simplification). Per-source `cache.ttl_seconds` is currently read but effectively shares the global TTL. Replace with `redis` + per-key TTL if you grow out of single-process.
 - **Smithsonian 3D content** is not reliably available via the openaccess REST API (3D models live in a separate Voyager-based portal at 3d.si.edu). The current config targets image-bearing items.
 - **IIIF cross-provider search** is not standardized; the bundled IIIF adapter handles one manifest per YAML config. Add one YAML per IIIF collection of interest.
-- **Single-asset lookups for sources without `asset_detail`** only work for assets that a recent search on this bridge returned (they are indexed for the cache TTL), or that appear in the default search result. All bundled REST sources configure `asset_detail`; see `docs/05-cookbook.md` ("Decision guide") for choosing between `{asset_id}`, `{asset_id_regex}` and `{asset_id_from_base32}` when adding a source.
+- **Single-asset lookups for sources without `asset_detail`** only work for assets that a recent search on this server returned (they are indexed for the cache TTL), or that appear in the default search result. All bundled REST sources configure `asset_detail`; see `docs/05-cookbook.md` ("Decision guide") for choosing between `{asset_id}`, `{asset_id_regex}` and `{asset_id_from_base32}` when adding a source.
 
 ## License
 

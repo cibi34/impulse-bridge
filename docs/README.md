@@ -1,42 +1,52 @@
-# Impulse Bridge — Documentation
+# IMPULSE Curator — Developer documentation
 
-This folder is the complete reference for the **Impulse Bridge** — the adapter service that exposes external digital-heritage archives to the Impulse 3D platform.
+This folder is the reference for **IMPULSE Curator** (repository `impulse-bridge`), the collection creator of the EU project [IMPULSE](https://euimpulse.eu/) (Horizon Europe, grant agreement 101132704). Visitors search open archives, pick assets and save them as **curated collections**; the Curator serves those collections to the Impulse platform and its Unity clients through the Impulse Collections-and-Assets API.
 
-It is meant for two audiences:
+It is written for:
 
-- **Operators / integrators** who run the bridge and configure new sources via YAML or the admin UI.
-- **The Impulse consortium** — to understand how this component fits into the wider platform, and what guarantees it provides against the published Impulse API specification.
+- **Developers** who work on the backend (`app/`) or the web app (`frontend/`).
+- **Operators** who deploy the Curator, configure sources and look after the database.
+- **The Impulse consortium**, to see how the component fits into the platform and which parts of the Impulse specification it implements.
 
-The docs are written as a freestanding wiki. You can browse them in any of three ways:
+These are repository docs. The running app does not serve them; read them on the Git host or in your editor.
 
-| Medium | URL |
+## Terms
+
+| Term | Meaning |
 |---|---|
-| Inside the running bridge | http://localhost:8080/help |
-| As markdown files in this repository | `docs/*.md` |
-| Imported into Confluence / Notion / GitHub wiki | copy-paste each file |
+| **Source** | An external archive (Europeana, Wikimedia Commons, Smithsonian, an IIIF manifest, a local folder). One YAML file in `configs/sources/` each. Searched by the web app through `/api/sources/…`. Not an Impulse collection. |
+| **Curated collection** | A visitor's selection of assets, stored in SQLite (`data/curator.db`) and served through the Impulse API at `/collections/{id}`. |
+| **Snapshot** | The Impulse asset dict of a source asset, copied into the collection when the asset is added. Unity is served from snapshots, never from the upstream archive. |
+| **Edit key / edit link** | Secret that lets someone change a collection: `/c/{id}/edit#key=…`. Shown once at creation; an admin or the editor can replace it. |
+| **Listed** | An admin flag: the collection appears in `GET /collections`. Unlisted collections are still reachable by their URI. |
+| **Locked** | An admin flag (`disabled` in the API): the collection disappears from the Impulse API and its creator can no longer edit it. |
+| **Visible in Unity** | Per asset (`published` in the API). Hidden assets stay in the collection but are not served to Impulse. |
 
 ## Reading order
 
-If you have **5 minutes**, read just [01-overview](01-overview.md).
-
-If you have **30 minutes**, read [01-overview](01-overview.md) → [02-architecture](02-architecture.md) → [03-yaml-reference](03-yaml-reference.md).
-
-If you are **configuring a new external archive**, read [04-admin-ui](04-admin-ui.md) and [05-cookbook](05-cookbook.md).
-
-If you are **deploying or troubleshooting**, read [06-operations](06-operations.md).
+- **5 minutes:** [01 — Overview](01-overview.md).
+- **30 minutes:** [01](01-overview.md) → [02 — Architecture](02-architecture.md) → [03 — YAML reference](03-yaml-reference.md).
+- **Adding or fixing a source:** [04 — Admin UI](04-admin-ui.md) and [05 — Cookbook](05-cookbook.md).
+- **Running, deploying, troubleshooting:** [06 — Operations](06-operations.md) and [07 — Deployment](07-deployment.md).
 
 ## Contents
 
 | # | Document | What it covers |
 |---|---|---|
-| 01 | [Overview](01-overview.md) | What the bridge is, what problem it solves, and where it sits relative to Impulse |
-| 02 | [Architecture](02-architecture.md) | Components, request flow, hot-reload, error codes, mapping to the Impulse spec |
-| 03 | [YAML reference](03-yaml-reference.md) | Every field of a source config, with type, purpose, and examples |
-| 04 | [Admin UI](04-admin-ui.md) | A walkthrough of every form section, the YAML tab, and the live-test tab |
-| 05 | [Cookbook](05-cookbook.md) | Step-by-step recipes for common patterns (add REST source, add IIIF, map nested JSON, …) |
-| 06 | [Operations](06-operations.md) | Running, environment variables, error codes, common upstream issues, observability |
-| 07 | [Deployment](07-deployment.md) | Step-by-step: Oracle Cloud VPS + nginx + Let's Encrypt + Basic Auth on `/admin` |
+| 01 | [Overview](01-overview.md) | What the Curator is, the concepts, where it sits relative to Impulse, a demo flow |
+| 02 | [Architecture](02-architecture.md) | Components, the three API surfaces, curated collections and snapshots, request flows, hot reload, errors, access model |
+| 03 | [YAML reference](03-yaml-reference.md) | Every field of a source config, with type, default and examples |
+| 04 | [Admin UI](04-admin-ui.md) | The Collections, Sources (YAML editor, test run) and Settings pages |
+| 05 | [Cookbook](05-cookbook.md) | Recipes: add and test a source, map JSON, asset lookups, how a curated collection reaches Unity, … |
+| 06 | [Operations](06-operations.md) | Running, environment variables, endpoint reference, mail, rate limits, backups, troubleshooting |
+| 07 | [Deployment](07-deployment.md) | Docker + Traefik on a VPS (Oracle Cloud example), basic auth on `/admin`, first-run checklist |
 
-## Versioning
+The Impulse specification itself is in the repository root: [`Collections-and-assets-schema,-discovery-and-access.md`](../Collections-and-assets-schema,-discovery-and-access.md).
 
-This documentation describes the bridge code that lives in this repository. When the YAML schema or the Impulse protocol contract changes, the corresponding doc must change with it — see the "Last verified" footer at the bottom of each file.
+## Keeping the docs current
+
+The code is the source of truth. When an endpoint, a setting, the YAML schema ([`app/config/schema.py`](../app/config/schema.py)) or the database schema ([`app/curation/db.py`](../app/curation/db.py)) changes, update the matching document in the same change.
+
+---
+
+_Last verified against the code: October 2026._
