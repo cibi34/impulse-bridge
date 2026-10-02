@@ -271,3 +271,15 @@ def test_creating_is_rate_limited(client, monkeypatch):
     monkeypatch.setattr(create_limit, "limit", 2)
     statuses = [client.post("/api/collections", json={"name": f"c{i}"}).status_code for i in range(3)]
     assert statuses == [201, 201, 429]
+
+
+def test_health_answers_get_and_head(client):
+    get = client.get("/health")
+    head = client.head("/health")
+    assert get.json()["data"]["status"] == "ok"
+    assert (head.status_code, head.content) == (200, b"")
+
+
+def test_redoc_is_switched_off(client):
+    assert client.get("/redoc").status_code == 404
+    assert client.get("/docs").status_code == 200

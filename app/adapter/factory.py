@@ -40,9 +40,9 @@ def _build_fallback(cfg: SourceConfig) -> Source:
     return FallbackSource(
         collection_meta=cfg.collection.model_dump(),
         manifest_path=manifest,
-        # Relative assetURIs/previewURIs in the manifest resolve against the
-        # collection URI, so the files next to the manifest are served there
-        # (see app/api/files.py).
+        # Relative assetURIs/previewURIs in the manifest resolve against
+        # /sources/{id}/files/, where the files next to the manifest are
+        # served (see app/api/files.py).
         files_dir=manifest.parent if cfg.adapter.static_mount else None,
     )
 

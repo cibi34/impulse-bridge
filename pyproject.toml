@@ -1,7 +1,7 @@
 [project]
 name = "impulse-bridge"
 version = "0.1.0"
-description = "Adapter bridge between the Impulse 3D platform and external cultural heritage archives"
+description = "IMPULSE Curator: curated collections from open cultural heritage archives for the Impulse platform"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",

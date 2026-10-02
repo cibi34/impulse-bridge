@@ -10,7 +10,7 @@ from app.storage import get_store
 router = APIRouter()
 
 
-@router.get("/health")
+@router.api_route("/health", methods=["GET", "HEAD"])
 def health(store: Annotated[CollectionStore, Depends(get_store)]):
     return impulse_response(
         data={

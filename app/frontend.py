@@ -19,7 +19,7 @@ from app.settings import settings
 logger = logging.getLogger(__name__)
 
 # Paths owned by the backend; they must never be answered with the web app.
-_BACKEND_PREFIXES = ("api/", "admin/api/", "collections", "sources/", "health", "docs", "openapi.json", "redoc")
+_BACKEND_PREFIXES = ("api/", "admin/api/", "collections", "sources/", "health", "docs", "openapi.json")
 # Client-side routes (served from the SPA fallback with status 200).
 _APP_ROUTES = ("explore", "my", "signin", "c", "admin")
 

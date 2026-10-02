@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Impulse Bridge — host bootstrap.
+# IMPULSE Curator (impulse-bridge) — host bootstrap.
 #
 # Runs ONCE on a fresh Ubuntu 22.04 / 24.04 VM (Oracle Cloud free-tier or any
 # other Ubuntu host). After this script completes, the server is ready to host
-# any number of containerised projects — the Impulse Bridge is just the first.
+# any number of containerised projects — IMPULSE Curator is just the first.
 #
 # What it does:
 #   1. Installs Docker Engine + Compose plugin from Docker's official apt repo.
@@ -108,13 +108,14 @@ echo
 echo " Traefik is running at $TRAEFIK_DIR — discovers any container"
 echo " on the 'edge' Docker network with traefik.enable=true labels."
 echo
-echo " Next: deploy the Impulse Bridge as a project:"
+echo " Next: deploy IMPULSE Curator as a project:"
 echo "   1.  sudo mkdir -p /srv/impulse-bridge"
-echo "   2.  rsync / git the bridge source into /srv/impulse-bridge"
+echo "   2.  rsync / git the source into /srv/impulse-bridge"
 echo "   3.  cd /srv/impulse-bridge && cp deploy/.env.production.example .env"
 echo "   4.  edit .env (BRIDGE_DOMAIN, API keys, BRIDGE_BASIC_AUTH)"
 echo "   5.  cp deploy/docker-compose.yml ./docker-compose.yml"
-echo "   6.  docker compose up -d --build"
+echo "   6.  sudo chown -R 10001:10001 configs data   (the container's user)"
+echo "   7.  docker compose up -d --build"
 echo
 echo " To add another project later: same recipe, different folder under /srv."
 echo "==============================================================="

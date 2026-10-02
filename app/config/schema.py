@@ -1,8 +1,8 @@
 """Pydantic models for the per-source YAML config files.
 
-Each YAML file under configs/sources/*.yaml is validated against `SourceConfig`.
-Validation runs at startup and is fail-fast: invalid configs prevent the app
-from starting so misconfigurations surface immediately.
+Each YAML file under configs/sources/*.yaml is validated against `SourceConfig`
+on every (re)load. A file that fails validation is skipped and reported (admin
+Sources page, logs); the other sources keep working.
 """
 
 from __future__ import annotations
@@ -58,8 +58,8 @@ class AdapterCfg(BaseModel):
     # Fallback-specific
     manifest_path: str | None = None
     static_mount: bool = True
-    """If True, the bridge serves the files in the manifest's directory under the
-    collection's URI path so relative assetURIs/previewURIs resolve correctly."""
+    """If True, the files in the manifest's directory are served at
+    /sources/{id}/files/ and relative assetURIs/previewURIs resolve there."""
 
     # Custom-specific
     custom_class: str | None = None

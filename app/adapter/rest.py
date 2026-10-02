@@ -25,6 +25,7 @@ from app.errors import (
     UpstreamRateLimited,
     UpstreamUnavailable,
 )
+from app.settings import settings
 from app.transform.engine import extract_items, transform_item
 from app.transform.helpers import base32_id_decode, slug_to_regex
 
@@ -230,12 +231,9 @@ class GenericRestSource(Source):
     def _headers(self) -> dict[str, str]:
         # Wikimedia's bot policy requires a contactable UA. Most upstream APIs
         # are happier with a descriptive UA too, so this is the safe default.
+        # The public site carries the imprint with the contact details.
         h: dict[str, str] = {
-            "User-Agent": (
-                "ImpulseBridge/0.1 "
-                "(https://github.com/impulse-consortium/impulse-bridge; "
-                "bridge@impulse.eu)"
-            ),
+            "User-Agent": f"IMPULSE-Curator/0.1 (+{settings.public_base_url})",
             "Accept": "application/json",
         }
         auth = self._cfg.adapter.auth

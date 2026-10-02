@@ -1,4 +1,4 @@
-# Impulse Bridge — deployment compose file.
+# IMPULSE Curator (impulse-bridge) — deployment compose file.
 #
 # COPY this to the project root before running:
 #     cp deploy/docker-compose.yml ./docker-compose.yml
@@ -22,13 +22,11 @@ services:
     image: impulse-bridge:latest
     restart: unless-stopped
 
-    # Compose auto-loads .env from the current directory, but we also tell the
-    # container's process to read it (python-dotenv inside the bridge does).
+    # Compose reads .env for the ${...} values in this file; env_file also
+    # passes all of its variables into the container (the image has no .env).
     env_file:
       - .env
     environment:
-      BRIDGE_HOST: "0.0.0.0"
-      BRIDGE_PORT: "8080"
       BRIDGE_PUBLIC_BASE_URL: "https://${BRIDGE_DOMAIN}"
 
     # Bind-mount the mutable parts so admin-UI saves persist on the host,

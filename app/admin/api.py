@@ -408,7 +408,7 @@ cache:
         "yaml": """collection:
   id: my-iiif-source
   name: "My IIIF Source"
-  description: "One IIIF manifest exposed as an Impulse collection."
+  description: "The pages of one IIIF manifest."
   organization: "Provider"
   owner_id: "you@example.org"
   published: 1
@@ -427,7 +427,7 @@ adapter:
   id: my-local-source
   name: "My Local Source"
   description: "Static, locally-hosted demo assets."
-  organization: "Impulse Bridge"
+  organization: "IMPULSE Curator"
   owner_id: "you@example.org"
   published: 1
 

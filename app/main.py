@@ -39,19 +39,23 @@ logger = logging.getLogger("impulse_bridge")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging(settings.log_level)
-    logger.info("Impulse Bridge starting (config dir: %s)", settings.config_dir)
+    logger.info("IMPULSE Curator starting (config dir: %s)", settings.config_dir)
     open_storage(settings.database_file)
     await load_sources()
     yield
-    logger.info("Impulse Bridge stopping")
+    logger.info("IMPULSE Curator stopping")
     await registry.clear()
     close_storage()
 
 
 app = FastAPI(
-    title="Impulse Bridge",
-    description="Adapter bridge between the Impulse 3D platform and external cultural heritage archives",
+    title="IMPULSE Curator",
+    description=(
+        "Curated collections from open cultural heritage archives, served through "
+        "the Impulse Collections and Assets API"
+    ),
     version="0.1.0",
+    redoc_url=None,
     lifespan=lifespan,
 )
 
