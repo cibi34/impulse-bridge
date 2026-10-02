@@ -225,7 +225,7 @@ The first build pulls `node:24-alpine` and `python:3.12-slim`, installs the npm 
 docker compose logs -f bridge
 ```
 
-Ready when the log shows `Registered 5 source(s), 0 config error(s)` and `Application startup complete.` On the first start, the database `data/curator.db` is created (`Applying database migration 1`, `… 2`). Traefik then discovers the container, requests the certificate (about 30 s on the first request) and routes by the labels.
+Ready when the log shows `Registered 4 source(s), 0 config error(s)` (one per file in `configs/sources/`) and `Application startup complete.` On the first start, the database `data/curator.db` is created (`Applying database migration 1`, `… 2`). Traefik then discovers the container, requests the certificate (about 30 s on the first request) and routes by the labels.
 
 ## Step 8 — Verify
 
