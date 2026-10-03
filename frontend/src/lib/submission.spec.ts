@@ -20,6 +20,21 @@ describe('buildSubmission', () => {
 		expect(decodeURIComponent(s.mailto!)).toContain('"owner_id": "impulse-curator"');
 	});
 
+	it('names the licences of each collection', () => {
+		const s = buildSubmission(
+			'team@example.org',
+			[entry('masters-k3m9x2', 'Masters of light')],
+			'',
+			{
+				'masters-k3m9x2': '2 × Public domain, 1 × CC BY 4.0'
+			}
+		);
+		expect(s.body).toContain(
+			'• Masters of light\n  https://curator.example/collections/masters-k3m9x2\n' +
+				'  Licences: 2 × Public domain, 1 × CC BY 4.0'
+		);
+	});
+
 	it('lists several collections and drops the mailto link when it gets too long', () => {
 		const many = Array.from({ length: 12 }, (_, i) => entry(`c-${i}`, `Collection ${i}`));
 		const s = buildSubmission('team@example.org', many);

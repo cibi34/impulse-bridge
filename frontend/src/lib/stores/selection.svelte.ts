@@ -8,7 +8,10 @@ const STORAGE_KEY = 'curator-selection';
 export interface SelectedAsset {
 	key: string;
 	source: string;
-	asset: Pick<Asset, 'assetID' | 'title' | 'creator' | 'rights' | 'previewURI' | 'contentType'>;
+	asset: Pick<
+		Asset,
+		'assetID' | 'title' | 'creator' | 'rights' | 'licence' | 'previewURI' | 'contentType'
+	>;
 }
 
 export function assetKey(source: string, assetId: string): string {
@@ -39,10 +42,10 @@ class Selection {
 			this.persist();
 			return false;
 		}
-		const { assetID, title, creator, rights, previewURI, contentType } = asset;
+		const { assetID, title, creator, rights, licence, previewURI, contentType } = asset;
 		this.items = [
 			...this.items,
-			{ key, source, asset: { assetID, title, creator, rights, previewURI, contentType } }
+			{ key, source, asset: { assetID, title, creator, rights, licence, previewURI, contentType } }
 		];
 		this.persist();
 		return true;

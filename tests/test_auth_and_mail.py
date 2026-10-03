@@ -62,6 +62,7 @@ def test_config_reflects_admin_settings(client):
         "submission_email": None,
         "sign_in_available": False,
         "max_assets_per_collection": settings.max_assets_per_collection,
+        "licence_conditions": ["by", "sa"],
     }
     client.put("/admin/api/settings", json={**SMTP, "submission_email": "team@euimpulse.eu"})
 

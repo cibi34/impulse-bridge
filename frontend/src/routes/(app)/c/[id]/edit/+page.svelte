@@ -12,6 +12,7 @@
 	} from '#lib/api/index.js';
 	import AssetDialog from '#lib/components/AssetDialog.svelte';
 	import CopyField from '#lib/components/CopyField.svelte';
+	import Credits from '#lib/components/Credits.svelte';
 	import Dialog from '#lib/components/Dialog.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import ItemList from '#lib/components/ItemList.svelte';
@@ -66,7 +67,10 @@
 	}
 
 	const editable = $derived(!!collection?.can_edit && !collection.locked);
-	const visibleCount = $derived(collection?.items.filter((i) => i.published).length ?? 0);
+	// What Unity gets: visible assets with a licence IMPULSE accepts.
+	const served = $derived(collection?.items.filter((i) => i.published && i.licence.allowed) ?? []);
+	const visibleCount = $derived(served.length);
+	const notAccepted = $derived(collection?.items.filter((i) => !i.licence.allowed).length ?? 0);
 	const editLink = $derived(key ? `${location.origin}/c/${id}/edit#key=${key}` : null);
 
 	async function save(changes: { name?: string; description?: string; email?: string }) {
@@ -342,6 +346,24 @@
 							{/if}
 						</div>
 					{/if}
+					{#if notAccepted > 0}
+						<p class="licence-note footnote" role="note">
+							<Icon name="alert" size={16} />
+							<span>
+								{plural(notAccepted, 'asset')}
+								{notAccepted === 1 ? 'has' : 'have'} a licence IMPULSE doesn't accept (any more) and {notAccepted ===
+								1
+									? "isn't"
+									: "aren't"} sent to Unity. Remove {notAccepted === 1 ? 'it' : 'them'}, or ask the
+								IMPULSE team.
+							</span>
+						</p>
+					{/if}
+				</section>
+
+				<section class="panel credits">
+					<Credits name={collection.name} items={served} />
+					<p class="caption tertiary">Lists the assets that are visible in Unity.</p>
 				</section>
 			</div>
 
@@ -445,6 +467,7 @@
 <AssetDialog
 	bind:open={detailOpen}
 	asset={detail?.asset ?? null}
+	licence={detail?.licence}
 	sourceName={detail ? app.sourceName(detail.source) : ''}
 />
 <SubmitDialog bind:open={submitOpen} collections={[{ id, key }]} onsubmitted={submitted} />
@@ -532,6 +555,24 @@
 
 	.assets {
 		overflow: hidden;
+	}
+
+	.licence-note {
+		display: flex;
+		align-items: flex-start;
+		gap: 8px;
+		margin: 0;
+		padding: 12px 20px;
+		border-top: 1px solid var(--separator);
+		background: var(--warning-soft);
+		color: var(--warning-text);
+	}
+
+	.credits {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		padding: 20px 22px;
 	}
 
 	.panel-head {

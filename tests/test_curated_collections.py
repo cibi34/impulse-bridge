@@ -17,9 +17,10 @@ ASSETS = [
      "assetURI": "cube.glb", "previewURI": "cube.png", "rights": "CC0"},
     {"assetID": "hare", "title": "Young Hare", "contentType": "image/jpeg",
      "assetURI": "https://example.org/hare.jpg", "previewURI": "https://example.org/hare-s.jpg",
-     "creator": "Albrecht Dürer"},
+     "creator": "Albrecht Dürer", "rights": "Public domain"},
     {"assetID": "wave", "title": "The Great Wave", "contentType": "image/jpeg",
-     "assetURI": "https://example.org/wave.jpg", "previewURI": "https://example.org/wave-s.jpg"},
+     "assetURI": "https://example.org/wave.jpg", "previewURI": "https://example.org/wave-s.jpg",
+     "rights": "CC BY 4.0"},
 ]
 
 

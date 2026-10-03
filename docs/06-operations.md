@@ -89,7 +89,7 @@ Precedence: process environment > `.env` in the working directory > defaults in 
 | `BRIDGE_CORS_ALLOW_ORIGINS` | `*` | Comma-separated origins allowed to call the Impulse API (and fallback files) from a browser. Never applies to `/api` or `/admin`. |
 | `BRIDGE_COLLECTION_OWNER_ID` | `impulse-curator` | `owner_id` of every curated collection in the Impulse API. |
 | `BRIDGE_DEFAULT_ORGANIZATION` | `IMPULSE Curator` | `organization` of collections that have none. |
-| `BRIDGE_MAX_ASSETS_PER_COLLECTION` | `500` | Size limit of a collection. (A single create request carries at most 500 items, an add request at most 200.) |
+| `BRIDGE_MAX_ASSETS_PER_COLLECTION` | `50` | Size limit of a collection; the web app stops selecting at this number. (A single request carries at most 500 items.) |
 | `BRIDGE_SMTP_PASSWORD` | — | SMTP password; overrides the one stored in the admin, for secrets that must stay out of the database. |
 | `BRIDGE_MAIL_LOG_ONLY` | `false` | Log emails (with their links) instead of sending them. Development only. |
 | `EUROPEANA_API_KEY` | — | Referenced by the bundled source configs as `${…}`. Any other `${VAR}` in a YAML is read the same way. |
@@ -120,10 +120,10 @@ Plain JSON. Errors are `{"detail": "…"}` with a matching status; errors that c
 
 | Method | Path | Access | Purpose |
 |---|---|---|---|
-| GET | `/api/config` | — | `app_name`, `submission_email`, `sign_in_available`, `max_assets_per_collection` |
+| GET | `/api/config` | — | `app_name`, `submission_email`, `sign_in_available`, `max_assets_per_collection`, `licence_conditions` |
 | GET | `/api/sources` | — | Configured sources: `id`, `name`, `description`, `organization` |
-| GET | `/api/sources/{id}/assets` | — | Search: `?s=`, `?o=`, `?c=` (default 24, max 100), `?type=image\|model` → `{source, items, offset, next_offset}` |
-| GET | `/api/sources/{id}/assets/{asset_id}` | — | One asset of a source |
+| GET | `/api/sources/{id}/assets` | — | Search: `?s=`, `?o=`, `?c=` (default 24, max 100), `?type=image\|model`, `?licence=free\|by` → `{source, items, hidden, offset, next_offset}`. Assets whose licence isn't accepted are left out and counted in `hidden`; every item carries `licence` |
+| GET | `/api/sources/{id}/assets/{asset_id}` | — | One asset of a source, with `licence` |
 | POST | `/api/collections` | create limit | `{name, description?, organization?, email?, items: [{source, asset_id}]}` → `201 {collection, edit_key, failed}` |
 | GET | `/api/collections?ids=a,b` | — | Overviews with up to 4 previews (≤ 100 ids; unknown and locked ids are left out) |
 | GET | `/api/collections/{id}` | optional | Public view (visible items); with edit access the editor view (all items, `email`, `locked`) |
@@ -162,11 +162,11 @@ Plain JSON; no app-level authentication — protect `/admin` at the proxy.
 | PUT | `/admin/api/files/{filename}` | Save `{yaml}` verbatim |
 | DELETE | `/admin/api/files/{filename}` | Delete the file |
 | POST | `/admin/api/validate` | `{yaml}` → `{valid, errors, id}`; never saves |
-| POST | `/admin/api/test` | `{yaml, query?, count=5}` → `{valid, errors, transformed, raw_upstream, upstream_url}`; API key masked |
+| POST | `/admin/api/test` | `{yaml, query?, count=5}` → `{valid, errors, transformed, licences, raw_upstream, upstream_url}`; `licences` is how each asset's `rights` is read; API key masked |
 | GET | `/admin/api/templates` | Starter configs `{key, label, yaml}` |
 | GET / PUT / DELETE | `/admin/api/sources/{id}` | The same by source id (`PUT ?create=true` refuses existing ids). Not used by the admin pages; kept for scripts. |
 | GET | `/admin/api/settings` | Site settings without the password, plus `smtp_password_set`, `smtp_password_from_env`, `mail_configured`, `mail_log_only`, `server` |
-| PUT | `/admin/api/settings` | Change the fields sent; `smtp_password: ""` removes it |
+| PUT | `/admin/api/settings` | Change the fields sent; `smtp_password: ""` removes it; `licence_conditions`: any of `by`, `sa`, `nc`, `nd` |
 | POST | `/admin/api/settings/test-email` | `{to}` → `{sent_to}`; 502 with the SMTP error |
 
 File endpoints answer 422 `{"detail": {"errors": [...]}}` for invalid text and 409 when the id belongs to another file. Filenames must match `[A-Za-z0-9][A-Za-z0-9._-]*.yaml|.yml`.

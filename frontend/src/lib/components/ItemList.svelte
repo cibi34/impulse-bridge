@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { rightsLabel } from '#lib/rights.js';
 	import type { CollectionItem } from '#lib/api/index.js';
 	import { app } from '#lib/stores/app.svelte.js';
 	import AssetThumb from './AssetThumb.svelte';
@@ -134,7 +133,7 @@
 		<li
 			use:register={item.asset_id}
 			class:active={dragging === item.asset_id}
-			class:hidden={!item.published}
+			class:hidden={!item.published || !item.licence.allowed}
 		>
 			<button
 				type="button"
@@ -165,10 +164,15 @@
 					{titleOf(item)}<span class="visually-hidden"> — show details</span>
 				</button>
 				<span class="meta">
-					{[item.asset.creator, rightsLabel(item.asset.rights), app.sourceName(item.source)]
+					{[item.asset.creator, item.licence.label, app.sourceName(item.source)]
 						.filter(Boolean)
 						.join(' · ')}
 				</span>
+				{#if !item.licence.allowed}
+					<span class="licence-warning">
+						<Icon name="alert" size={14} /> Licence not accepted — not sent to IMPULSE
+					</span>
+				{/if}
 			</div>
 			<Switch
 				checked={item.published}
@@ -289,6 +293,15 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.licence-warning {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		font-size: 12px;
+		font-weight: 500;
+		color: var(--warning-text);
 	}
 
 	/* Hidden from Unity: dim the picture only — text keeps its contrast. */

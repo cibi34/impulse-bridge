@@ -25,7 +25,7 @@ def write_fallback(
     data_dir.mkdir(parents=True, exist_ok=True)
     manifest = data_dir / "manifest.json"
     manifest.write_text(
-        json.dumps([{"assetID": "demo", "title": "Demo", "assetURI": "demo.glb"}]),
+        json.dumps([{"assetID": "demo", "title": "Demo", "assetURI": "demo.glb", "rights": "CC0"}]),
         encoding="utf-8",
     )
     for rel, content in (files or {}).items():

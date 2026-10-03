@@ -2,6 +2,8 @@
 
 A collection creator for the [IMPULSE](https://euimpulse.eu/) cultural-heritage platform (EU project, Horizon Europe GA 101132704). Users search open archives (Europeana, Wikimedia Commons, IIIF manifests), pick assets, and save them as **curated collections**. Each curated collection is served to Impulse and its Unity clients through the Impulse Collections-and-Assets API.
 
+Licences are checked throughout: only works whose licence IMPULSE accepts (an admin setting; by default public domain, CC0, CC BY and CC BY-SA) can be found, added and served, and every collection lists its licences and the credits they require. See [docs/02-architecture.md](docs/02-architecture.md#licences).
+
 The archives are configured as **sources**: one YAML file per archive describes how to query and map it. Adding a new archive is normally a YAML-only change — no Python code required.
 
 Developer and operator documentation: [`docs/`](docs/README.md).

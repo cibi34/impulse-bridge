@@ -1,5 +1,5 @@
 import { ApiError, request } from './client';
-import type { Asset } from './types';
+import type { Asset, Licence, LicenceCondition } from './types';
 
 const enc = encodeURIComponent;
 
@@ -48,6 +48,8 @@ export interface TestRun {
 	valid: boolean;
 	errors: { loc: (string | number)[]; msg: string }[];
 	transformed: Asset[];
+	/** How each transformed asset's `rights` value is read, in the same order. */
+	licences: Licence[];
 	raw_upstream: unknown;
 	upstream_url: string | null;
 }
@@ -65,6 +67,8 @@ export interface AdminSettings {
 	smtp_security: 'starttls' | 'ssl' | 'none';
 	smtp_username: string;
 	mail_from: string;
+	/** Licence conditions IMPULSE accepts; public domain and CC0 always are. */
+	licence_conditions: LicenceCondition[];
 	smtp_password_set: boolean;
 	smtp_password_from_env: boolean;
 	mail_configured: boolean;
@@ -82,7 +86,13 @@ export interface AdminSettings {
 export type SettingsChanges = Partial<
 	Pick<
 		AdminSettings,
-		'submission_email' | 'smtp_host' | 'smtp_port' | 'smtp_security' | 'smtp_username' | 'mail_from'
+		| 'submission_email'
+		| 'smtp_host'
+		| 'smtp_port'
+		| 'smtp_security'
+		| 'smtp_username'
+		| 'mail_from'
+		| 'licence_conditions'
 	>
 > & { smtp_password?: string };
 

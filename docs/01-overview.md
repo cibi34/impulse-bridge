@@ -19,6 +19,7 @@ The Curator lets people browse those archives in one place, put together a theme
 | **Source** — an archive, described by one YAML file | `configs/sources/*.yaml`, loaded into an in-memory registry | The web app searches it via `/api/sources/…` |
 | **Curated collection** — a named, ordered list of assets | SQLite, `data/curator.db` | Visitors create and edit it in the web app; Impulse/Unity read it via `/collections/{id}` |
 | **Snapshot** — the asset's metadata at the time it was added | Inside the collection, in SQLite | Served to Unity; refreshed on demand ("Update from sources") |
+| **Licence** — what an asset's `rights` value allows | Read from each snapshot (`app/licensing.py`); which conditions are accepted is an admin setting | Only assets with an accepted licence are offered, added and served; each collection lists its licences and credits |
 
 Sources are **not** Impulse collections any more. Earlier versions exposed each archive as a "virtual collection" under `/collections`; now `/collections` serves only curated collections.
 

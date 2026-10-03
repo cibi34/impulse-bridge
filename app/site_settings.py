@@ -1,5 +1,6 @@
 """Settings an administrator edits in the admin UI (stored in SQLite):
-where submissions go, and the SMTP account for login and edit-link emails.
+where submissions go, the SMTP account for login and edit-link emails, and
+which licence conditions collections may contain.
 
 The SMTP password is write-only through the API. Operators who prefer not to
 keep it in the database set BRIDGE_SMTP_PASSWORD instead, which wins.
@@ -10,9 +11,10 @@ from __future__ import annotations
 import json
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.curation.db import Database
+from app.licensing import CONDITIONS, DEFAULT_CONDITIONS, Condition
 from app.settings import settings
 
 
@@ -26,6 +28,14 @@ class SiteSettings(BaseModel):
     smtp_password: str = Field("", max_length=1024)
     mail_from: str = Field("", max_length=320)
     """Sender, e.g. "IMPULSE Curator <curator@example.org>"."""
+    licence_conditions: list[Condition] = Field(default_factory=lambda: list(DEFAULT_CONDITIONS))
+    """Licence conditions IMPULSE accepts (see app/licensing.py). Public
+    domain and CC0 have none and are always accepted."""
+
+    @field_validator("licence_conditions")
+    @classmethod
+    def _ordered(cls, value: list[Condition]) -> list[Condition]:
+        return [c for c in CONDITIONS if c in value]
 
     @property
     def effective_smtp_password(self) -> str:

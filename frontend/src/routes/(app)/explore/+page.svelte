@@ -13,7 +13,7 @@
 	import SelectionBar from '#lib/components/SelectionBar.svelte';
 	import SelectionDialog from '#lib/components/SelectionDialog.svelte';
 	import { plural } from '#lib/format.js';
-	import { Search, type ContentType, type Hit } from '#lib/search.svelte.js';
+	import { Search, type ContentType, type Hit, type LicenceFilter } from '#lib/search.svelte.js';
 	import { app } from '#lib/stores/app.svelte.js';
 	import { library } from '#lib/stores/library.svelte.js';
 	import { selection } from '#lib/stores/selection.svelte.js';
@@ -21,10 +21,11 @@
 
 	const search = new Search();
 
-	// ---- URL state: /explore?source=…&q=…&type=…&add=<collection id> ----
+	// ---- URL state: /explore?source=…&q=…&type=…&licence=…&add=<collection id> ----
 	const sourceParam = $derived(page.url.searchParams.get('source') ?? 'all');
 	const q = $derived(page.url.searchParams.get('q') ?? '');
 	const type = $derived((page.url.searchParams.get('type') as ContentType | null) ?? 'all');
+	const licence = $derived((page.url.searchParams.get('licence') as LicenceFilter | null) ?? 'all');
 	const addTo = $derived(page.url.searchParams.get('add'));
 
 	let query = $state('');
@@ -46,7 +47,7 @@
 	// search itself reads and writes its own state, which must not re-trigger
 	// this effect.
 	$effect(() => {
-		const query = { sources: activeSources, q, type };
+		const query = { sources: activeSources, q, type, licence };
 		if (query.sources.length > 0) untrack(() => search.run(query));
 	});
 
@@ -86,7 +87,19 @@
 		detailOpen = true;
 	}
 
+	// ---- size limit: a collection holds at most `limit` assets ----
+	const limit = $derived(app.config?.max_assets_per_collection ?? 50);
+	const room = $derived(target ? Math.max(0, limit - target.item_count) : limit);
+
 	function toggle(hit: Hit) {
+		if (!selection.has(hit.source, hit.asset.assetID) && selection.count >= room) {
+			toasts.error(
+				target
+					? `“${target.name}” has room for ${plural(room, 'more asset')}.`
+					: `A collection holds up to ${limit} assets.`
+			);
+			return;
+		}
 		selection.toggle(hit.source, hit.asset);
 	}
 
@@ -179,6 +192,18 @@
 				{/each}
 			</select>
 		</label>
+		<label class="licence-select">
+			<span class="visually-hidden">Licence</span>
+			<select
+				class="input"
+				value={licence}
+				onchange={(e) => navigate({ licence: e.currentTarget.value }, true)}
+			>
+				<option value="all">Any accepted licence</option>
+				<option value="by">Public domain, CC0 and CC BY</option>
+				<option value="free">Public domain and CC0 only</option>
+			</select>
+		</label>
 		<SegmentedControl
 			legend="Content type"
 			options={[
@@ -225,12 +250,36 @@
 				<li class="skeleton"><span></span><span></span><span></span></li>
 			{/each}
 		</ul>
+	{:else if search.started && search.hidden > 0}
+		<div class="empty">
+			<Icon name="info" size={32} />
+			<h2 class="headline">No results with an accepted licence{q ? ` for “${q}”` : ''}</h2>
+			<p class="secondary">
+				{plural(search.hidden, 'result')}
+				{search.hidden === 1 ? 'was' : 'were'} left out: their licence isn't accepted for IMPULSE collections,
+				or their rights are unclear.
+			</p>
+		</div>
 	{:else if search.started}
 		<div class="empty">
 			<Icon name="search" size={32} />
 			<h2 class="headline">No results{q ? ` for “${q}”` : ''}</h2>
-			<p class="secondary">Try other words, another archive, or “All” content types.</p>
+			<p class="secondary">
+				Try other words, another archive, “All” content types{licence !== 'all'
+					? ', or any accepted licence'
+					: ''}.
+			</p>
 		</div>
+	{/if}
+
+	{#if search.hidden > 0 && search.hits.length > 0 && !search.loading}
+		<p class="hidden-note footnote tertiary">
+			<Icon name="info" size={16} />
+			<span>
+				{plural(search.hidden, 'result')} left out: their licence isn't accepted for IMPULSE collections,
+				or their rights are unclear.
+			</span>
+		</p>
 	{/if}
 
 	{#if search.hasMore && search.hits.length > 0}
@@ -244,6 +293,7 @@
 
 <SelectionBar
 	{actionLabel}
+	limit={room}
 	busy={adding}
 	onaction={primaryAction}
 	onreview={() => (reviewOpen = true)}
@@ -321,6 +371,21 @@
 
 	.source-select {
 		display: none;
+	}
+
+	.licence-select select {
+		min-height: 36px;
+		padding-block: 6px;
+		font-size: 14px;
+	}
+
+	.hidden-note {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		margin-top: 28px;
+		text-align: center;
 	}
 
 	.status {

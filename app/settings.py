@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     Deliberately not the creator's email: collection metadata is public."""
     default_organization: str = "IMPULSE Curator"
     """`organization` for curated collections whose creator left it empty."""
-    max_assets_per_collection: int = 500
+    max_assets_per_collection: int = 50
 
     # Email (SMTP account and recipients are set in the admin UI).
     smtp_password: str | None = None

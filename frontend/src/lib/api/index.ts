@@ -8,6 +8,7 @@ import type {
 	CollectionSummary,
 	Failure,
 	ImpulseCollection,
+	LicenceTier,
 	SearchPage,
 	Source
 } from './types';
@@ -26,7 +27,13 @@ export const api = {
 
 	search: (
 		source: string,
-		params: { q?: string; offset?: number; count?: number; type?: 'image' | 'model' },
+		params: {
+			q?: string;
+			offset?: number;
+			count?: number;
+			type?: 'image' | 'model';
+			licence?: LicenceTier;
+		},
 		signal?: AbortSignal
 	) => {
 		const query = new URLSearchParams();
@@ -34,6 +41,7 @@ export const api = {
 		if (params.offset) query.set('o', String(params.offset));
 		if (params.count) query.set('c', String(params.count));
 		if (params.type) query.set('type', params.type);
+		if (params.licence) query.set('licence', params.licence);
 		return request<SearchPage>(`/api/sources/${enc(source)}/assets?${query}`, { signal });
 	},
 

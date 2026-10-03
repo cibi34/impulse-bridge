@@ -134,7 +134,7 @@ Results:
 |---|---|
 | Errors | Validation, build or upstream errors, with their location (`adapter`, `upstream`, a YAML path) |
 | **Upstream request** | The exact URL that was requested, copyable. Query-parameter API keys are shown as `***`. |
-| Assets | "N assets after mapping and filters", with thumbnail, title, kind and rights |
+| Assets | "N assets after mapping and filters", with thumbnail, title, kind and the licence the `rights` value is read as — "(not accepted)" when IMPULSE doesn't accept it, so the web app won't offer the asset |
 | **Mapped assets (JSON)** | What the mapping produced — what a snapshot would store |
 | **Raw upstream response** | The upstream JSON (first 60,000 characters), with the API key replaced by `***` wherever it appears |
 
@@ -159,6 +159,14 @@ Typical workflow:
 | Field | Purpose |
 |---|---|
 | **Submission address** | Where "Submit to IMPULSE" emails go (the team that registers collections). The web app opens the visitor's mail program with a pre-filled message to this address. Without one, visitors are asked to copy the collection details and send them to their IMPULSE contact. |
+
+### Licences
+
+Which licence conditions IMPULSE accepts — tick any of **Attribution** (CC BY), **Share-alike** (… SA), **Non-commercial** (… NC), **No derivatives** (… ND). Default: Attribution and Share-alike, i.e. public domain, CC0, CC BY and CC BY-SA.
+
+A licence is accepted when all of its conditions are ticked: CC BY-NC-SA needs Attribution, Share-alike *and* Non-commercial. Public domain and CC0 have no conditions and are always accepted. Unclear rights (in copyright, not evaluated, missing) and licences other than Creative Commons are never accepted.
+
+Works with a licence that isn't accepted don't appear in the search, can't be added and aren't served to Unity. The setting applies **immediately, also to existing collections**: unticking a condition withdraws such assets from Unity (their editors see them marked "Licence not accepted"); ticking it again brings them back. See [02 — Licences](02-architecture.md#licences).
 
 ### Email (SMTP)
 

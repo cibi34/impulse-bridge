@@ -1,12 +1,20 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { admin, type AdminSettings, type SettingsChanges } from '#lib/api/admin.js';
-	import { errorMessage } from '#lib/api/index.js';
+	import { errorMessage, type LicenceCondition } from '#lib/api/index.js';
 	import Icon from '#lib/components/Icon.svelte';
 	import SegmentedControl from '#lib/components/SegmentedControl.svelte';
 	import { toasts } from '#lib/stores/toasts.svelte.js';
 
 	type Security = AdminSettings['smtp_security'];
+
+	const CONDITIONS: { value: LicenceCondition; name: string; hint: string }[] = [
+		{ value: 'by', name: 'Attribution', hint: 'CC BY — credit the creator' },
+		{ value: 'sa', name: 'Share-alike', hint: 'CC BY-SA — adaptations under the same licence' },
+		{ value: 'nc', name: 'Non-commercial', hint: 'CC BY-NC, BY-NC-SA — no commercial use' },
+		{ value: 'nd', name: 'No derivatives', hint: 'CC BY-ND, BY-NC-ND — no adaptations' }
+	];
+	const ORDER: LicenceCondition[] = ['by', 'sa', 'nc', 'nd'];
 
 	let current = $state<AdminSettings | null>(null);
 	let loadError = $state<string | null>(null);
@@ -19,6 +27,7 @@
 	let password = $state('');
 	let removePassword = $state(false);
 	let mailFrom = $state('');
+	let conditions = $state<LicenceCondition[]>([]);
 	let saving = $state(false);
 
 	let testTo = $state('');
@@ -40,6 +49,7 @@
 		security = s.smtp_security;
 		username = s.smtp_username;
 		mailFrom = s.mail_from;
+		conditions = [...s.licence_conditions];
 		password = '';
 		removePassword = false;
 	}
@@ -54,6 +64,8 @@
 		if (security !== current.smtp_security) c.smtp_security = security;
 		if (username.trim() !== current.smtp_username) c.smtp_username = username.trim();
 		if (mailFrom.trim() !== current.mail_from) c.mail_from = mailFrom.trim();
+		const accepted = ORDER.filter((x) => conditions.includes(x));
+		if (accepted.join() !== current.licence_conditions.join()) c.licence_conditions = accepted;
 		if (password) c.smtp_password = password;
 		else if (removePassword) c.smtp_password = '';
 		return c;
@@ -71,6 +83,10 @@
 		} finally {
 			saving = false;
 		}
+	}
+
+	function setCondition(value: LicenceCondition, on: boolean) {
+		conditions = on ? [...conditions, value] : conditions.filter((c) => c !== value);
 	}
 
 	async function sendTest(event: SubmitEvent) {
@@ -107,7 +123,10 @@
 
 <header class="head">
 	<h1 class="large-title">Settings</h1>
-	<p class="secondary">Where submissions go, and how the app sends sign-in and edit-link emails.</p>
+	<p class="secondary">
+		Where submissions go, which licences collections may contain, and how the app sends sign-in and
+		edit-link emails.
+	</p>
 </header>
 
 {#if loadError}
@@ -133,6 +152,32 @@
 						copy the collection details and send them to their IMPULSE contact.
 					</span>
 				</div>
+			</section>
+
+			<section class="panel section" aria-labelledby="licences-title">
+				<h2 id="licences-title" class="headline">Licences</h2>
+				<p class="footnote secondary" id="licences-hint">
+					The licence conditions IMPULSE accepts. Works whose licence has any other condition don't
+					appear in the search, can't be added to a collection and aren't served to Unity — this
+					applies right away, also to existing collections. Public domain and CC0 have no conditions
+					and are always accepted; works with unclear rights or other licences never are.
+				</p>
+				<fieldset class="conditions" aria-describedby="licences-hint">
+					<legend class="visually-hidden">Accepted licence conditions</legend>
+					{#each CONDITIONS as condition (condition.value)}
+						<label class="condition">
+							<input
+								type="checkbox"
+								checked={conditions.includes(condition.value)}
+								onchange={(e) => setCondition(condition.value, e.currentTarget.checked)}
+							/>
+							<span>
+								<span class="condition-name">{condition.name}</span>
+								<span class="field-hint">{condition.hint}</span>
+							</span>
+						</label>
+					{/each}
+				</fieldset>
 			</section>
 
 			<section class="panel section" aria-labelledby="smtp-title">
@@ -344,6 +389,46 @@
 		display: flex;
 		justify-content: flex-end;
 		gap: 10px;
+	}
+
+	.conditions {
+		margin: 0;
+		padding: 0;
+		border: 0;
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 12px 16px;
+	}
+
+	.condition {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+		cursor: pointer;
+	}
+
+	.condition input {
+		width: 18px;
+		height: 18px;
+		margin: 2px 0 0;
+		accent-color: var(--action);
+	}
+
+	.condition > span {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.condition-name {
+		font-weight: 600;
+		font-size: 14px;
+	}
+
+	@media (max-width: 640px) {
+		.conditions {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 
 	.row {

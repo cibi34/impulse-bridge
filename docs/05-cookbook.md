@@ -52,7 +52,7 @@ mapping:
     assetID:     { expr: "id" }            # a UUID: already id-schema safe
     title:       { expr: "title", default: "Untitled" }
     creator:     { expr: "creator" }
-    rights:      { expr: "license" }
+    rights:      { expr: "license_url" }   # a licence URL; the bare code ("by-sa") is not recognised
     identifier:  { expr: "foreign_landing_url" }
     assetURI:    { expr: "url" }
     previewURI:  { expr: "thumbnail" }

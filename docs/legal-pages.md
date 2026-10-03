@@ -46,7 +46,7 @@ If the operator later adds analytics or embeds (videos, maps), consent becomes n
 - The service and its provider; free of charge, no guaranteed availability.
 - Rules for collection names and descriptions (they are public); keeping the edit link private.
 - Licence for texts that creators write, if the provider needs one.
-- Rights in the assets stay with the archives; each asset shows its licence.
+- Rights in the assets stay with the archives; each asset shows its licence. Only works whose licence IMPULSE accepts can be used (admin setting, default public domain, CC0, CC BY, CC BY-SA); each collection page lists the licences and the credits they require, and the web app offers them for copying and as CSV.
 - Moderation: admins can hide (unlist), lock and delete collections. Under the DSA: statement of reasons (Art. 17), internal complaints if applicable, point of contact (Art. 11/12) and the languages for it.
 - Liability, changes to the terms, applicable law.
 

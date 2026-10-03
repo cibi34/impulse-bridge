@@ -21,6 +21,7 @@ These are repository docs. The running app does not serve them; read them on the
 | **Listed** | An admin flag: the collection appears in `GET /collections`. Unlisted collections are still reachable by their URI. |
 | **Locked** | An admin flag (`disabled` in the API): the collection disappears from the Impulse API and its creator can no longer edit it. |
 | **Visible in Unity** | Per asset (`published` in the API). Hidden assets stay in the collection but are not served to Impulse. |
+| **Accepted licence** | A licence whose conditions (attribution, share-alike, non-commercial, no derivatives) the admin accepts; default public domain, CC0, CC BY, CC BY-SA. Other assets are not offered, added or served. See [02 — Licences](02-architecture.md#licences). |
 
 ## Reading order
 

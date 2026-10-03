@@ -14,12 +14,14 @@ export interface Submission {
 /**
  * The email that hands collections to the IMPULSE team. It carries each
  * collection's entry exactly as the platform's collection list expects it
- * (id, uri, name, description, organization, owner_id, published).
+ * (id, uri, name, description, organization, owner_id, published), and the
+ * licences of its assets by collection id ("12 × Public domain, …").
  */
 export function buildSubmission(
 	to: string,
 	collections: ImpulseCollection[],
-	note = ''
+	note = '',
+	licences: Record<string, string> = {}
 ): Submission {
 	const names = collections.map((c) => c.name);
 	const subject =
@@ -33,7 +35,9 @@ export function buildSubmission(
 			? 'please add this collection to the IMPULSE platform:'
 			: 'please add these collections to the IMPULSE platform:',
 		'',
-		...collections.map((c) => `• ${c.name}\n  ${c.uri}`),
+		...collections.map(
+			(c) => `• ${c.name}\n  ${c.uri}` + (licences[c.id] ? `\n  Licences: ${licences[c.id]}` : '')
+		),
 		''
 	];
 	if (note.trim()) lines.push(note.trim(), '');

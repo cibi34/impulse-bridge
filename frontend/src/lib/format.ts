@@ -41,3 +41,14 @@ export function kindLabel(contentType: string | undefined): string {
 export function isModel(contentType: string | undefined): boolean {
 	return !!contentType?.startsWith('model/');
 }
+
+/** A file-name-safe slug: "Masters of Light" → "masters-of-light". */
+export function slugify(text: string): string {
+	return text
+		.normalize('NFKD')
+		.replace(/\p{M}/gu, '')
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/^-+|-+$/g, '')
+		.slice(0, 60);
+}

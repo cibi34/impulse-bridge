@@ -1,4 +1,5 @@
-"""Admin API for site settings: submission address and SMTP account.
+"""Admin API for site settings: submission address, SMTP account and the
+licence conditions IMPULSE accepts.
 
 The SMTP password is never returned; the response only says whether one is
 set and whether it comes from the environment (BRIDGE_SMTP_PASSWORD).
@@ -11,6 +12,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, ValidationError
 
+from app.licensing import Condition
 from app.mail import MailError, build_message, send
 from app.settings import settings
 from app.site_settings import SiteSettings, SiteSettingsStore
@@ -31,6 +33,7 @@ class SettingsUpdate(BaseModel):
     smtp_username: str | None = None
     smtp_password: str | None = None
     mail_from: str | None = None
+    licence_conditions: list[Condition] | None = None
 
 
 class TestEmail(BaseModel):

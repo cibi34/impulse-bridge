@@ -1,7 +1,8 @@
 import { SvelteMap } from 'svelte/reactivity';
-import { api, ApiError, type Asset } from '#lib/api/index.js';
+import { api, ApiError, type Asset, type LicenceTier } from '#lib/api/index.js';
 
 export type ContentType = 'all' | 'image' | 'model';
+export type LicenceFilter = 'all' | LicenceTier;
 
 export interface Hit {
 	source: string;
@@ -12,6 +13,7 @@ export interface SearchQuery {
 	sources: string[];
 	q: string;
 	type: ContentType;
+	licence: LicenceFilter;
 }
 
 const PAGE_SIZE_SINGLE = 24;
@@ -36,6 +38,8 @@ export class Search {
 	hits = $state<Hit[]>([]);
 	loading = $state(false);
 	errors = $state<Record<string, string>>({});
+	/** Results left out because IMPULSE doesn't accept their licence. */
+	hidden = $state(0);
 	/** Next offset per source; null when a source has no more results. */
 	private cursors = new SvelteMap<string, number | null>();
 	private controller: AbortController | null = null;
@@ -54,6 +58,7 @@ export class Search {
 		this.query = query;
 		this.hits = [];
 		this.errors = {};
+		this.hidden = 0;
 		this.cursors.clear();
 		for (const source of query.sources) this.cursors.set(source, 0);
 		await this.fetchNext();
@@ -82,7 +87,13 @@ export class Search {
 				try {
 					const page = await api.search(
 						source,
-						{ q: query.q, offset, count, type: query.type === 'all' ? undefined : query.type },
+						{
+							q: query.q,
+							offset,
+							count,
+							type: query.type === 'all' ? undefined : query.type,
+							licence: query.licence === 'all' ? undefined : query.licence
+						},
 						controller.signal
 					);
 					return { source, page };
@@ -98,6 +109,7 @@ export class Search {
 		for (const result of pages) {
 			if ('page' in result && result.page) {
 				this.cursors.set(result.source, result.page.next_offset);
+				this.hidden += result.page.hidden;
 				lists.push(result.page.items.map((asset) => ({ source: result.source, asset })));
 			} else {
 				this.cursors.set(result.source, null);

@@ -17,6 +17,10 @@
 			a: 'Yes. Its URL stays the same, so your changes reach IMPULSE without submitting again.'
 		},
 		{
+			q: 'Which licences can I use?',
+			a: 'Only works whose licence IMPULSE accepts — by default public domain, CC0, CC BY and CC BY-SA. Works under other terms, or with unclear rights, don’t appear in the search. Each collection lists its licences and the credits they require.'
+		},
+		{
 			q: 'Where do the assets come from?',
 			a: 'From open archives: Europeana, Wikimedia Commons and IIIF collections such as Wellcome Collection. The files stay with them; a collection points to them.'
 		}

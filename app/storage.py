@@ -53,3 +53,8 @@ def get_site_store() -> SiteSettingsStore:
 
 def get_auth_store() -> AuthStore:
     return _current().auth
+
+
+def get_licence_conditions() -> frozenset[str]:
+    """The licence conditions IMPULSE currently accepts (admin setting)."""
+    return frozenset(_current().site.load().licence_conditions)

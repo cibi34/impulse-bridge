@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type { Asset } from '#lib/api/index.js';
+	import type { Asset, Licence } from '#lib/api/index.js';
 	import { kindLabel } from '#lib/format.js';
-	import { rightsLabel, rightsUrl } from '#lib/rights.js';
+	import { conditionsText, licenceLabel } from '#lib/licences.js';
 	import AssetThumb from './AssetThumb.svelte';
 	import Dialog from './Dialog.svelte';
 	import Icon from './Icon.svelte';
@@ -9,12 +9,15 @@
 	let {
 		open = $bindable(false),
 		asset,
+		licence,
 		sourceName,
 		selected,
 		ontoggle
 	}: {
 		open?: boolean;
 		asset: Asset | null;
+		/** The asset's licence when it isn't on the asset (collection items). */
+		licence?: Licence | null;
 		sourceName: string;
 		selected?: boolean;
 		/** Omit to show the asset without a select action. */
@@ -24,13 +27,15 @@
 	const isUrl = (value: unknown): value is string =>
 		typeof value === 'string' && /^https?:\/\//i.test(value);
 
+	const assetLicence = $derived(licence ?? asset?.licence ?? null);
+
 	const rows = $derived(
 		asset
 			? ([
 					['Creator', asset.creator],
 					['Date', asset.date],
 					['Institution', asset.contributor],
-					['Rights', rightsLabel(asset.rights)],
+					['Licence', assetLicence?.label ?? licenceLabel(asset)],
 					['Subject', asset.subject],
 					['Type', asset.type],
 					['Language', asset.language],
@@ -64,13 +69,16 @@
 						<div>
 							<dt>{label}</dt>
 							<dd>
-								{#if label === 'Rights' && rightsUrl(asset.rights)}<a
-										href={rightsUrl(asset.rights)}
+								{#if label === 'Licence' && assetLicence?.url}<a
+										href={assetLicence.url}
 										target="_blank"
 										rel="noopener noreferrer">{value}</a
 									>{:else if isUrl(value)}<a href={value} target="_blank" rel="noopener noreferrer"
 										>{value}</a
 									>{:else}{value}{/if}
+								{#if label === 'Licence' && assetLicence}
+									<span class="conditions">{conditionsText(assetLicence)}</span>
+								{/if}
 							</dd>
 						</div>
 					{/each}
@@ -169,6 +177,13 @@
 	dd {
 		margin: 0;
 		overflow-wrap: anywhere;
+	}
+
+	.conditions {
+		display: block;
+		margin-top: 2px;
+		font-size: 12px;
+		color: var(--text-2);
 	}
 
 	.links {

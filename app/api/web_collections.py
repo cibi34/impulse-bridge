@@ -1,6 +1,6 @@
 """Web app API: create and edit curated collections.
 
-Reading is public (only published items). Changing a collection needs either
+Reading is public (only the items Unity gets). Changing a collection needs either
 its edit key, sent as `Authorization: Bearer <key>` (handed out once, when
 the collection is created, and resettable), or a login session for the email
 address the collection was created with (app/api/auth.py).
@@ -27,23 +27,29 @@ from app.curation.service import (
     impulse_asset,
     new_edit_key,
     refresh_items,
+    served,
 )
 from app.curation.store import CollectionRecord, CollectionStore, ItemRecord, utcnow
+from app.licensing import classify
 from app.mail import MailError, build_message, mail_available, send
 from app.ratelimit import create_limit, write_limit
 from app.settings import settings
 from app.site_settings import SiteSettingsStore
-from app.storage import get_auth_store, get_site_store, get_store
+from app.storage import get_auth_store, get_licence_conditions, get_site_store, get_store
 
 router = APIRouter(prefix="/api/collections", tags=["web"])
 
 Store = Annotated[CollectionStore, Depends(get_store)]
 Auth = Annotated[AuthStore, Depends(get_auth_store)]
 Site = Annotated[SiteSettingsStore, Depends(get_site_store)]
+Accepted = Annotated[frozenset[str], Depends(get_licence_conditions)]
 
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _PREVIEWS_PER_COLLECTION = 4
 _MAX_SUMMARY_IDS = 100
+_MAX_ITEMS_PER_REQUEST = 500
+"""Upper bound for one request body; the collection limit itself
+(BRIDGE_MAX_ASSETS_PER_COLLECTION) is checked when adding."""
 
 
 # ---------------------------------------------------------------------------
@@ -71,7 +77,7 @@ class CollectionCreate(BaseModel):
     description: str = Field("", max_length=2000)
     organization: str = Field("", max_length=120)
     email: str | None = None
-    items: list[AssetRefIn] = Field(default_factory=list, max_length=500)
+    items: list[AssetRefIn] = Field(default_factory=list, max_length=_MAX_ITEMS_PER_REQUEST)
 
     @field_validator("name", "description", "organization")
     @classmethod
@@ -117,7 +123,7 @@ class CollectionUpdate(BaseModel):
 
 
 class ItemsAdd(BaseModel):
-    items: list[AssetRefIn] = Field(min_length=1, max_length=200)
+    items: list[AssetRefIn] = Field(min_length=1, max_length=_MAX_ITEMS_PER_REQUEST)
 
 
 class ItemUpdate(BaseModel):
@@ -132,12 +138,13 @@ class OrderUpdate(BaseModel):
 # Responses
 # ---------------------------------------------------------------------------
 
-def _item_out(item: ItemRecord) -> dict[str, Any]:
+def _item_out(item: ItemRecord, accepted: frozenset[str]) -> dict[str, Any]:
     return {
         "asset_id": item.asset_id,
         "source": item.source_id,
         "source_asset_id": item.source_asset_id,
         "published": item.published,
+        "licence": classify(item.asset.get("rights")).as_dict(accepted),
         "asset": impulse_asset(item),
         "added_at": item.added_at,
         "refreshed_at": item.refreshed_at,
@@ -149,8 +156,11 @@ def _failure_out(failure: Failure) -> dict[str, str]:
 
 
 def _collection_out(
-    record: CollectionRecord, items: list[ItemRecord], *, editor: bool
+    record: CollectionRecord, items: list[ItemRecord], accepted: frozenset[str], *, editor: bool
 ) -> dict[str, Any]:
+    """The editor's view has every item; the public view what Unity gets."""
+    if not editor:
+        items = [i for i in items if served(i, accepted)]
     out: dict[str, Any] = {
         "id": record.id,
         "uri": collection_uri(record.id),
@@ -162,7 +172,7 @@ def _collection_out(
         "submitted_at": record.submitted_at,
         "listed": record.listed,
         "item_count": record.item_count,
-        "items": [_item_out(i) for i in items],
+        "items": [_item_out(i, accepted) for i in items],
         "can_edit": editor,
     }
     if editor:
@@ -255,7 +265,7 @@ Editable = Annotated[CollectionRecord, Depends(editable)]
 # ---------------------------------------------------------------------------
 
 @router.post("", status_code=201, dependencies=[Depends(create_limit)])
-async def create(body: CollectionCreate, store: Store):
+async def create(body: CollectionCreate, store: Store, accepted: Accepted):
     refs = [AssetRef(i.source, i.asset_id) for i in body.items]
     try:
         record, key, failures = await create_collection(
@@ -265,12 +275,13 @@ async def create(body: CollectionCreate, store: Store):
             organization=body.organization,
             owner_email=body.email,
             refs=refs,
+            accepted=accepted,
         )
     except CollectionFull:
         raise _full_error() from None
     items = await run_in_threadpool(store.items, record.id)
     return {
-        "collection": _collection_out(record, items, editor=True),
+        "collection": _collection_out(record, items, accepted, editor=True),
         "edit_key": key,
         "failed": [_failure_out(f) for f in failures],
     }
@@ -312,20 +323,21 @@ def read(
     request: Request,
     store: Store,
     auth: Auth,
+    accepted: Accepted,
     authorization: Annotated[str | None, Header()] = None,
 ):
-    """Public view (published items only), or the editor's view (all items,
-    plus email and lock state) for a request that may edit it."""
+    """Public view (what Unity gets), or the editor's view (all items, plus
+    email and lock state) for a request that may edit it."""
     record = _visible(store, collection_id)
     editor = _access(record, request, authorization, auth) is not None
     if record.disabled and not editor:
         raise HTTPException(status_code=404, detail="Collection not found")
     items = store.items(collection_id, published_only=not editor)
-    return _collection_out(record, items, editor=editor)
+    return _collection_out(record, items, accepted, editor=editor)
 
 
 @router.patch("/{collection_id}", dependencies=[Depends(write_limit)])
-def update(body: CollectionUpdate, record: Editable, store: Store):
+def update(body: CollectionUpdate, record: Editable, store: Store, accepted: Accepted):
     fields: dict[str, Any] = {}
     for name in ("name", "description", "organization"):
         value = getattr(body, name)
@@ -334,7 +346,7 @@ def update(body: CollectionUpdate, record: Editable, store: Store):
     if "email" in body.model_fields_set:
         fields["owner_email"] = body.email
     store.update(record.id, **fields)
-    return _collection_out(store.get(record.id), store.items(record.id), editor=True)  # type: ignore[arg-type]
+    return _collection_out(store.get(record.id), store.items(record.id), accepted, editor=True)  # type: ignore[arg-type]
 
 
 @router.delete("/{collection_id}", status_code=204, dependencies=[Depends(write_limit)])
@@ -344,21 +356,26 @@ def delete(record: Editable, store: Store):
 
 
 @router.post("/{collection_id}/items", dependencies=[Depends(write_limit)])
-async def add(body: ItemsAdd, record: Editable, store: Store):
+async def add(body: ItemsAdd, record: Editable, store: Store, accepted: Accepted):
     try:
         added, failures = await add_items(
-            store, record, [AssetRef(i.source, i.asset_id) for i in body.items]
+            store, record, [AssetRef(i.source, i.asset_id) for i in body.items], accepted
         )
     except CollectionFull:
         raise _full_error() from None
-    return {"added": [_item_out(i) for i in added], "failed": [_failure_out(f) for f in failures]}
+    return {
+        "added": [_item_out(i, accepted) for i in added],
+        "failed": [_failure_out(f) for f in failures],
+    }
 
 
 @router.patch("/{collection_id}/items/{asset_id}", dependencies=[Depends(write_limit)])
-def update_item(asset_id: str, body: ItemUpdate, record: Editable, store: Store):
+def update_item(
+    asset_id: str, body: ItemUpdate, record: Editable, store: Store, accepted: Accepted
+):
     if not store.set_published(record.id, asset_id, body.published):
         raise HTTPException(status_code=404, detail="Asset not found in this collection")
-    return _item_out(store.item(record.id, asset_id))  # type: ignore[arg-type]
+    return _item_out(store.item(record.id, asset_id), accepted)  # type: ignore[arg-type]
 
 
 @router.delete("/{collection_id}/items/{asset_id}", status_code=204, dependencies=[Depends(write_limit)])

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { api, errorMessage, type ImpulseCollection } from '#lib/api/index.js';
 	import { plural } from '#lib/format.js';
+	import { summaryLine } from '#lib/licences.js';
 	import { app } from '#lib/stores/app.svelte.js';
 	import { toasts } from '#lib/stores/toasts.svelte.js';
 	import { buildSubmission, shortMailto, type Submission } from '#lib/submission.js';
@@ -20,6 +21,8 @@
 
 	const id = $props.id();
 	let entries = $state<ImpulseCollection[]>([]);
+	/** Licence summary per collection id, of the assets Unity gets. */
+	let licences = $state<Record<string, string>>({});
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 	let note = $state('');
@@ -27,17 +30,31 @@
 
 	const to = $derived(app.config?.submission_email ?? null);
 	const submission = $derived<Submission | null>(
-		to && entries.length > 0 ? buildSubmission(to, entries, note) : null
+		to && entries.length > 0 ? buildSubmission(to, entries, note, licences) : null
 	);
 
 	$effect(() => {
 		if (!open) return;
-		const ids = collections.map((c) => c.id);
+		const wanted = collections.map((c) => ({ ...c }));
 		loading = true;
 		error = null;
 		copied = false;
-		Promise.all(ids.map((cid) => api.impulseCollection(cid)))
-			.then((result) => (entries = result))
+		Promise.all(
+			wanted.map(async (c) => {
+				const [entry, view] = await Promise.all([
+					api.impulseCollection(c.id),
+					api.collection(c.id, c.key)
+				]);
+				const servedLicences = view.items
+					.filter((i) => i.published && i.licence.allowed)
+					.map((i) => i.licence);
+				return { entry, licences: summaryLine(servedLicences) };
+			})
+		)
+			.then((result) => {
+				entries = result.map((r) => r.entry);
+				licences = Object.fromEntries(result.map((r) => [r.entry.id, r.licences]));
+			})
 			.catch((e) => (error = errorMessage(e)))
 			.finally(() => (loading = false));
 	});

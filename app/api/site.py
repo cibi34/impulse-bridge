@@ -20,4 +20,5 @@ def config(site: Annotated[SiteSettingsStore, Depends(get_site_store)]):
         "submission_email": site_settings.submission_email or None,
         "sign_in_available": mail_available(site_settings),
         "max_assets_per_collection": settings.max_assets_per_collection,
+        "licence_conditions": site_settings.licence_conditions,
     }

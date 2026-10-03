@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Asset } from '#lib/api/index.js';
 	import { kindLabel } from '#lib/format.js';
-	import { rightsLabel } from '#lib/rights.js';
+	import { licenceLabel } from '#lib/licences.js';
 	import AssetThumb from './AssetThumb.svelte';
 	import Icon from './Icon.svelte';
 
@@ -22,7 +22,7 @@
 	} = $props();
 
 	const title = $derived(asset.title || 'Untitled');
-	const meta = $derived([rightsLabel(asset.rights), sourceName].filter(Boolean).join(' · '));
+	const meta = $derived([licenceLabel(asset), sourceName].filter(Boolean).join(' · '));
 </script>
 
 <article class="card" class:selected>

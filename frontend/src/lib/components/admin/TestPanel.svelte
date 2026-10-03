@@ -2,7 +2,6 @@
 	import { admin, type TestRun } from '#lib/api/admin.js';
 	import { errorMessage } from '#lib/api/index.js';
 	import { kindLabel, plural } from '#lib/format.js';
-	import { rightsLabel } from '#lib/rights.js';
 	import AssetThumb from '../AssetThumb.svelte';
 	import CopyField from '../CopyField.svelte';
 	import Icon from '../Icon.svelte';
@@ -93,7 +92,12 @@
 							>
 							<span class="name">{asset.title || asset.assetID || 'Untitled'}</span>
 							<span class="caption tertiary">
-								{[kindLabel(asset.contentType), rightsLabel(asset.rights)]
+								{[
+									kindLabel(asset.contentType),
+									result.licences[i]
+										? `${result.licences[i].label}${result.licences[i].allowed ? '' : ' (not accepted)'}`
+										: null
+								]
 									.filter(Boolean)
 									.join(' · ')}
 							</span>

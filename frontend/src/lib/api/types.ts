@@ -1,3 +1,19 @@
+export type LicenceCondition = 'by' | 'sa' | 'nc' | 'nd';
+
+/** The search's licence filter: no conditions, or attribution at most. */
+export type LicenceTier = 'free' | 'by';
+
+/** How the server reads an asset's `rights` value (app/licensing.py). */
+export interface Licence {
+	/** "pd", "cc0", "by", "by-sa", … or "other" for anything not openly licensed. */
+	code: string;
+	label: string;
+	url: string | null;
+	conditions: LicenceCondition[];
+	/** Whether IMPULSE accepts it (admin setting). */
+	allowed: boolean;
+}
+
 /** An asset in the Impulse schema, as the bridge maps it from a source. */
 export interface Asset {
 	assetID: string;
@@ -17,6 +33,8 @@ export interface Asset {
 	previewURI?: string;
 	scale?: string;
 	published?: number;
+	/** Added by the web app API to search results and source lookups. */
+	licence?: Licence;
 	[field: string]: unknown;
 }
 
@@ -30,6 +48,8 @@ export interface Source {
 export interface SearchPage {
 	source: string;
 	items: Asset[];
+	/** Assets left out because IMPULSE doesn't accept their licence. */
+	hidden: number;
 	offset: number;
 	/** Where the next page starts; null when there are no more results. */
 	next_offset: number | null;
@@ -40,6 +60,7 @@ export interface CollectionItem {
 	source: string;
 	source_asset_id: string;
 	published: boolean;
+	licence: Licence;
 	asset: Asset;
 	added_at: string;
 	refreshed_at: string;
@@ -90,6 +111,7 @@ export interface AppConfig {
 	submission_email: string | null;
 	sign_in_available: boolean;
 	max_assets_per_collection: number;
+	licence_conditions: LicenceCondition[];
 }
 
 /** Collection metadata as the Impulse API publishes it. */

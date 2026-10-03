@@ -255,6 +255,7 @@ Notes:
 - `assetURI` and `previewURI` should be absolute and directly loadable by a browser and by Unity. Relative values (fallback sources) are made absolute as `/sources/{id}/files/<path>`.
 - `contentType` drives the web app's Images / 3D models filter (`image/…`, `model/…`) and Unity's loader choice.
 - `published` is always set to `1` when Impulse is served; you do not need to map it.
+- `rights` decides whether an asset can be used at all: it is read as a licence ([02 — Licences](02-architecture.md#licences)), and assets whose licence IMPULSE doesn't accept — including a missing or unrecognised value — never appear in the web app. Map it to a licence **URL** (Creative Commons or rightsstatements.org) or a name like `CC BY-SA 4.0`, `CC0` or `Public domain`. A bare code such as `by-sa` is not recognised. The admin's **Run test** shows how each value is read.
 
 ### `FieldMapping`
 

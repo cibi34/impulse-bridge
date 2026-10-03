@@ -12,9 +12,9 @@ from app.main import app
 from conftest import write_fallback
 
 ASSETS = [
-    {"assetID": "cube", "title": "Cube", "contentType": "model/gltf-binary", "assetURI": "cube.glb", "previewURI": "cube.png"},
-    {"assetID": "sphere", "title": "Sphere", "contentType": "model/gltf-binary", "assetURI": "sphere.glb"},
-    {"assetID": "painting", "title": "Painting", "contentType": "image/png", "assetURI": "https://example.org/p.png"},
+    {"assetID": "cube", "title": "Cube", "contentType": "model/gltf-binary", "assetURI": "cube.glb", "previewURI": "cube.png", "rights": "CC0"},
+    {"assetID": "sphere", "title": "Sphere", "contentType": "model/gltf-binary", "assetURI": "sphere.glb", "rights": "CC0"},
+    {"assetID": "painting", "title": "Painting", "contentType": "image/png", "assetURI": "https://example.org/p.png", "rights": "CC0"},
 ]
 
 
@@ -81,6 +81,7 @@ mapping:
   fields:
     assetID: { expr: id }
     assetURI: { expr: url }
+    rights: { literal: "CC0" }
 filter: { drop_if_missing: [assetURI] }
 """
 

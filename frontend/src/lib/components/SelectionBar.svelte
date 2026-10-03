@@ -5,11 +5,14 @@
 
 	let {
 		actionLabel,
+		limit,
 		busy = false,
 		onaction,
 		onreview
 	}: {
 		actionLabel: string;
+		/** How many assets fit into the collection being built or added to. */
+		limit?: number;
 		busy?: boolean;
 		onaction: () => void;
 		onreview: () => void;
@@ -31,7 +34,11 @@
 					<img {src} alt="" crossorigin="anonymous" referrerpolicy="no-referrer" />
 				{/each}
 			</span>
-			<span class="count" role="status">{plural(selection.count, 'asset')} selected</span>
+			<span class="count" role="status"
+				>{limit !== undefined && selection.count >= limit - 5
+					? `${selection.count} of ${limit} assets selected`
+					: `${plural(selection.count, 'asset')} selected`}</span
+			>
 			<span class="visually-hidden">— review selection</span>
 		</button>
 		<button type="button" class="btn btn-plain btn-sm clear" onclick={() => selection.clear()}>

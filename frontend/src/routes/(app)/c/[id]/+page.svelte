@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { rightsLabel } from '#lib/rights.js';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import {
@@ -12,6 +11,7 @@
 	import AssetDialog from '#lib/components/AssetDialog.svelte';
 	import AssetThumb from '#lib/components/AssetThumb.svelte';
 	import CopyField from '#lib/components/CopyField.svelte';
+	import Credits from '#lib/components/Credits.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import { kindLabel, plural, timeAgo } from '#lib/format.js';
 	import { app } from '#lib/stores/app.svelte.js';
@@ -35,8 +35,9 @@
 			);
 	});
 
-	// The public view shows what Unity gets: published assets only.
-	const items = $derived(collection?.items.filter((i) => i.published) ?? []);
+	// The public view shows what Unity gets: visible assets with an accepted
+	// licence (an editor opening this page gets every item from the API).
+	const items = $derived(collection?.items.filter((i) => i.published && i.licence.allowed) ?? []);
 </script>
 
 <svelte:head>
@@ -93,7 +94,7 @@
 							</span>
 							<span class="name">{item.asset.title || 'Untitled'}</span>
 							<span class="meta">
-								{[item.asset.creator, rightsLabel(item.asset.rights)].filter(Boolean).join(' · ') ||
+								{[item.asset.creator, item.licence.label].filter(Boolean).join(' · ') ||
 									app.sourceName(item.source)}
 							</span>
 						</button>
@@ -102,6 +103,12 @@
 			</ul>
 		{:else}
 			<div class="empty"><p class="secondary">This collection has no assets yet.</p></div>
+		{/if}
+
+		{#if items.length > 0}
+			<div class="panel credits">
+				<Credits name={collection.name} {items} />
+			</div>
 		{/if}
 
 		<p class="caption tertiary report">
@@ -116,6 +123,7 @@
 <AssetDialog
 	bind:open={detailOpen}
 	asset={detail?.asset ?? null}
+	licence={detail?.licence}
 	sourceName={detail ? app.sourceName(detail.source) : ''}
 />
 
@@ -217,6 +225,12 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.credits {
+		max-width: 860px;
+		margin-top: 40px;
+		padding: 22px;
 	}
 
 	.report {

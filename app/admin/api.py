@@ -11,18 +11,20 @@ import logging
 import re
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
-from typing import Any
+from typing import Annotated, Any
 
 import yaml
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ValidationError
 
 from app.adapter.factory import build_source
 from app.config.loader import _expand_env
 from app.config.schema import SourceConfig
+from app.licensing import classify
 from app.loading import load_sources
 from app.registry import registry
 from app.settings import settings
+from app.storage import get_licence_conditions
 
 logger = logging.getLogger(__name__)
 
@@ -197,9 +199,12 @@ class TestBody(BaseModel):
 
 
 @router.post("/test")
-async def test_source(body: TestBody) -> dict:
+async def test_source(
+    body: TestBody, accepted: Annotated[frozenset[str], Depends(get_licence_conditions)]
+) -> dict:
     """Build an ephemeral Source from the submitted YAML, run a search, and
-    return both the raw upstream JSON and the transformed Impulse assets."""
+    return both the raw upstream JSON and the transformed Impulse assets,
+    with the licence each asset's `rights` value is read as (`licences`)."""
     parsed = _parse_or_400(body.yaml)
     validation = _validate_cfg(parsed)
     if not validation["valid"]:
@@ -207,6 +212,7 @@ async def test_source(body: TestBody) -> dict:
             "valid": False,
             "errors": validation["errors"],
             "transformed": [],
+            "licences": [],
             "raw_upstream": None,
             "upstream_url": None,
         }
@@ -220,6 +226,7 @@ async def test_source(body: TestBody) -> dict:
             "valid": True,
             "errors": [{"loc": ["adapter"], "msg": str(e)}],
             "transformed": [],
+            "licences": [],
             "raw_upstream": None,
             "upstream_url": None,
         }
@@ -232,6 +239,7 @@ async def test_source(body: TestBody) -> dict:
             "valid": True,
             "errors": [{"loc": ["upstream"], "msg": msg}],
             "transformed": [],
+            "licences": [],
             "raw_upstream": _masked_raw(getattr(source, "last_raw_response", None), cfg),
             "upstream_url": _masked_url(getattr(source, "last_upstream_url", None), cfg),
         }
@@ -247,6 +255,7 @@ async def test_source(body: TestBody) -> dict:
         "valid": True,
         "errors": [],
         "transformed": transformed,
+        "licences": [classify(a.get("rights")).as_dict(accepted) for a in transformed],
         "raw_upstream": _masked_raw(getattr(source, "last_raw_response", None), cfg),
         "upstream_url": _masked_url(getattr(source, "last_upstream_url", None), cfg),
     }

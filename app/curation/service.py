@@ -20,6 +20,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.curation.store import CollectionRecord, CollectionStore, ItemRecord, NewItem
 from app.errors import AssetNotFound, BridgeError, SourceNotFound
+from app.licensing import classify
 from app.registry import registry
 from app.settings import settings
 from app.transform.helpers import slugify
@@ -144,14 +145,20 @@ def unique_refs(refs: list[AssetRef]) -> list[AssetRef]:
 
 
 async def snapshot_items(
-    refs: list[AssetRef], taken: set[str]
+    refs: list[AssetRef], taken: set[str], accepted: frozenset[str]
 ) -> tuple[list[NewItem], list[Failure]]:
+    """Snapshots of the assets that are available and whose licence IMPULSE
+    accepts; the others are reported."""
     items: list[NewItem] = []
     failures: list[Failure] = []
     taken = set(taken)
     for ref, result in zip(refs, await fetch_assets(refs)):
         if isinstance(result, Failure):
             failures.append(result)
+            continue
+        licence = classify(result.get("rights"))
+        if not licence.allowed(accepted):
+            failures.append(Failure(ref.source, ref.asset_id, f"Licence not accepted: {licence.label}"))
             continue
         asset_id = item_asset_id(result.get("title"), ref.source, ref.asset_id, taken)
         taken.add(asset_id)
@@ -175,11 +182,12 @@ async def create_collection(
     organization: str,
     owner_email: str | None,
     refs: list[AssetRef],
+    accepted: frozenset[str],
 ) -> tuple[CollectionRecord, str, list[Failure]]:
     refs = unique_refs(refs)
     if len(refs) > settings.max_assets_per_collection:
         raise CollectionFull()
-    items, failures = await snapshot_items(refs, set())
+    items, failures = await snapshot_items(refs, set(), accepted)
     key, key_hash = new_edit_key()
     collection_id = await run_in_threadpool(new_collection_id, name, store.exists)
     record = await run_in_threadpool(
@@ -197,7 +205,7 @@ async def create_collection(
 
 
 async def add_items(
-    store: CollectionStore, record: CollectionRecord, refs: list[AssetRef]
+    store: CollectionStore, record: CollectionRecord, refs: list[AssetRef], accepted: frozenset[str]
 ) -> tuple[list[ItemRecord], list[Failure]]:
     present = await run_in_threadpool(store.source_refs, record.id)
     refs = [ref for ref in unique_refs(refs) if (ref.source, ref.asset_id) not in present]
@@ -205,14 +213,16 @@ async def add_items(
     if len(refs) > free:
         raise CollectionFull()
     taken = await run_in_threadpool(store.asset_ids, record.id)
-    items, failures = await snapshot_items(refs, taken)
+    items, failures = await snapshot_items(refs, taken, accepted)
     added = await run_in_threadpool(store.add_items, record.id, items)
     return added, failures
 
 
 async def refresh_items(store: CollectionStore, record: CollectionRecord) -> tuple[int, list[Failure]]:
     """Re-fetch every snapshot from its source. Assets that are gone upstream
-    keep their last snapshot and are reported."""
+    keep their last snapshot and are reported. An asset whose licence changed
+    to one IMPULSE doesn't accept stays in the collection but is no longer
+    served (`served`)."""
     items = await run_in_threadpool(store.items, record.id)
     results = await fetch_assets([AssetRef(i.source_id, i.source_asset_id) for i in items])
     refreshed, failures = 0, []
@@ -247,3 +257,8 @@ def impulse_collection(record: CollectionRecord) -> dict[str, Any]:
 
 def impulse_asset(item: ItemRecord) -> dict[str, Any]:
     return {**item.asset, "assetID": item.asset_id, "published": 1}
+
+
+def served(item: ItemRecord, accepted: frozenset[str]) -> bool:
+    """Whether Unity gets the asset: visible, with a licence IMPULSE accepts."""
+    return item.published and classify(item.asset.get("rights")).allowed(accepted)

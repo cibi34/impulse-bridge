@@ -39,7 +39,8 @@ app/
 ├── cache.py             # in-process TTL cache for raw upstream responses
 ├── errors.py            # BridgeError hierarchy with Impulse codes
 ├── storage.py           # opens SQLite and hands the stores to endpoints (dependencies)
-├── site_settings.py     # admin-edited settings (submission address, SMTP) in SQLite
+├── site_settings.py     # admin-edited settings (submission address, SMTP, accepted licences) in SQLite
+├── licensing.py         # reads `rights` values as licences; which ones IMPULSE accepts
 ├── auth.py              # login tokens and sessions (passwordless sign-in)
 ├── mail.py              # SMTP sending, log-only mode
 ├── ratelimit.py         # per-client sliding-window limits
@@ -124,8 +125,8 @@ The Curator is a pure server to Impulse: Impulse calls it, it never calls Impuls
 |---|---|---|
 | `GET <platform_api>/collections` | `GET /collections` | `CollectionStore.list_listed()` — listed and not locked, ordered by name |
 | `GET <collection_uri>` | `GET /collections/{id}` | `CollectionStore.get()` — any collection that is not locked |
-| `GET <collection_uri>/assets` | `GET /collections/{id}/assets` | items with `published = 1`, in the editor's order |
-| `GET <collection_uri>/asset/<asset_id>` | `GET /collections/{id}/asset/{asset_id}` | one item; hidden items are *Asset not found* |
+| `GET <collection_uri>/assets` | `GET /collections/{id}/assets` | items with `published = 1` and an accepted licence, in the editor's order |
+| `GET <collection_uri>/asset/<asset_id>` | `GET /collections/{id}/asset/{asset_id}` | one item; hidden items and items whose licence isn't accepted are *Asset not found* |
 
 All four read SQLite only — no upstream request is made while serving Impulse.
 
@@ -198,9 +199,37 @@ When assets are added (`POST /api/collections`, `POST /api/collections/{id}/item
 
 `absolutize()` makes relative `assetURI` / `previewURI` values (fallback sources) absolute: `<BRIDGE_PUBLIC_BASE_URL>/sources/<source id>/files/<path>`. Per the spec, relative URIs would resolve against the *collection* URI, which a curated collection does not share with its source.
 
-Assets that cannot be fetched (unknown source, asset not found, upstream error) are reported in `failed` and skipped; the rest is stored.
+Assets that cannot be fetched (unknown source, asset not found, upstream error) or whose licence IMPULSE doesn't accept (`Licence not accepted: CC BY-NC 4.0`) are reported in `failed` and skipped; the rest is stored.
 
 `POST /api/collections/{id}/refresh` re-fetches every snapshot. Assets that are gone upstream keep their last snapshot and are reported.
+
+### Licences
+
+Licences are critical for IMPULSE, so they are checked in one place, [`app/licensing.py`](../app/licensing.py), and applied everywhere.
+
+`classify(rights)` reads an asset's `rights` value — whatever form the archive uses — as a `Licence`:
+
+| `rights` value (examples) | `code` | Conditions |
+|---|---|---|
+| `Public domain`, `http://creativecommons.org/publicdomain/mark/1.0/` | `pd` | — |
+| `CC0`, `http://creativecommons.org/publicdomain/zero/1.0/` | `cc0` | — |
+| `CC BY 4.0`, `cc-by-4.0`, `…/licenses/by/2.0/` | `by` | `by` |
+| `CC BY-SA 3.0 de`, `…/licenses/by-sa/3.0/` | `by-sa` | `by`, `sa` |
+| `CC BY-NC 4.0`, `…/licenses/by-nc-sa/4.0/`, … | `by-nc`, `by-nc-sa`, `by-nd`, `by-nc-nd` | `by` plus `nc` / `sa` / `nd` |
+| `http://rightsstatements.org/vocab/NoC-NC/1.0/` | `noc-nc` | `nc` |
+| In copyright, not evaluated, `NKC`, `GFDL`, `FAL`, missing, "See source…" | `other` | — |
+
+A licence is **allowed** when it is not `other` and all of its conditions are among the accepted ones — the admin setting `licence_conditions` (default `by`, `sa`: public domain, CC0, CC BY and CC BY-SA). Public domain and CC0 have no conditions and are always allowed; `other` never is.
+
+| Where | Effect of a licence that isn't allowed |
+|---|---|
+| Search (`/api/sources/{id}/assets`) | Left out; counted in `hidden`. `?licence=free` (no conditions) and `?licence=by` (attribution at most) narrow further. |
+| Adding (create, add items) | Refused, reported in `failed` |
+| Impulse API | Not served |
+| Public collection view | Not listed |
+| Editor's view | Listed with `licence.allowed: false`, so the editor can remove it |
+
+The check runs on the stored snapshot every time, so changing the setting applies at once to every collection — tightening it withdraws assets from Unity, loosening it brings them back. The web app API adds the reading to every asset it returns as `licence: {code, label, url, conditions, allowed}`; the Impulse API serves `rights` unchanged. The web app builds the per-collection licence summary and the credits list (title, author, source, licence) from it ([`frontend/src/lib/licences.ts`](../frontend/src/lib/licences.ts)).
 
 ## Request flows
 
@@ -222,8 +251,10 @@ Assets that cannot be fetched (unknown source, asset not found, upstream error) 
 4. transform/engine.py  extract_items(items_path) → transform_item() per item
                           → filter (allowed_content_types, drop_if_missing)
                         each mapped asset's raw item is indexed by assetID in the cache
-5. app/api/sources.py   absolutize() relative URIs; optional ?type=image|model filter
-                        → {source, items, offset, next_offset}
+5. app/api/sources.py   classify(rights): not allowed → counted in `hidden`;
+                        optional ?licence=free|by and ?type=image|model filters;
+                        absolutize() relative URIs, add `licence` to each asset
+                        → {source, items, hidden, offset, next_offset}
 ```
 
 `next_offset` is `offset + <items the upstream returned>` — counted before filtering — or `null` when the upstream returned fewer items than requested. A page can therefore hold fewer than `c` items.
@@ -233,13 +264,13 @@ Assets that cannot be fetched (unknown source, asset not found, upstream error) 
 `POST /api/collections` with `{name, description?, organization?, email?, items: [{source, asset_id}]}`:
 
 1. Rate limit (30 per client and hour), body validation, size check (`BRIDGE_MAX_ASSETS_PER_COLLECTION`).
-2. Snapshots of all items (see above), duplicates removed.
+2. Snapshots of all items (see above), duplicates removed; assets whose licence isn't allowed are refused.
 3. New collection id and edit key; one transaction inserts the collection and its items.
 4. Response `201` with the editor view of the collection, the **edit key** (only here, never again) and `failed`.
 
 ### Serving Unity
 
-`GET /collections/{id}/assets` → `CollectionStore.get()` (unknown or locked → code 1) → `items(published_only=True)` → `matches_pattern()` → slice by `o`/`c` → envelope. No upstream request.
+`GET /collections/{id}/assets` → `CollectionStore.get()` (unknown or locked → code 1) → `items(published_only=True)` → `served()` (licence allowed) → `matches_pattern()` → slice by `o`/`c` → envelope. No upstream request.
 
 ## Sources
 
