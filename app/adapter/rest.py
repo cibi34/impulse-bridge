@@ -105,17 +105,28 @@ class GenericRestSource(Source):
                 f"Asset '{asset_id}' not found in collection '{self.collection_meta['id']}'"
             )
 
-        # 3. Configured detail lookup. Placeholders available in path and query:
-        #    {asset_id}             the Impulse asset id verbatim
-        #    {asset_id_regex}       a case-insensitive regex matching every upstream
-        #                           id that slugifies to this asset id — for ids
-        #                           produced with `transform: slugify`, which cannot
-        #                           be reversed (Europeana "/90402/SK_A_3262" ->
-        #                           "90402-sk-a-3262"). Meant for Solr-style
-        #                           `field:/regex/` queries on a search endpoint.
-        #    {asset_id_from_base32} the original upstream id, for assetIDs produced
-        #                           with `transform: base32` — for exact-match
-        #                           detail endpoints without regex search.
+        # 3. Configured detail lookup.
+        return await self.lookup(asset_id)
+
+    async def lookup(self, asset_id: str) -> dict:
+        """The asset_detail lookup alone, without the recently-seen shortcut:
+        what get_asset() falls back to, and what the admin's lookup test runs.
+
+        Placeholders available in path and query:
+
+        * `{asset_id}`: the Impulse asset id verbatim.
+        * `{asset_id_regex}`: a case-insensitive regex matching every upstream
+          id that slugifies to this asset id, for ids produced with
+          `transform: slugify`, which cannot be reversed (Europeana
+          "/90402/SK_A_3262" -> "90402-sk-a-3262"). Meant for Solr-style
+          `field:/regex/` queries on a search endpoint.
+        * `{asset_id_from_base32}`: the original upstream id, for assetIDs
+          produced with `transform: base32`, for exact-match detail endpoints
+          without regex search.
+        """
+        detail = self._cfg.asset_detail
+        if not detail.enabled or not detail.path:
+            raise AssetNotFound("This source has no single-asset lookup (asset_detail) configured")
         substitutions = {
             "{asset_id}": asset_id,
             "{asset_id_regex}": slug_to_regex(asset_id),

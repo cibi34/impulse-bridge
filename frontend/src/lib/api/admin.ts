@@ -54,6 +54,15 @@ export interface TestRun {
 	upstream_url: string | null;
 }
 
+export interface LookupRun {
+	found: boolean;
+	error: string | null;
+	asset: Asset | null;
+	licence: Licence | null;
+	upstream_url: string | null;
+	raw_upstream: unknown;
+}
+
 export interface Template {
 	key: string;
 	label: string;
@@ -146,6 +155,18 @@ export const admin = {
 			method: 'POST',
 			body: { yaml, query: query || null, count }
 		}),
+	testLookup: (yaml: string, assetId: string) =>
+		request<LookupRun>('/admin/api/test-lookup', {
+			method: 'POST',
+			body: { yaml, asset_id: assetId }
+		}),
+	licences: async (values: (string | null)[]) =>
+		(
+			await request<{ licences: Licence[] }>('/admin/api/licences', {
+				method: 'POST',
+				body: { values }
+			})
+		).licences,
 	templates: async () =>
 		(await request<{ templates: Template[] }>('/admin/api/templates')).templates,
 

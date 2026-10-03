@@ -162,6 +162,8 @@ Plain JSON; no app-level authentication — protect `/admin` at the proxy.
 | PUT | `/admin/api/files/{filename}` | Save `{yaml}` verbatim |
 | DELETE | `/admin/api/files/{filename}` | Delete the file |
 | POST | `/admin/api/validate` | `{yaml}` → `{valid, errors, id}`; never saves |
+| POST | `/admin/api/test-lookup` | `{yaml, asset_id}` → `{found, asset, licence, error, upstream_url, raw_upstream}`: runs the YAML's `asset_detail` lookup (without the recent-search shortcut) |
+| POST | `/admin/api/licences` | `{values: [rights…]}` → `{licences: […]}`: how each value is read and whether it is accepted (the mapper's preview) |
 | POST | `/admin/api/test` | `{yaml, query?, count=5}` → `{valid, errors, transformed, licences, raw_upstream, upstream_url}`; `licences` is how each asset's `rights` is read; API key masked |
 | GET | `/admin/api/templates` | Starter configs `{key, label, yaml}` |
 | GET / PUT / DELETE | `/admin/api/sources/{id}` | The same by source id (`PUT ?create=true` refuses existing ids). Not used by the admin pages; kept for scripts. |

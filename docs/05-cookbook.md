@@ -8,13 +8,18 @@ Examples use `http://localhost:8080`; replace it with your public address in pro
 
 **When:** the archive has a public JSON search API that returns items with media URLs.
 
-1. **Sources → New → REST API (generic search/discovery).** The template opens in the editor, unsaved.
-2. Set `collection.id` (lowercase, digits, hyphens), `name`, `description`, `organization`, `owner_id`.
-3. Set `adapter.base_url`, `search.path`, the pagination parameters and `search.query.pattern_param`.
-4. **Run test** with an empty pattern. Open **Raw upstream response**: find the array of items and the fields for id, title, media URL, thumbnail, licence.
-5. Set `mapping.items_path` and the fields `assetID`, `title`, `assetURI`, `previewURI`, `contentType`, `rights`, `contributor`, `scale`.
-6. Run the test again until **Mapped assets** look right and the thumbnails show.
-7. **Create source.** The status turns **Live**; the source appears in `/explore` and in `GET /api/sources`.
+With the **Mapper** ([04](04-admin-ui.md#mapper)):
+
+1. **Sources → New → REST API (generic search/discovery).** The template opens in the mapper, unsaved.
+2. **1 Request:** base URL, search path, search parameter, a query for the empty search, paging; the API key as `${NAME}` (and `NAME=…` in `.env`).
+3. **2 Sample → Fetch sample.** Check **Where are the results?** — the mapper usually finds the list itself.
+4. **3 Fields → Auto-map**, then go through the fields that are not green: select a field, click the right value in the result tree. Red fields give nothing for any result (the template's placeholders until you replace them).
+5. **4 Preview:** the cards should show images, titles and licences; the reasons list says what is left out and why. Set the filter (usually: leave out results without a media file).
+6. **5 Single-asset lookup:** pick a preset, adjust, **Test lookup** until it finds the asset (Recipe 8 explains the options).
+7. Switch to **YAML** and set the `collection` block: `id` (lowercase, digits, hyphens), `name`, `description`, `organization`, `owner_id`.
+8. **Create source.** The status turns **Live**; the source appears in `/explore` and in `GET /api/sources`.
+
+The same in YAML only: set the request values, **Run test** with an empty pattern, find the items and fields in **Raw upstream response**, write `mapping.items_path` and the fields (`assetID`, `title`, `assetURI`, `previewURI`, `contentType`, `rights`, `contributor`, `scale`), and repeat until **Mapped assets** look right.
 
 An illustrative config (Openverse):
 

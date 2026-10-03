@@ -54,7 +54,7 @@ Admins cannot edit a collection's content here. If you must, create a new edit l
 
 ## Sources
 
-`/admin/sources` — a YAML editor for the files in `configs/sources/`.
+`/admin/sources` — the files in `configs/sources/`, edited in two views of the same file: the **Mapper** (REST sources) and the **YAML** editor. Switch with **Mapper | YAML** above the document; REST sources open in the mapper, all others in YAML.
 
 ```
 ┌──────────────────────────┬──────────────────────────────────────────────────────┐
@@ -85,6 +85,24 @@ Clicking an entry opens it; the URL becomes `/admin/sources?file=<filename>`, so
 |---|---|
 | **New** | Opens the template picker: **REST API (generic search/discovery)**, **IIIF Presentation API manifest**, **Fallback (local files)** (`GET /admin/api/templates`). The template is loaded into the editor as a new, unsaved file. |
 | **Reload from disk** | Re-reads every file and hot-swaps the registry (`POST /admin/api/reload`), e.g. after editing files with a text editor on the server. A toast reports how many sources are live and how many have problems; the open file is re-read if it has no unsaved changes. |
+
+### Mapper
+
+A guided, interactive way to connect a REST API. It writes into the YAML: only the values you change, keeping comments and the rest of the file (new field mappings use the one-line form, `title: { expr: "title" }`). Everything it cannot express stays editable in YAML.
+
+| Step | What you do |
+|---|---|
+| **1 Request** | Base URL, search path, the search parameter, the query for an empty search, fixed parameters (`default_query`), the API key (`${NAME}` from `.env`), paging (offset & limit, start & rows, page & size, first index 0 or 1, largest page). |
+| **2 Sample** | **Fetch sample** sends a real search (an optional query, 10–50 results) through the server, which shows the request URL. The mapper finds the lists in the response — arrays of results, and objects keyed by id like MediaWiki's `query.pages` (→ ``values(query.pages \|\| `{}`)``) — and offers them as **Where are the results?**; the count updates as you type a path. After a change to the request, it asks you to fetch again. |
+| **3 Fields** | Left, one result as a tree (step through the results; **Expand all**; image URLs with a thumbnail). Right, the IMPULSE fields: **Needed** (Asset ID, Title, Media file, Preview image, Licence, Content type), **Recommended** (Creator, Institution, Source page, Description, Date) and **More**. Select a field, then click a value in the tree — the mapper writes the path (with `to_string()` for numeric ids, `[0]` or `join()` for lists, *Remove HTML* / *File name → title* where the value needs it) and moves on to the next field that still needs one. Without a selected field, a clicked value asks which field it is for. |
+| **4 Preview** | The assets as the web app will show them, from the sample: *results → kept by the filter → with an accepted licence*, the reasons for everything left out, and the filter (**Leave out results without** …, **Only these content types**). Click a card to show that result in the tree. |
+| **5 Single-asset lookup** | How an asset is fetched again by its ID when it is added to a collection. Presets **The search, filtered by ID** and **An item endpoint (…/ID)**, path, parameters, where the result is in the response, and **Test lookup** with an ID from the sample (`POST /admin/api/test-lookup`). |
+
+Each field card shows the expression (or **Fixed** value), its value for the current result, **coverage** (how many results of the sample have a value) and checks: JMESPath syntax, a path that gives nothing for any result (red — usually a template placeholder), ids that are not text or not unique, media that is not a file URL, HTML in text, values that are not MIME types, and for **Licence** how the value is read (`POST /admin/api/licences`) and whether IMPULSE accepts it. **Options** hold the transform, a default and a value map (e.g. `IMAGE → image/jpeg`).
+
+**Suggestions** come from the sample: for each field, the values whose name (also through wrappers like MediaWiki's `Artist.value`), shape (URL, image, licence URL, date, MIME type) and coverage fit, with the share of results that have them. **Auto-map** fills every field that still needs a value — unmapped, or mapped to something no result has — with confident suggestions, never using one path for two fields (except media and preview).
+
+The mapper evaluates mappings in the browser with the same JMESPath, transforms, defaults and filter rules as the server (`frontend/src/lib/mapper/evaluate.ts` mirrors `app/transform/engine.py`), so the preview is instant. **Save** works as in the YAML view.
 
 ### Editor
 

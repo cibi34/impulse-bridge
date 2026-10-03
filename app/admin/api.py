@@ -15,7 +15,7 @@ from typing import Annotated, Any
 
 import yaml
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from app.adapter.factory import build_source
 from app.config.loader import _expand_env
@@ -259,6 +259,68 @@ async def test_source(
         "raw_upstream": _masked_raw(getattr(source, "last_raw_response", None), cfg),
         "upstream_url": _masked_url(getattr(source, "last_upstream_url", None), cfg),
     }
+
+
+class LookupBody(BaseModel):
+    yaml: str
+    asset_id: str = Field(min_length=1, max_length=500)
+
+
+@router.post("/test-lookup")
+async def test_lookup(
+    body: LookupBody, accepted: Annotated[frozenset[str], Depends(get_licence_conditions)]
+) -> dict:
+    """Run the submitted YAML's single-asset lookup (`asset_detail`) for one
+    assetID, as adding the asset to a collection later will — without the
+    shortcut through recent search results."""
+    parsed = _parse_or_400(body.yaml)
+    validation = _validate_cfg(parsed)
+    if not validation["valid"]:
+        return {"found": False, "error": "The configuration has problems; fix them first.",
+                "asset": None, "licence": None, "upstream_url": None, "raw_upstream": None}
+    cfg = SourceConfig.model_validate(_expand_env(parsed))
+    try:
+        source = build_source(cfg)
+    except Exception as e:  # noqa: BLE001
+        return {"found": False, "error": str(e), "asset": None, "licence": None,
+                "upstream_url": None, "raw_upstream": None}
+    lookup = getattr(source, "lookup", None)
+    asset, error = None, None
+    try:
+        if lookup is None:
+            error = "Only REST sources have a configurable single-asset lookup."
+        else:
+            asset = await lookup(body.asset_id)
+    except Exception as e:  # noqa: BLE001
+        error = getattr(e, "message", None) or str(e)
+    finally:
+        closer = getattr(source, "aclose", None)
+        if closer is not None:
+            try:
+                await closer()
+            except Exception:  # noqa: BLE001
+                pass
+    return {
+        "found": asset is not None,
+        "error": error,
+        "asset": asset,
+        "licence": classify(asset.get("rights")).as_dict(accepted) if asset else None,
+        "upstream_url": _masked_url(getattr(source, "last_upstream_url", None), cfg),
+        "raw_upstream": _masked_raw(getattr(source, "last_raw_response", None), cfg),
+    }
+
+
+class LicencesBody(BaseModel):
+    values: list[str | None] = Field(max_length=1000)
+
+
+@router.post("/licences")
+def read_licences(
+    body: LicencesBody, accepted: Annotated[frozenset[str], Depends(get_licence_conditions)]
+) -> dict:
+    """How each rights value is read as a licence, and whether IMPULSE accepts
+    it (for the mapper's live preview)."""
+    return {"licences": [classify(v).as_dict(accepted) for v in body.values]}
 
 
 # --------------------------------------------------------------------------

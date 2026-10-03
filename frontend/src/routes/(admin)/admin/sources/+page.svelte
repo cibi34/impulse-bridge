@@ -2,7 +2,7 @@
 	import { beforeNavigate, goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import {
 		admin,
 		validationIssues,
@@ -11,11 +11,14 @@
 		type ValidationIssue
 	} from '#lib/api/admin.js';
 	import { ApiError, errorMessage } from '#lib/api/index.js';
+	import Mapper from '#lib/components/admin/mapper/Mapper.svelte';
 	import TemplateDialog from '#lib/components/admin/TemplateDialog.svelte';
 	import TestPanel from '#lib/components/admin/TestPanel.svelte';
 	import YamlEditor from '#lib/components/admin/YamlEditor.svelte';
 	import Dialog from '#lib/components/Dialog.svelte';
 	import Icon from '#lib/components/Icon.svelte';
+	import SegmentedControl from '#lib/components/SegmentedControl.svelte';
+	import { parseConfig } from '#lib/mapper/config.js';
 	import { toasts } from '#lib/stores/toasts.svelte.js';
 
 	let sources = $state<SourceSummary[]>([]);
@@ -37,6 +40,19 @@
 	let templateOpen = $state(false);
 	let deleteOpen = $state(false);
 	let editor: YamlEditor | undefined = $state();
+
+	// REST sources open in the mapper; everything else (and broken YAML) in the editor.
+	type View = 'mapper' | 'yaml';
+	let view = $state<View>('yaml');
+	function defaultView(yaml: string): View {
+		return parseConfig(yaml).data.adapter?.kind === 'rest' ? 'mapper' : 'yaml';
+	}
+
+	async function showLine(line: number) {
+		view = 'yaml';
+		await tick();
+		editor?.goToLine(line);
+	}
 
 	const dirty = $derived((isNew && text !== '') || text !== saved);
 	const current = $derived(sources.find((s) => s.filename === filename) ?? null);
@@ -94,6 +110,7 @@
 			issues = file.errors;
 			loadedFlag = file.loaded;
 			loadError = file.load_error;
+			view = defaultView(file.yaml);
 		} catch (e) {
 			toasts.error(errorMessage(e));
 			goto(resolve('admin/sources'), { replace: true });
@@ -115,6 +132,7 @@
 			text = template.yaml;
 			loadError = null;
 			loadedFlag = false;
+			view = defaultView(template.yaml);
 		});
 	}
 
@@ -312,14 +330,36 @@
 				</p>
 			{/if}
 
-			<div class="editor-wrap" aria-busy={opening}>
-				<YamlEditor
-					bind:this={editor}
-					bind:value={text}
-					{problems}
-					label="Source configuration (YAML)"
+			<div class="view-switch">
+				<SegmentedControl
+					legend="View"
+					options={[
+						{ value: 'mapper', label: 'Mapper' },
+						{ value: 'yaml', label: 'YAML' }
+					]}
+					bind:value={view}
 				/>
+				<span class="caption tertiary">
+					{view === 'mapper'
+						? 'Fetch a sample, then map its values to IMPULSE fields. Changes go into the YAML.'
+						: 'The whole configuration. Comments and formatting are kept.'}
+				</span>
 			</div>
+
+			{#if view === 'mapper'}
+				{#key filename ?? 'new'}
+					<Mapper bind:text />
+				{/key}
+			{:else}
+				<div class="editor-wrap" aria-busy={opening}>
+					<YamlEditor
+						bind:this={editor}
+						bind:value={text}
+						{problems}
+						label="Source configuration (YAML)"
+					/>
+				</div>
+			{/if}
 
 			<div class="validation" role="status" aria-live="polite">
 				{#if validating}
@@ -334,7 +374,7 @@
 									type="button"
 									class="issue"
 									disabled={!issue.line}
-									onclick={() => issue.line && editor?.goToLine(issue.line)}
+									onclick={() => issue.line && showLine(issue.line)}
 								>
 									<span class="mono">{issue.line ? `Line ${issue.line}` : 'File'}</span>
 									<span class="loc mono">{issue.loc.join('.')}</span>
@@ -346,7 +386,7 @@
 				{/if}
 			</div>
 
-			<TestPanel yaml={text} />
+			{#if view === 'yaml'}<TestPanel yaml={text} />{/if}
 		{:else}
 			<div class="empty">
 				<Icon name="compass" size={32} />
@@ -500,6 +540,13 @@
 
 	.editor-wrap {
 		height: min(62vh, 640px);
+	}
+
+	.view-switch {
+		display: flex;
+		align-items: center;
+		gap: 14px;
+		flex-wrap: wrap;
 	}
 
 	.validation ul {
