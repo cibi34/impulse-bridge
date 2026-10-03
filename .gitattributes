@@ -1,0 +1,5 @@
+# Never convert line endings in binary assets.
+*.glb binary
+*.png binary
+*.jpg binary
+*.webp binary

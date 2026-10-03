@@ -61,7 +61,7 @@ Admins cannot edit a collection's content here. If you must, create a new edit l
 │ Sources                  │ Wikimedia Commons Images                             │
 │ [New] [Reload from disk] │ [Live] wikimedia-commons.yaml   Revert Delete [Save] │
 │                          │ ┌──────────────────────────────────────────────────┐ │
-│ ● Bridge Demo Collection │ │ 1  collection:                                   │ │
+│ ● IMPULSE Demo Models    │ │ 1  collection:                                   │ │
 │   fallback-demo.yaml ·   │ │ 2    id: wikimedia-commons-images                │ │
 │   fallback               │ │ …   (YAML, syntax-highlighted, problems marked)  │ │
 │ ● Europeana Public …     │ └──────────────────────────────────────────────────┘ │

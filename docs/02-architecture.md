@@ -96,9 +96,10 @@ Other top-level folders:
 
 ```
 configs/sources/*.yaml   # one file per source
-data/fallback/           # demo files for the bridge-demo source
+data/fallback/           # demo models and image for the bridge-demo source
 data/curator.db          # curated collections, site settings, sign-in (created at first start)
 deploy/                  # Dockerfile, docker-compose.yml, Traefik, host bootstrap
+scripts/                 # make_demo_assets.py: regenerates data/fallback/assets (stdlib only)
 tests/                   # pytest
 docs/                    # this documentation
 ```

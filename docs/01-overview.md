@@ -67,7 +67,7 @@ Four sources are configured out of the box. They are examples; operators add the
 
 | Source id | Backend | Key needed | Notes |
 |---|---|---|---|
-| `bridge-demo` | Local files (`data/fallback/assets/`) | No | Placeholder `.glb` and `.png` assets. Works offline; a smoke test. |
+| `bridge-demo` | Local files (`data/fallback/assets/`) | No | Three generated glTF models (textured cube, sphere, column) and an image, CC0. Work offline; for end-to-end tests with Unity. |
 | `wikimedia-commons-images` | Wikimedia Commons (MediaWiki API) | No | Open-licensed images; titles cleaned with `file_title`. |
 | `europeana-public-domain-images` | Europeana Search API | Yes (`EUROPEANA_API_KEY`) | Open-licensed images from European institutions. |
 | `iiif-wellcome-vererbung` | One IIIF manifest | No | An illustrated 1929 book from the Wellcome Collection; shows the IIIF adapter. |
