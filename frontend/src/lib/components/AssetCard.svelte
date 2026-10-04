@@ -9,6 +9,7 @@
 		asset,
 		sourceName,
 		selected,
+		included = false,
 		disabled = false,
 		ontoggle,
 		onopen
@@ -16,6 +17,8 @@
 		asset: Asset;
 		sourceName: string;
 		selected: boolean;
+		/** Already in the collection being added to. */
+		included?: boolean;
 		disabled?: boolean;
 		ontoggle: () => void;
 		onopen: () => void;
@@ -25,20 +28,23 @@
 	const meta = $derived([licenceLabel(asset), sourceName].filter(Boolean).join(' · '));
 </script>
 
-<article class="card" class:selected>
+<article class="card" class:selected class:included>
 	<button
 		type="button"
 		class="media"
-		aria-pressed={selected}
-		aria-label="{selected ? 'Deselect' : 'Select'} {title}"
-		{disabled}
+		aria-pressed={included ? undefined : selected}
+		aria-label={included
+			? `Already in the collection: ${title}`
+			: `${selected ? 'Deselect' : 'Select'} ${title}`}
+		disabled={disabled || included}
 		onclick={ontoggle}
 	>
 		<AssetThumb src={asset.previewURI} contentType={asset.contentType} />
 		<span class="ring" aria-hidden="true"></span>
 		<span class="check" aria-hidden="true">
-			{#if selected}<Icon name="check" size={14} strokeWidth={3} />{/if}
+			{#if selected || included}<Icon name="check" size={14} strokeWidth={3} />{/if}
 		</span>
+		{#if included}<span class="in" aria-hidden="true">In collection</span>{/if}
 		<span class="kind" aria-hidden="true">{kindLabel(asset.contentType)}</span>
 	</button>
 	<div class="text">
@@ -113,6 +119,32 @@
 	.selected .check {
 		background: var(--magenta);
 		border-color: #ffffff;
+	}
+
+	.included .ring {
+		box-shadow: inset 0 0 0 3px var(--success);
+		background: rgb(18 18 20 / 0.18);
+	}
+
+	.included .check {
+		background: #187a35;
+		border-color: #ffffff;
+	}
+
+	.in {
+		position: absolute;
+		top: 12px;
+		left: 10px;
+		padding: 3px 9px;
+		border-radius: 999px;
+		background: #187a35;
+		color: #ffffff;
+		font-size: 11px;
+		font-weight: 600;
+	}
+
+	.media:disabled {
+		cursor: default;
 	}
 
 	.kind {

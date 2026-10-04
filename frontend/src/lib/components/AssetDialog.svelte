@@ -12,6 +12,7 @@
 		licence,
 		sourceName,
 		selected,
+		included = false,
 		ontoggle
 	}: {
 		open?: boolean;
@@ -20,6 +21,8 @@
 		licence?: Licence | null;
 		sourceName: string;
 		selected?: boolean;
+		/** Already in the collection being added to. */
+		included?: boolean;
 		/** Omit to show the asset without a select action. */
 		ontoggle?: () => void;
 	} = $props();
@@ -105,7 +108,11 @@
 	{/if}
 	{#snippet footer()}
 		<button type="button" class="btn" onclick={() => (open = false)}>Close</button>
-		{#if ontoggle}
+		{#if ontoggle && included}
+			<button type="button" class="btn" disabled>
+				<Icon name="check" size={16} /> In this collection
+			</button>
+		{:else if ontoggle}
 			<button
 				type="button"
 				class="btn {selected ? '' : 'btn-primary'}"

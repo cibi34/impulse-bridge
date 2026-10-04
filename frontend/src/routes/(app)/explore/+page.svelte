@@ -16,7 +16,7 @@
 	import { Search, type ContentType, type Hit, type LicenceFilter } from '#lib/search.svelte.js';
 	import { app } from '#lib/stores/app.svelte.js';
 	import { library } from '#lib/stores/library.svelte.js';
-	import { selection } from '#lib/stores/selection.svelte.js';
+	import { assetKey, selection } from '#lib/stores/selection.svelte.js';
 	import { toasts } from '#lib/stores/toasts.svelte.js';
 
 	const search = new Search();
@@ -77,6 +77,7 @@
 						return;
 					}
 					target = c.can_edit ? c : null;
+					if (target) dropIncluded(target);
 				})
 				.catch(() => (target = null));
 		}
@@ -98,7 +99,30 @@
 	const limit = $derived(app.config?.max_assets_per_collection ?? 50);
 	const room = $derived(target ? Math.max(0, limit - target.item_count) : limit);
 
+	// ---- what the collection being added to already holds ----
+	const inTarget = $derived(
+		target ? target.items.map((i) => assetKey(i.source, i.source_asset_id)) : []
+	);
+	const isIncluded = (source: string, assetId: string) =>
+		inTarget.includes(assetKey(source, assetId));
+
+	/** Selected assets that are already in the collection have nothing left to do. */
+	function dropIncluded(collection: Collection) {
+		const keys = collection.items.map((i) => assetKey(i.source, i.source_asset_id));
+		const already = selection.items.filter((i) => keys.includes(i.key));
+		for (const item of already) selection.remove(item.key);
+		if (already.length > 0) {
+			toasts.show(
+				`${plural(already.length, 'selected asset')} ${already.length === 1 ? 'is' : 'are'} already in “${collection.name}” and left the selection.`
+			);
+		}
+	}
+
 	function toggle(hit: Hit) {
+		if (target && isIncluded(hit.source, hit.asset.assetID)) {
+			toasts.show(`Already in “${target.name}”.`);
+			return;
+		}
 		if (!selection.has(hit.source, hit.asset.assetID) && selection.count >= room) {
 			toasts.error(
 				target
@@ -165,7 +189,12 @@
 	{#if target}
 		<div class="adding" role="status">
 			<Icon name="plus" size={16} />
-			<span>Adding to <strong>{target.name}</strong></span>
+			<span>
+				Adding to <strong>{target.name}</strong>
+				<span class="adding-meta">
+					· {plural(target.item_count, 'asset')} in it · room for {room} more
+				</span>
+			</span>
 			<a class="btn btn-plain btn-sm" href={resolve(`c/${target.id}/edit`)}>Done</a>
 		</div>
 	{/if}
@@ -245,6 +274,7 @@
 						asset={hit.asset}
 						sourceName={app.sourceName(hit.source)}
 						selected={selection.has(hit.source, hit.asset.assetID)}
+						included={isIncluded(hit.source, hit.asset.assetID)}
 						ontoggle={() => toggle(hit)}
 						onopen={() => openDetail(hit)}
 					/>
@@ -311,6 +341,7 @@
 	asset={detail?.asset ?? null}
 	sourceName={detail ? app.sourceName(detail.source) : ''}
 	selected={detail ? selection.has(detail.source, detail.asset.assetID) : false}
+	included={detail ? isIncluded(detail.source, detail.asset.assetID) : false}
 	ontoggle={() => detail && toggle(detail)}
 />
 <SelectionDialog bind:open={reviewOpen} {actionLabel} onaction={primaryAction} />
@@ -344,6 +375,10 @@
 
 	.adding strong {
 		color: var(--text);
+	}
+
+	.adding-meta {
+		color: var(--text-2);
 	}
 
 	.adding a {
