@@ -194,6 +194,26 @@ class CollectionStore:
                 (*fields.values(), utcnow(), collection_id),
             )
 
+    def rename(self, collection_id: str, new_id: str) -> bool:
+        """Give a collection a new id; its items move along, its edit key and
+        everything else stay. False (and nothing changed) if `new_id` is taken."""
+        with self.db.transaction() as conn:
+            if conn.execute("SELECT 1 FROM collections WHERE id = ?", (new_id,)).fetchone():
+                return False
+            # The items' reference is checked at commit, once both rows moved.
+            conn.execute("PRAGMA defer_foreign_keys = ON")
+            moved = conn.execute(
+                "UPDATE collections SET id = ?, updated_at = ? WHERE id = ?",
+                (new_id, utcnow(), collection_id),
+            ).rowcount
+            if moved != 1:
+                raise KeyError(collection_id)
+            conn.execute(
+                "UPDATE collection_items SET collection_id = ? WHERE collection_id = ?",
+                (new_id, collection_id),
+            )
+        return True
+
     def delete(self, collection_id: str) -> bool:
         with self.db.transaction() as conn:
             return conn.execute(

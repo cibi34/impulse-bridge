@@ -154,6 +154,7 @@ Plain JSON; no app-level authentication — protect `/admin` at the proxy.
 | GET | `/admin/api/collections` | All collections incl. email, `listed`, `disabled`, `submitted_at` |
 | PATCH | `/admin/api/collections/{id}` | `{listed?, disabled?}` |
 | DELETE | `/admin/api/collections/{id}` | Delete with items → 204 |
+| POST | `/admin/api/collections/{id}/rename` | `{new_id, confirm}` (`confirm` = the current id) → the collection with `previous_id`; 422 for an invalid id or a wrong confirmation, 409 if the id is taken. The old URI stops working. |
 | POST | `/admin/api/collections/{id}/key` | New edit key → `{edit_key}` |
 | GET | `/admin/api/sources` | Every config file: `filename`, `id`, `name`, `kind`, `base_url`, `loaded`, `error`; plus `loaded_count`, `load_errors` |
 | POST | `/admin/api/reload` | Reload all files from disk; returns the same as `GET /admin/api/sources` |

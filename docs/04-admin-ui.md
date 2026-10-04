@@ -37,7 +37,7 @@ For field semantics of source configs see [03 — YAML reference](03-yaml-refere
 | Status | **Submitted** *time ago* or **Not submitted**, plus when it was last updated |
 | Listed | Switch — see below; disabled while the collection is locked |
 | Locked | Switch — see below |
-| Actions | **New edit link** (key icon), **Delete** (bin icon) |
+| Actions | **Change the ID** (link icon), **New edit link** (key icon), **Delete** (bin icon) |
 
 ### What the switches do
 
@@ -45,6 +45,7 @@ For field semantics of source configs see [03 — YAML reference](03-yaml-refere
 |---|---|
 | **Listed** on | The collection appears in the Impulse API's `GET /collections`. Use it for collections the IMPULSE team has accepted. Unlisted collections are still served at their own URI. |
 | **Locked** on | `GET /collections/{id}…` answers code `1` (not found) and the collection disappears from `GET /collections`. Visitors get 404 on its pages; its editor still sees it, marked as locked, but every change is refused. Unlocking restores everything. |
+| **Change the ID** | Gives the collection a new ID — and with it a new URL, which is how Impulse and Unity load it; the old URL stops working. Use it to make a collection answer at an address that is already entered somewhere, or to fix an unfortunate ID. The dialog shows the current ID and URL, warns when the collection is listed or was submitted, checks the new ID as you type (Impulse id-schema: lowercase letters, digits and single hyphens, 3–80 characters; not used by another collection) and offers a valid version of what you typed. **Change ID** only becomes available once you type the current ID to confirm; the server checks all of it again. Items, edit key, flags and the creation date stay; the creator's edit link works with the new ID in it (`/c/<new id>/edit#key=…`). The change is logged. |
 | **New edit link** | Creates a new edit key and shows the link `<origin>/c/{id}/edit#key=…` **once**. The previous edit link stops working immediately; a creator who signs in by email keeps access. Use it for a creator who lost the link. |
 | **Delete** | Removes the collection and all its items from the database after a confirmation. Impulse can no longer load it. Cannot be undone (except from a backup). |
 

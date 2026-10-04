@@ -125,6 +125,11 @@ export const admin = {
 		}),
 	deleteCollection: (id: string) =>
 		request<void>(`/admin/api/collections/${enc(id)}`, { method: 'DELETE' }),
+	renameCollection: (id: string, newId: string, confirm: string) =>
+		request<AdminCollection & { previous_id: string }>(`/admin/api/collections/${enc(id)}/rename`, {
+			method: 'POST',
+			body: { new_id: newId, confirm }
+		}),
 	newEditKey: (id: string) =>
 		request<{ edit_key: string }>(`/admin/api/collections/${enc(id)}/key`, { method: 'POST' }),
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import re
 import secrets
 from dataclasses import dataclass
 from typing import Any
@@ -43,6 +44,26 @@ def _short_slug(text: str, fallback: str) -> str:
     if len(slug) > _SLUG_MAX:
         slug = slug[:_SLUG_MAX].rsplit("-", 1)[0] or slug[:_SLUG_MAX]
     return slug
+
+
+_COLLECTION_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+COLLECTION_ID_LENGTH = (3, 80)
+
+
+def collection_id_problem(value: str) -> str | None:
+    """Why `value` cannot be a collection id, or None. The Impulse id-schema:
+    lowercase letters and digits, words joined by single hyphens."""
+    shortest, longest = COLLECTION_ID_LENGTH
+    if len(value) < shortest:
+        return f"Use at least {shortest} characters."
+    if len(value) > longest:
+        return f"Use at most {longest} characters."
+    if not _COLLECTION_ID.fullmatch(value):
+        return (
+            "Use only lowercase letters a–z, digits and single hyphens, "
+            "starting and ending with a letter or digit."
+        )
+    return None
 
 
 def new_collection_id(name: str, exists) -> str:

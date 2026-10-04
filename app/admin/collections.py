@@ -1,19 +1,22 @@
 """Admin API for curated collections: overview, listing in /collections,
-locking, deleting and issuing a new edit key (e.g. for a creator who lost
-the link). Protected like the rest of /admin (basic auth at the proxy)."""
+locking, deleting, issuing a new edit key (e.g. for a creator who lost the
+link) and changing a collection's id. Protected like the rest of /admin
+(basic auth at the proxy)."""
 
 from __future__ import annotations
 
+import logging
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from app.curation.service import collection_uri, new_edit_key
+from app.curation.service import collection_id_problem, collection_uri, new_edit_key
 from app.curation.store import CollectionRecord, CollectionStore
 from app.storage import get_store
 
 router = APIRouter(prefix="/admin/api/collections", tags=["admin"])
+logger = logging.getLogger(__name__)
 
 Store = Annotated[CollectionStore, Depends(get_store)]
 
@@ -67,6 +70,39 @@ def delete(collection_id: str, store: Store):
     _get(store, collection_id)
     store.delete(collection_id)
     return Response(status_code=204)
+
+
+class RenameBody(BaseModel):
+    new_id: str = Field(max_length=200)
+    confirm: str = Field(max_length=200)
+    """The current id, typed again: guards against renaming the wrong
+    collection, or one by accident."""
+
+
+@router.post("/{collection_id}/rename")
+def rename(collection_id: str, body: RenameBody, store: Store):
+    """Change a collection's id — and with it its URI, which is how Impulse
+    and Unity load it: the old URI stops working. Items, edit key, flags and
+    the creation date stay."""
+    record = _get(store, collection_id)
+    if body.confirm.strip() != record.id:
+        raise HTTPException(status_code=422, detail="Type the current ID exactly to confirm.")
+    new_id = body.new_id.strip()
+    if new_id == record.id:
+        raise HTTPException(status_code=422, detail="That is already the collection's ID.")
+    problem = collection_id_problem(new_id)
+    if problem:
+        raise HTTPException(status_code=422, detail=problem)
+    try:
+        renamed = store.rename(record.id, new_id)
+    except KeyError:  # deleted in the meantime
+        raise HTTPException(status_code=404, detail=f"Collection '{collection_id}' not found") from None
+    if not renamed:
+        raise HTTPException(
+            status_code=409, detail=f"The ID “{new_id}” is already used by another collection."
+        )
+    logger.info("Collection %r renamed to %r by an admin", record.id, new_id)
+    return {**_out(_get(store, new_id)), "previous_id": record.id}
 
 
 @router.post("/{collection_id}/key")

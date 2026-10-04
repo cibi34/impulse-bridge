@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import { admin, type AdminCollection } from '#lib/api/admin.js';
+	import { collectionIdProblem, suggestCollectionId } from '#lib/collection-id.js';
 	import { errorMessage } from '#lib/api/index.js';
 	import CopyField from '#lib/components/CopyField.svelte';
 	import Dialog from '#lib/components/Dialog.svelte';
@@ -27,6 +28,53 @@
 	let deleting = $state<AdminCollection | null>(null);
 	let deleteOpen = $state(false);
 	let busy = $state(false);
+
+	// ---- changing an id: validated as you type, confirmed by typing the old id ----
+	let renaming = $state<AdminCollection | null>(null);
+	let renameOpen = $state(false);
+	let newId = $state('');
+	let confirmText = $state('');
+	let renamed = $state<{ from: string; uri: string } | null>(null);
+
+	const wantedId = $derived(newId.trim());
+	const idProblem = $derived.by((): string | null => {
+		if (!renaming || !wantedId) return null;
+		if (wantedId === renaming.id) return 'That is already the collection’s ID.';
+		const taken = collections.find((c) => c.id === wantedId);
+		if (taken) return `Already used by “${taken.name}”.`;
+		return collectionIdProblem(wantedId);
+	});
+	const idSuggestion = $derived(wantedId && idProblem ? suggestCollectionId(wantedId) : null);
+	const newUri = $derived(renaming ? renaming.uri.replace(/[^/]+$/, wantedId) : '');
+	const canRename = $derived(
+		!!renaming && !!wantedId && !idProblem && confirmText.trim() === renaming.id && !busy
+	);
+
+	function askRename(c: AdminCollection) {
+		renaming = c;
+		newId = '';
+		confirmText = '';
+		renamed = null;
+		renameOpen = true;
+	}
+
+	async function rename() {
+		if (!renaming || !canRename) return;
+		busy = true;
+		const target = renaming;
+		try {
+			const result = await admin.renameCollection(target.id, wantedId, confirmText.trim());
+			const { previous_id, ...updated } = result;
+			collections = collections.map((c) => (c.id === previous_id ? updated : c));
+			renamed = { from: previous_id, uri: updated.uri };
+			renaming = updated;
+			toasts.success(`“${updated.name}” now has the ID ${updated.id}`);
+		} catch (e) {
+			toasts.error(errorMessage(e));
+		} finally {
+			busy = false;
+		}
+	}
 
 	onMount(load);
 
@@ -240,6 +288,13 @@
 							<button
 								type="button"
 								class="btn btn-plain btn-icon btn-sm"
+								onclick={() => askRename(c)}
+							>
+								<Icon name="link" size={16} label="Change the ID of {c.name}" />
+							</button>
+							<button
+								type="button"
+								class="btn btn-plain btn-icon btn-sm"
 								onclick={() => askNewKey(c)}
 							>
 								<Icon name="key" size={16} label="New edit link for {c.name}" />
@@ -283,6 +338,121 @@
 			<button type="button" class="btn btn-primary" disabled={busy} onclick={createKey}
 				>Create new link</button
 			>
+		{/if}
+	{/snippet}
+</Dialog>
+
+<Dialog bind:open={renameOpen} title="Change the ID" size="md" description={renaming?.name}>
+	{#if renaming && renamed}
+		<div class="stack">
+			<p class="secondary">
+				The collection now has the ID <code>{renaming.id}</code>.
+			</p>
+			<CopyField
+				label="New collection URL"
+				value={renamed.uri}
+				hint="Register this URL in IMPULSE, or replace the old one where it is entered."
+			/>
+			<p class="footnote secondary">
+				<code>…/collections/{renamed.from}</code> no longer works. The creator's edit link keeps
+				working with the new ID in it: <code>/c/{renaming.id}/edit#key=…</code>
+			</p>
+		</div>
+	{:else if renaming}
+		<form
+			class="stack"
+			id="rename-form"
+			onsubmit={(e) => {
+				e.preventDefault();
+				rename();
+			}}
+		>
+			<dl class="current">
+				<div>
+					<dt>Current ID</dt>
+					<dd class="mono">{renaming.id}</dd>
+				</div>
+				<div>
+					<dt>Current URL</dt>
+					<dd class="mono">{renaming.uri}</dd>
+				</div>
+			</dl>
+
+			<div class="warning" role="note">
+				<Icon name="alert" size={16} />
+				<ul>
+					<li>
+						<strong>The URL changes with the ID.</strong> Impulse and Unity load the collection by its
+						URL: wherever the old one is entered, it stops working.
+					</li>
+					{#if renaming.listed}
+						<li>
+							It is <strong>listed</strong> in <code>/collections</code> and will appear there under the
+							new URL.
+						</li>
+					{/if}
+					{#if renaming.submitted_at}
+						<li>
+							It was <strong>submitted {timeAgo(renaming.submitted_at)}</strong> — the IMPULSE team may
+							have registered the old URL.
+						</li>
+					{/if}
+					<li>
+						“My collections” in the creator's browser still points at the old ID; their edit link
+						works with the new one.
+					</li>
+				</ul>
+			</div>
+
+			<div class="field">
+				<label class="field-label" for="rename-new">New ID</label>
+				<input
+					id="rename-new"
+					class="input mono"
+					autocomplete="off"
+					spellcheck="false"
+					aria-invalid={!!idProblem}
+					aria-describedby="rename-new-hint"
+					bind:value={newId}
+				/>
+				<p id="rename-new-hint" class={idProblem ? 'field-error' : 'field-hint'} aria-live="polite">
+					{#if idProblem}
+						{idProblem}
+						{#if idSuggestion}
+							<button type="button" class="link" onclick={() => (newId = idSuggestion ?? '')}
+								>Use “{idSuggestion}”</button
+							>
+						{/if}
+					{:else if wantedId}
+						New URL: <span class="mono">{newUri}</span>
+					{:else}
+						Lowercase letters, digits and single hyphens, 3–80 characters.
+					{/if}
+				</p>
+			</div>
+
+			<div class="field">
+				<label class="field-label" for="rename-confirm">
+					To confirm, type the current ID <code>{renaming.id}</code>
+				</label>
+				<input
+					id="rename-confirm"
+					class="input mono"
+					autocomplete="off"
+					spellcheck="false"
+					bind:value={confirmText}
+				/>
+			</div>
+		</form>
+	{/if}
+	{#snippet footer()}
+		<button type="button" class="btn" onclick={() => (renameOpen = false)}
+			>{renamed ? 'Done' : 'Cancel'}</button
+		>
+		{#if !renamed}
+			<button type="submit" form="rename-form" class="btn btn-danger" disabled={!canRename}>
+				{busy ? 'Changing…' : 'Change ID'}
+			</button>
 		{/if}
 	{/snippet}
 </Dialog>
@@ -454,5 +624,58 @@
 	code {
 		font-family: var(--font-mono);
 		font-size: 0.9em;
+	}
+
+	.current {
+		margin: 0;
+		padding: 10px 14px;
+		border-radius: 10px;
+		background: var(--surface-sunken);
+		font-size: 13px;
+	}
+
+	.current div {
+		display: grid;
+		grid-template-columns: 100px minmax(0, 1fr);
+		gap: 12px;
+		padding: 3px 0;
+	}
+
+	.current dt {
+		color: var(--text-2);
+	}
+
+	.current dd {
+		margin: 0;
+		overflow-wrap: anywhere;
+	}
+
+	.warning {
+		display: flex;
+		gap: 10px;
+		align-items: flex-start;
+		padding: 12px 14px;
+		border-radius: 12px;
+		background: var(--warning-soft);
+		color: var(--warning-text);
+		font-size: 13.5px;
+	}
+
+	.warning ul {
+		margin: 0;
+		padding-left: 18px;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.link {
+		padding: 0;
+		border: 0;
+		background: none;
+		color: var(--link);
+		font-size: inherit;
+		text-decoration: underline;
+		text-underline-offset: 3px;
 	}
 </style>

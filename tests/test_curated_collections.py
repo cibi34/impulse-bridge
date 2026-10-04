@@ -268,6 +268,76 @@ def test_admin_overview_and_new_key(client):
     ).status_code == 200
 
 
+def test_admin_changes_a_collection_id(client):
+    collection, key, _ = _create(client, "cube", "hare")
+    old = collection["id"]
+    client.patch(f"/admin/api/collections/{old}", json={"listed": True})
+
+    r = client.post(
+        f"/admin/api/collections/{old}/rename",
+        json={"new_id": "europeana-public-domain-images", "confirm": old},
+    )
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert (body["id"], body["previous_id"], body["listed"], body["item_count"]) == (
+        "europeana-public-domain-images", old, True, 2
+    )
+    assert body["uri"] == "http://bridge.test/collections/europeana-public-domain-images"
+    # The new URI serves everything, the old one is gone.
+    assert len(_impulse_assets(client, "europeana-public-domain-images")) == 2
+    assert client.get(f"/collections/{old}").json()["code"] == 1
+    assert [c["id"] for c in client.get("/collections").json()["data"]] == ["europeana-public-domain-images"]
+    # The edit key moved with it.
+    assert client.patch(
+        "/api/collections/europeana-public-domain-images", json={"name": "Renamed"}, headers=key
+    ).status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("new_id", "message"),
+    [
+        ("Europeana", "lowercase"),
+        ("with space", "lowercase"),
+        ("-leading", "lowercase"),
+        ("double--hyphen", "lowercase"),
+        ("trailing-", "lowercase"),
+        ("a.b", "lowercase"),
+        ("ab", "at least 3"),
+        ("x" * 81, "at most 80"),
+    ],
+)
+def test_admin_rename_rejects_ids_outside_the_id_schema(client, new_id, message):
+    collection, _, _ = _create(client, "cube")
+    r = client.post(
+        f"/admin/api/collections/{collection['id']}/rename",
+        json={"new_id": new_id, "confirm": collection["id"]},
+    )
+    assert r.status_code == 422 and message in r.json()["detail"]
+    assert client.get(f"/collections/{collection['id']}").json()["code"] == 0
+
+
+def test_admin_rename_needs_the_current_id_typed_and_a_free_new_id(client):
+    first, _, _ = _create(client, "cube")
+    second, _, _ = _create(client, "hare")
+    url = f"/admin/api/collections/{first['id']}/rename"
+
+    unconfirmed = client.post(url, json={"new_id": "fresh-id", "confirm": "something-else"})
+    taken = client.post(url, json={"new_id": second["id"], "confirm": first["id"]})
+    same = client.post(url, json={"new_id": first["id"], "confirm": first["id"]})
+    unknown = client.post("/admin/api/collections/nope/rename", json={"new_id": "fresh-id", "confirm": "nope"})
+
+    assert (unconfirmed.status_code, unconfirmed.json()["detail"]) == (
+        422, "Type the current ID exactly to confirm."
+    )
+    assert taken.status_code == 409 and second["id"] in taken.json()["detail"]
+    assert same.status_code == 422
+    assert unknown.status_code == 404
+    # Nothing moved.
+    assert len(_impulse_assets(client, first["id"])) == 1
+    assert len(_impulse_assets(client, second["id"])) == 1
+
+
 def test_creating_is_rate_limited(client, monkeypatch):
     monkeypatch.setattr(create_limit, "limit", 2)
     statuses = [client.post("/api/collections", json={"name": f"c{i}"}).status_code for i in range(3)]
