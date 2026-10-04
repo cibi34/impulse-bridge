@@ -314,17 +314,24 @@ def summaries(
     ids: Annotated[str, Query(description="Comma-separated collection ids")] = "",
 ):
     """Short public overviews of several collections (the browser's "My
-    collections" list). Unknown or locked ids are left out; `moved` maps
-    former ids to current ones, so the browser can update what it stored."""
+    collections" list). Unknown and locked ids are left out. So the browser
+    can tidy up what it stored: `moved` maps former ids to current ones,
+    `missing` lists ids that do not exist (any more) — locked ones do."""
     wanted = [i for i in dict.fromkeys(ids.split(",")) if i][:_MAX_SUMMARY_IDS]
     found = {r.id: r for r in store.get_many(wanted)}
     moved: dict[str, str] = {}
+    missing: list[str] = []
     for requested in wanted:
-        if requested not in found and (record := store.resolve(requested)) is not None:
+        if requested in found:
+            continue
+        record = store.resolve(requested)
+        if record is None:
+            missing.append(requested)
+        else:
             found.setdefault(record.id, record)
             moved[requested] = record.id
     records = [r for r in found.values() if not r.disabled]
-    return {**summaries_out(store, records), "moved": moved}
+    return {**summaries_out(store, records), "moved": moved, "missing": missing}
 
 
 @router.get("/{collection_id}")

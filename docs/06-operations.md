@@ -125,7 +125,7 @@ Plain JSON. Errors are `{"detail": "…"}` with a matching status; errors that c
 | GET | `/api/sources/{id}/assets` | — | Search: `?s=`, `?o=`, `?c=` (default 24, max 100), `?type=image\|model`, `?licence=free\|by` → `{source, items, hidden, offset, next_offset}`. Assets whose licence isn't accepted are left out and counted in `hidden`; every item carries `licence` |
 | GET | `/api/sources/{id}/assets/{asset_id}` | — | One asset of a source, with `licence` |
 | POST | `/api/collections` | create limit | `{name, description?, organization?, email?, items: [{source, asset_id}]}` → `201 {collection, edit_key, failed}` |
-| GET | `/api/collections?ids=a,b` | — | Overviews with up to 4 previews (≤ 100 ids; unknown and locked ids are left out); `moved` maps former ids (after a rename) to current ones |
+| GET | `/api/collections?ids=a,b` | — | Overviews with up to 4 previews (≤ 100 ids; unknown and locked ids are left out); `moved` maps former ids (after a rename) to current ones, `missing` lists ids that do not exist (any more). The web app uses both to keep the collections stored in the browser true (once per visit). |
 | GET | `/api/collections/{id}` | optional | Public view (visible items); with edit access the editor view (all items, `email`, `locked`) |
 | PATCH | `/api/collections/{id}` | edit | `name`, `description`, `organization`, `email` (`""` removes it) |
 | DELETE | `/api/collections/{id}` | edit | Delete → 204 |

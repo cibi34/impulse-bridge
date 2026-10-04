@@ -14,6 +14,12 @@ import type {
 } from './types';
 
 export * from './types';
+
+export interface Summaries {
+	collections: CollectionSummary[];
+	moved: Record<string, string>;
+	missing: string[];
+}
 export { ApiError, errorMessage } from './client';
 
 const enc = encodeURIComponent;
@@ -65,15 +71,12 @@ export const api = {
 	collection: (id: string, editKey?: string | null) =>
 		request<Collection>(`/api/collections/${enc(id)}`, { editKey }),
 
-	/** Overviews of stored collections; `moved` maps former ids to current ones. */
-	summaries: async (
-		ids: string[]
-	): Promise<{ collections: CollectionSummary[]; moved: Record<string, string> }> =>
+	/** Overviews of stored collections; `moved` maps former ids to current
+	 * ones, `missing` lists ids that do not exist (any more). */
+	summaries: async (ids: string[]): Promise<Summaries> =>
 		ids.length === 0
-			? { collections: [], moved: {} }
-			: request<{ collections: CollectionSummary[]; moved: Record<string, string> }>(
-					`/api/collections?ids=${ids.map(enc).join(',')}`
-				),
+			? { collections: [], moved: {}, missing: [] }
+			: request<Summaries>(`/api/collections?ids=${ids.map(enc).join(',')}`),
 
 	updateCollection: (
 		id: string,

@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import type { Snippet } from 'svelte';
+	import { onMount, type Snippet } from 'svelte';
 	import { api } from '#lib/api/index.js';
 	import { app } from '#lib/stores/app.svelte.js';
 	import { library } from '#lib/stores/library.svelte.js';
@@ -16,6 +16,12 @@
 	let { children }: { children: Snippet } = $props();
 
 	let menuOpen = $state(false);
+
+	// The sidebar lists collections stored in this browser; check them against
+	// the server once (renamed, deleted) so the list stays true.
+	onMount(() => {
+		library.sync();
+	});
 
 	const nav: { href: string; label: string; icon: IconName; match: string }[] = [
 		{ href: resolve('explore'), label: 'Explore', icon: 'search', match: '/explore' },

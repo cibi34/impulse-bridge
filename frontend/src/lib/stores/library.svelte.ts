@@ -1,4 +1,5 @@
 import { browser } from '$app/env';
+import { api, type Summaries } from '#lib/api/index.js';
 import { readJSON, remove, writeJSON } from '#lib/storage.js';
 
 const STORAGE_KEY = 'curator-library';
@@ -14,6 +15,7 @@ export interface LibraryEntry {
 
 class Library {
 	entries = $state<LibraryEntry[]>([]);
+	private synced = false;
 
 	constructor() {
 		if (browser) this.entries = readJSON<LibraryEntry[]>(STORAGE_KEY, []);
@@ -72,6 +74,28 @@ class Library {
 		this.entries = [merged, ...this.entries.filter((e) => e.id !== oldId && e.id !== newId)];
 		this.persist();
 		return true;
+	}
+
+	/**
+	 * Bring what this browser stored in line with the server's answer:
+	 * follow renamed collections, take over current names, and forget
+	 * collections that were deleted. Locked ones still exist and are kept.
+	 */
+	apply({ collections, moved, missing }: Summaries): void {
+		for (const [from, to] of Object.entries(moved)) this.follow(from, to);
+		for (const c of collections) this.rename(c.id, c.name);
+		for (const id of missing) this.forget(id);
+	}
+
+	/** Check the stored collections against the server, once per visit. */
+	async sync(): Promise<void> {
+		if (this.synced || this.entries.length === 0) return;
+		this.synced = true;
+		try {
+			this.apply(await api.summaries(this.entries.map((e) => e.id)));
+		} catch {
+			this.synced = false; // offline or failing: keep everything, try again later
+		}
 	}
 
 	forget(id: string): void {

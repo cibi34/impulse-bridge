@@ -316,6 +316,22 @@ def test_a_former_id_keeps_leading_to_the_collection(client):
     assert summaries["moved"] == {old: "new-home"}
 
 
+def test_summaries_tell_the_browser_what_is_gone(client):
+    kept, _, _ = _create(client, "cube")
+    locked, _, _ = _create(client, "hare")
+    deleted, deleted_key, _ = _create(client, "wave")
+    client.patch(f"/admin/api/collections/{locked['id']}", json={"disabled": True})
+    client.delete(f"/api/collections/{deleted['id']}", headers=deleted_key)
+
+    ids = ",".join([kept["id"], locked["id"], deleted["id"], "never-existed"])
+    body = client.get(f"/api/collections?ids={ids}").json()
+
+    assert [c["id"] for c in body["collections"]] == [kept["id"]]
+    # Locked collections still exist (their editors keep the key): not missing.
+    assert body["missing"] == [deleted["id"], "never-existed"]
+    assert body["moved"] == {}
+
+
 def test_former_ids_stay_reserved_for_their_collection(client):
     first, _, _ = _create(client, "cube")
     second, _, _ = _create(client, "hare")
