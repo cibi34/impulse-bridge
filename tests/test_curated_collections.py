@@ -284,14 +284,58 @@ def test_admin_changes_a_collection_id(client):
         "europeana-public-domain-images", old, True, 2
     )
     assert body["uri"] == "http://bridge.test/collections/europeana-public-domain-images"
-    # The new URI serves everything, the old one is gone.
+    assert body["former_ids"] == [old]
+    # The new URI serves everything and is the one listed.
     assert len(_impulse_assets(client, "europeana-public-domain-images")) == 2
-    assert client.get(f"/collections/{old}").json()["code"] == 1
     assert [c["id"] for c in client.get("/collections").json()["data"]] == ["europeana-public-domain-images"]
     # The edit key moved with it.
     assert client.patch(
         "/api/collections/europeana-public-domain-images", json={"name": "Renamed"}, headers=key
     ).status_code == 200
+
+
+def test_a_former_id_keeps_leading_to_the_collection(client):
+    collection, key, _ = _create(client, "cube", "hare")
+    old = collection["id"]
+    client.post(f"/admin/api/collections/{old}/rename", json={"new_id": "new-home", "confirm": old})
+
+    # Unity with the old URI: served, with the new URI in the metadata.
+    meta = client.get(f"/collections/{old}").json()
+    assert (meta["code"], meta["data"]["id"], meta["data"]["uri"]) == (
+        0, "new-home", "http://bridge.test/collections/new-home"
+    )
+    assert len(_impulse_assets(client, old)) == 2
+    # A browser with the old id: reads, edits and adds still work; the
+    # answers carry the new id so the web app can update what it stored.
+    assert client.get(f"/api/collections/{old}", headers=key).json()["id"] == "new-home"
+    assert client.patch(f"/api/collections/{old}", json={"name": "Moved"}, headers=key).json()["id"] == "new-home"
+    added = client.post(f"/api/collections/{old}/items", json={"items": [{"source": "demo", "asset_id": "wave"}]}, headers=key)
+    assert added.status_code == 200 and len(added.json()["added"]) == 1
+    summaries = client.get(f"/api/collections?ids={old}").json()
+    assert [c["id"] for c in summaries["collections"]] == ["new-home"]
+    assert summaries["moved"] == {old: "new-home"}
+
+
+def test_former_ids_stay_reserved_for_their_collection(client):
+    first, _, _ = _create(client, "cube")
+    second, _, _ = _create(client, "hare")
+    rename = lambda cid, new: client.post(  # noqa: E731
+        f"/admin/api/collections/{cid}/rename", json={"new_id": new, "confirm": cid}
+    )
+    assert rename(first["id"], "first-new").status_code == 200
+
+    taken = rename(second["id"], first["id"])
+    back = rename("first-new", first["id"])
+
+    assert taken.status_code == 409 and "former ID" in taken.json()["detail"]
+    # Taking back its own former id is fine; the id it leaves becomes the alias.
+    assert back.status_code == 200 and back.json()["former_ids"] == ["first-new"]
+    assert client.get("/collections/first-new").json()["data"]["id"] == first["id"]
+
+    # Deleting the collection frees its former ids.
+    client.delete(f"/admin/api/collections/{first['id']}")
+    assert client.get("/collections/first-new").json()["code"] == 1
+    assert rename(second["id"], "first-new").status_code == 200
 
 
 @pytest.mark.parametrize(

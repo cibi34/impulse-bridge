@@ -27,7 +27,8 @@ Accepted = Annotated[frozenset[str], Depends(get_licence_conditions)]
 
 
 def _published(store: CollectionStore, collection_id: str) -> CollectionRecord:
-    record = store.get(collection_id)
+    """The collection (also by a former id, after a rename), unless locked."""
+    record = store.resolve(collection_id)
     if record is None or record.disabled:
         raise CollectionNotFound(f"Collection '{collection_id}' not found")
     return record
@@ -54,11 +55,11 @@ def list_assets(
     o: Annotated[str | None, Query(description="Result offset (integer >= 0)")] = None,
     c: Annotated[str | None, Query(description="Result count (integer >= 1)")] = None,
 ):
-    _published(store, collection_id)
+    record = _published(store, collection_id)
     offset, count = pagination(o, c)
     assets = [
         impulse_asset(item)
-        for item in store.items(collection_id, published_only=True)
+        for item in store.items(record.id, published_only=True)
         if served(item, accepted)
     ]
     matched = [a for a in assets if matches_pattern(a, s)]
@@ -68,8 +69,8 @@ def list_assets(
 
 @router.get("/collections/{collection_id}/asset/{asset_id}")
 def get_asset(collection_id: str, asset_id: str, store: Store, accepted: Accepted):
-    _published(store, collection_id)
-    item = store.item(collection_id, asset_id)
+    record = _published(store, collection_id)
+    item = store.item(record.id, asset_id)
     if item is None or not served(item, accepted):
         raise AssetNotFound(f"Asset '{asset_id}' not found in collection '{collection_id}'")
     return impulse_response(data=impulse_asset(item))

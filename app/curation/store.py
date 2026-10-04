@@ -31,6 +31,15 @@ class CollectionRecord:
     item_count: int = 0
 
 
+class IdTaken(Exception):
+    """A rename target that is another collection's id or former id."""
+
+    def __init__(self, owner: CollectionRecord, former: bool) -> None:
+        super().__init__(owner.id)
+        self.owner = owner
+        self.former = former
+
+
 @dataclass(frozen=True)
 class ItemRecord:
     asset_id: str
@@ -119,10 +128,35 @@ class CollectionStore:
         return record
 
     def exists(self, collection_id: str) -> bool:
+        """Whether the id is in use — as a collection's id or a former one."""
         with self.db.read() as conn:
             return conn.execute(
-                "SELECT 1 FROM collections WHERE id = ?", (collection_id,)
+                "SELECT 1 FROM collections WHERE id = ? "
+                "UNION ALL SELECT 1 FROM collection_aliases WHERE alias = ?",
+                (collection_id, collection_id),
             ).fetchone() is not None
+
+    def resolve(self, collection_id: str) -> CollectionRecord | None:
+        """The collection with this id, or the one that had it before a rename."""
+        record = self.get(collection_id)
+        if record is not None:
+            return record
+        with self.db.read() as conn:
+            row = conn.execute(
+                "SELECT collection_id FROM collection_aliases WHERE alias = ?", (collection_id,)
+            ).fetchone()
+        return self.get(row["collection_id"]) if row else None
+
+    def aliases(self) -> dict[str, list[str]]:
+        """Former ids by collection id, oldest first."""
+        with self.db.read() as conn:
+            rows = conn.execute(
+                "SELECT alias, collection_id FROM collection_aliases ORDER BY created_at, alias"
+            ).fetchall()
+        out: dict[str, list[str]] = {}
+        for row in rows:
+            out.setdefault(row["collection_id"], []).append(row["alias"])
+        return out
 
     def get(self, collection_id: str) -> CollectionRecord | None:
         with self.db.read() as conn:
@@ -194,17 +228,29 @@ class CollectionStore:
                 (*fields.values(), utcnow(), collection_id),
             )
 
-    def rename(self, collection_id: str, new_id: str) -> bool:
-        """Give a collection a new id; its items move along, its edit key and
-        everything else stay. False (and nothing changed) if `new_id` is taken."""
+    def rename(self, collection_id: str, new_id: str) -> None:
+        """Give a collection a new id. Items, edit key and everything else
+        move along, and the old id stays as an alias that keeps leading to the
+        collection (links, browsers, registered URIs). Raises IdTaken if
+        `new_id` is another collection's id or former id — a collection may
+        take back one of its own former ids."""
+        now = utcnow()
         with self.db.transaction() as conn:
             if conn.execute("SELECT 1 FROM collections WHERE id = ?", (new_id,)).fetchone():
-                return False
-            # The items' reference is checked at commit, once both rows moved.
+                raise IdTaken(self._get(conn, new_id), former=False)
+            row = conn.execute(
+                "SELECT collection_id FROM collection_aliases WHERE alias = ?", (new_id,)
+            ).fetchone()
+            if row and row["collection_id"] != collection_id:
+                raise IdTaken(self._get(conn, row["collection_id"]), former=True)
+            if row:
+                conn.execute("DELETE FROM collection_aliases WHERE alias = ?", (new_id,))
+            # The items' reference is checked at commit, once both rows moved;
+            # aliases follow by ON UPDATE CASCADE.
             conn.execute("PRAGMA defer_foreign_keys = ON")
             moved = conn.execute(
                 "UPDATE collections SET id = ?, updated_at = ? WHERE id = ?",
-                (new_id, utcnow(), collection_id),
+                (new_id, now, collection_id),
             ).rowcount
             if moved != 1:
                 raise KeyError(collection_id)
@@ -212,7 +258,17 @@ class CollectionStore:
                 "UPDATE collection_items SET collection_id = ? WHERE collection_id = ?",
                 (new_id, collection_id),
             )
-        return True
+            conn.execute(
+                "INSERT INTO collection_aliases (alias, collection_id, created_at) VALUES (?, ?, ?)",
+                (collection_id, new_id, now),
+            )
+
+    @staticmethod
+    def _get(conn: sqlite3.Connection, collection_id: str) -> CollectionRecord:
+        row = conn.execute(
+            f"SELECT {_COLLECTION_COLUMNS} FROM collections c WHERE c.id = ?", (collection_id,)
+        ).fetchone()
+        return _collection(row)
 
     def delete(self, collection_id: str) -> bool:
         with self.db.transaction() as conn:

@@ -125,7 +125,7 @@ Plain JSON. Errors are `{"detail": "…"}` with a matching status; errors that c
 | GET | `/api/sources/{id}/assets` | — | Search: `?s=`, `?o=`, `?c=` (default 24, max 100), `?type=image\|model`, `?licence=free\|by` → `{source, items, hidden, offset, next_offset}`. Assets whose licence isn't accepted are left out and counted in `hidden`; every item carries `licence` |
 | GET | `/api/sources/{id}/assets/{asset_id}` | — | One asset of a source, with `licence` |
 | POST | `/api/collections` | create limit | `{name, description?, organization?, email?, items: [{source, asset_id}]}` → `201 {collection, edit_key, failed}` |
-| GET | `/api/collections?ids=a,b` | — | Overviews with up to 4 previews (≤ 100 ids; unknown and locked ids are left out) |
+| GET | `/api/collections?ids=a,b` | — | Overviews with up to 4 previews (≤ 100 ids; unknown and locked ids are left out); `moved` maps former ids (after a rename) to current ones |
 | GET | `/api/collections/{id}` | optional | Public view (visible items); with edit access the editor view (all items, `email`, `locked`) |
 | PATCH | `/api/collections/{id}` | edit | `name`, `description`, `organization`, `email` (`""` removes it) |
 | DELETE | `/api/collections/{id}` | edit | Delete → 204 |
@@ -154,7 +154,7 @@ Plain JSON; no app-level authentication — protect `/admin` at the proxy.
 | GET | `/admin/api/collections` | All collections incl. email, `listed`, `disabled`, `submitted_at` |
 | PATCH | `/admin/api/collections/{id}` | `{listed?, disabled?}` |
 | DELETE | `/admin/api/collections/{id}` | Delete with items → 204 |
-| POST | `/admin/api/collections/{id}/rename` | `{new_id, confirm}` (`confirm` = the current id) → the collection with `previous_id`; 422 for an invalid id or a wrong confirmation, 409 if the id is taken. The old URI stops working. |
+| POST | `/admin/api/collections/{id}/rename` | `{new_id, confirm}` (`confirm` = the current id) → the collection with `previous_id` and `former_ids`; 422 for an invalid id or a wrong confirmation, 409 if the id is another collection's id or former id. The old id keeps forwarding (Impulse API and web app API). |
 | POST | `/admin/api/collections/{id}/key` | New edit key → `{edit_key}` |
 | GET | `/admin/api/sources` | Every config file: `filename`, `id`, `name`, `kind`, `base_url`, `loaded`, `error`; plus `loaded_count`, `load_errors` |
 | POST | `/admin/api/reload` | Reload all files from disk; returns the same as `GET /admin/api/sources` |

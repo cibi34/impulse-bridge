@@ -70,7 +70,14 @@
 		if (id) {
 			api
 				.collection(id, library.keyFor(id))
-				.then((c) => (target = c.can_edit ? c : null))
+				.then((c) => {
+					if (c.id !== id) {
+						library.follow(id, c.id);
+						navigate({ add: c.id }, true);
+						return;
+					}
+					target = c.can_edit ? c : null;
+				})
 				.catch(() => (target = null));
 		}
 	});

@@ -22,7 +22,9 @@
 		const signedIn = !!app.email;
 		loading = true;
 		Promise.all([api.summaries(ids), signedIn ? api.myCollections() : Promise.resolve([])])
-			.then(([local, remote]) => {
+			.then(([{ collections: local, moved }, remote]) => {
+				// Renamed by an admin: keep this device's entries (and keys) in step.
+				for (const [from, to] of Object.entries(moved)) library.follow(from, to);
 				// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local, not state
 				const merged = new Map<string, CollectionSummary>();
 				for (const c of [...local, ...remote]) merged.set(c.id, c);

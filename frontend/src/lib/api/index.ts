@@ -65,14 +65,15 @@ export const api = {
 	collection: (id: string, editKey?: string | null) =>
 		request<Collection>(`/api/collections/${enc(id)}`, { editKey }),
 
-	summaries: async (ids: string[]) =>
+	/** Overviews of stored collections; `moved` maps former ids to current ones. */
+	summaries: async (
+		ids: string[]
+	): Promise<{ collections: CollectionSummary[]; moved: Record<string, string> }> =>
 		ids.length === 0
-			? []
-			: (
-					await request<{ collections: CollectionSummary[] }>(
-						`/api/collections?ids=${ids.map(enc).join(',')}`
-					)
-				).collections,
+			? { collections: [], moved: {} }
+			: request<{ collections: CollectionSummary[]; moved: Record<string, string> }>(
+					`/api/collections?ids=${ids.map(enc).join(',')}`
+				),
 
 	updateCollection: (
 		id: string,

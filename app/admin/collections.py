@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
 from app.curation.service import collection_id_problem, collection_uri, new_edit_key
-from app.curation.store import CollectionRecord, CollectionStore
+from app.curation.store import CollectionRecord, CollectionStore, IdTaken
 from app.storage import get_store
 
 router = APIRouter(prefix="/admin/api/collections", tags=["admin"])
@@ -21,9 +21,10 @@ logger = logging.getLogger(__name__)
 Store = Annotated[CollectionStore, Depends(get_store)]
 
 
-def _out(record: CollectionRecord) -> dict[str, Any]:
+def _out(record: CollectionRecord, aliases: dict[str, list[str]]) -> dict[str, Any]:
     return {
         "id": record.id,
+        "former_ids": aliases.get(record.id, []),
         "uri": collection_uri(record.id),
         "name": record.name,
         "description": record.description,
@@ -54,7 +55,8 @@ class AdminUpdate(BaseModel):
 
 @router.get("")
 def list_all(store: Store):
-    return {"collections": [_out(r) for r in store.list_all()]}
+    aliases = store.aliases()
+    return {"collections": [_out(r, aliases) for r in store.list_all()]}
 
 
 @router.patch("/{collection_id}")
@@ -62,7 +64,7 @@ def update(collection_id: str, body: AdminUpdate, store: Store):
     _get(store, collection_id)
     fields = {k: int(v) for k, v in body.model_dump(exclude_none=True).items()}
     store.update(collection_id, **fields)
-    return _out(_get(store, collection_id))
+    return _out(_get(store, collection_id), store.aliases())
 
 
 @router.delete("/{collection_id}", status_code=204)
@@ -82,8 +84,9 @@ class RenameBody(BaseModel):
 @router.post("/{collection_id}/rename")
 def rename(collection_id: str, body: RenameBody, store: Store):
     """Change a collection's id — and with it its URI, which is how Impulse
-    and Unity load it: the old URI stops working. Items, edit key, flags and
-    the creation date stay."""
+    and Unity load it. The old id stays as an alias, so old URIs, edit links
+    and browsers keep finding the collection. Items, edit key, flags and the
+    creation date stay."""
     record = _get(store, collection_id)
     if body.confirm.strip() != record.id:
         raise HTTPException(status_code=422, detail="Type the current ID exactly to confirm.")
@@ -94,15 +97,18 @@ def rename(collection_id: str, body: RenameBody, store: Store):
     if problem:
         raise HTTPException(status_code=422, detail=problem)
     try:
-        renamed = store.rename(record.id, new_id)
+        store.rename(record.id, new_id)
     except KeyError:  # deleted in the meantime
         raise HTTPException(status_code=404, detail=f"Collection '{collection_id}' not found") from None
-    if not renamed:
-        raise HTTPException(
-            status_code=409, detail=f"The ID “{new_id}” is already used by another collection."
+    except IdTaken as taken:
+        detail = (
+            f"“{new_id}” is a former ID of “{taken.owner.name}”; its old links lead there."
+            if taken.former
+            else f"The ID “{new_id}” is already used by “{taken.owner.name}”."
         )
+        raise HTTPException(status_code=409, detail=detail) from None
     logger.info("Collection %r renamed to %r by an admin", record.id, new_id)
-    return {**_out(_get(store, new_id)), "previous_id": record.id}
+    return {**_out(_get(store, new_id), store.aliases()), "previous_id": record.id}
 
 
 @router.post("/{collection_id}/key")

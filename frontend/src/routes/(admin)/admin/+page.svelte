@@ -42,6 +42,10 @@
 		if (wantedId === renaming.id) return 'That is already the collection’s ID.';
 		const taken = collections.find((c) => c.id === wantedId);
 		if (taken) return `Already used by “${taken.name}”.`;
+		const former = collections.find(
+			(c) => c.id !== renaming!.id && c.former_ids.includes(wantedId)
+		);
+		if (former) return `A former ID of “${former.name}” — its old links lead there.`;
 		return collectionIdProblem(wantedId);
 	});
 	const idSuggestion = $derived(wantedId && idProblem ? suggestCollectionId(wantedId) : null);
@@ -255,6 +259,9 @@
 							<div class="name-cell">
 								<a href={resolve(`c/${c.id}`)} class="name">{c.name}</a>
 								<span class="mono id">{c.id}</span>
+								{#if c.former_ids.length}
+									<span class="caption tertiary">formerly {c.former_ids.join(', ')}</span>
+								{/if}
 							</div>
 						</td>
 						<td>{c.item_count}</td>
@@ -351,11 +358,11 @@
 			<CopyField
 				label="New collection URL"
 				value={renamed.uri}
-				hint="Register this URL in IMPULSE, or replace the old one where it is entered."
+				hint="Use this URL from now on — in IMPULSE and wherever you enter it."
 			/>
 			<p class="footnote secondary">
-				<code>…/collections/{renamed.from}</code> no longer works. The creator's edit link keeps
-				working with the new ID in it: <code>/c/{renaming.id}/edit#key=…</code>
+				<code>…/collections/{renamed.from}</code> keeps forwarding here, so existing entries don't break.
+				The creator's edit link and their browser follow to the new ID on their own.
 			</p>
 		</div>
 	{:else if renaming}
@@ -382,8 +389,9 @@
 				<Icon name="alert" size={16} />
 				<ul>
 					<li>
-						<strong>The URL changes with the ID.</strong> Impulse and Unity load the collection by its
-						URL: wherever the old one is entered, it stops working.
+						<strong>The collection gets a new URL.</strong> The old one keeps working as a forwarding
+						address — for Unity entries, edit links and browsers that still use it — and stays reserved
+						for this collection.
 					</li>
 					{#if renaming.listed}
 						<li>
@@ -394,13 +402,9 @@
 					{#if renaming.submitted_at}
 						<li>
 							It was <strong>submitted {timeAgo(renaming.submitted_at)}</strong> — the IMPULSE team may
-							have registered the old URL.
+							have registered the old URL. It keeps working, but tell them the new one.
 						</li>
 					{/if}
-					<li>
-						“My collections” in the creator's browser still points at the old ID; their edit link
-						works with the new one.
-					</li>
 				</ul>
 			</div>
 

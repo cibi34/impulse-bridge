@@ -199,7 +199,9 @@ def _bearer(authorization: str | None) -> str | None:
 
 
 def _visible(store: CollectionStore, collection_id: str) -> CollectionRecord:
-    record = store.get(collection_id)
+    """The collection, also by a former id (after an admin renamed it): the
+    response carries the current id, and the web app updates its links."""
+    record = store.resolve(collection_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Collection not found")
     return record
@@ -312,9 +314,17 @@ def summaries(
     ids: Annotated[str, Query(description="Comma-separated collection ids")] = "",
 ):
     """Short public overviews of several collections (the browser's "My
-    collections" list). Unknown or locked ids are left out."""
+    collections" list). Unknown or locked ids are left out; `moved` maps
+    former ids to current ones, so the browser can update what it stored."""
     wanted = [i for i in dict.fromkeys(ids.split(",")) if i][:_MAX_SUMMARY_IDS]
-    return summaries_out(store, [r for r in store.get_many(wanted) if not r.disabled])
+    found = {r.id: r for r in store.get_many(wanted)}
+    moved: dict[str, str] = {}
+    for requested in wanted:
+        if requested not in found and (record := store.resolve(requested)) is not None:
+            found.setdefault(record.id, record)
+            moved[requested] = record.id
+    records = [r for r in found.values() if not r.disabled]
+    return {**summaries_out(store, records), "moved": moved}
 
 
 @router.get("/{collection_id}")
@@ -332,7 +342,7 @@ def read(
     editor = _access(record, request, authorization, auth) is not None
     if record.disabled and not editor:
         raise HTTPException(status_code=404, detail="Collection not found")
-    items = store.items(collection_id, published_only=not editor)
+    items = store.items(record.id, published_only=not editor)
     return _collection_out(record, items, accepted, editor=editor)
 
 

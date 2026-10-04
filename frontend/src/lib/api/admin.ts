@@ -5,6 +5,8 @@ const enc = encodeURIComponent;
 
 export interface AdminCollection {
 	id: string;
+	/** Ids it had before a rename; they keep leading to it. */
+	former_ids: string[];
 	uri: string;
 	name: string;
 	description: string;

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import {
@@ -29,7 +30,14 @@
 		error = null;
 		api
 			.collection(current, library.keyFor(current))
-			.then((c) => (collection = c))
+			.then((c) => {
+				collection = c;
+				if (c.id !== current) {
+					// Opened by a former id: continue under the current one.
+					library.follow(current, c.id);
+					goto(resolve(`c/${c.id}`), { replace: true });
+				}
+			})
 			.catch(
 				(e) => (error = e instanceof ApiError && e.status === 404 ? 'not-found' : errorMessage(e))
 			);

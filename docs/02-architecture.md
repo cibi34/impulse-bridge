@@ -180,7 +180,8 @@ SQLite file `data/curator.db` (`BRIDGE_DATABASE_PATH` overrides it). One connect
 |---|---|
 | `collections` | id, name, description, organization, `owner_email` (optional, never public), `edit_key_hash`, `listed`, `disabled` (locked), `submitted_at`, `created_at`, `updated_at` |
 | `collection_items` | collection id, `asset_id` (collection-internal), `source_id` + `source_asset_id` (unique per collection), `position`, `published`, `asset` (snapshot JSON), `added_at`, `refreshed_at` |
-| `site_settings` | key/value JSON: submission address, SMTP account |
+| `collection_aliases` | former ids of renamed collections → current id (`ON UPDATE/DELETE CASCADE`); `CollectionStore.resolve()` follows them for the Impulse API and the web app API, so old URIs and links keep working |
+| `site_settings` | key/value JSON: submission address, SMTP account, accepted licence conditions |
 | `login_tokens` | SHA-256 hashes of one-time sign-in tokens, email, expiry, `used_at` |
 | `sessions` | SHA-256 hashes of session ids, email, expiry |
 

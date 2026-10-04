@@ -56,6 +56,11 @@
 	async function load() {
 		try {
 			const result = await api.collection(id, key);
+			if (result.id !== id) {
+				// Opened by a former id: move this device's entry and the address.
+				library.follow(id, result.id);
+				await goto(resolve(`c/${result.id}/edit`), { replace: true });
+			}
 			collection = result;
 			name = result.name;
 			description = result.description;

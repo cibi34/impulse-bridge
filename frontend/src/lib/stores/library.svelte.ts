@@ -53,6 +53,27 @@ class Library {
 		this.persist();
 	}
 
+	/**
+	 * An admin gave a collection a new id; the server still finds it by the
+	 * old one and answers with the new one. Move what this browser stored
+	 * (name, edit key) over to the new id. Returns whether anything moved.
+	 */
+	follow(oldId: string, newId: string): boolean {
+		if (oldId === newId) return false;
+		const old = this.get(oldId);
+		if (!old) return false;
+		const current = this.get(newId);
+		const merged: LibraryEntry = {
+			...old,
+			...current,
+			id: newId,
+			key: current?.key ?? old.key
+		};
+		this.entries = [merged, ...this.entries.filter((e) => e.id !== oldId && e.id !== newId)];
+		this.persist();
+		return true;
+	}
+
 	forget(id: string): void {
 		this.entries = this.entries.filter((e) => e.id !== id);
 		this.persist();

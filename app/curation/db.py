@@ -75,6 +75,16 @@ MIGRATIONS: list[str] = [
         expires_at      TEXT NOT NULL
     );
     """,
+    # 3 — former ids of renamed collections: they keep leading to the collection
+    """
+    CREATE TABLE collection_aliases (
+        alias           TEXT PRIMARY KEY,
+        collection_id   TEXT NOT NULL
+                        REFERENCES collections (id) ON DELETE CASCADE ON UPDATE CASCADE,
+        created_at      TEXT NOT NULL
+    );
+    CREATE INDEX collection_aliases_collection ON collection_aliases (collection_id);
+    """,
 ]
 
 
