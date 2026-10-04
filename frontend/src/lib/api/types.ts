@@ -33,6 +33,13 @@ export interface Asset {
 	previewURI?: string;
 	scale?: string;
 	published?: number;
+	format?: string;
+	coverage?: string;
+	/** Pixels of the media file, where the archive says (web app only). */
+	width?: number;
+	height?: number;
+	/** Bytes of the media file, where the archive says (web app only). */
+	fileSize?: number;
 	/** Added by the web app API to search results and source lookups. */
 	licence?: Licence;
 	[field: string]: unknown;

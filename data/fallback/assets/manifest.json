@@ -13,7 +13,8 @@
         "identifier": "bridge-demo:demo-cube",
         "subject": "demo",
         "type": "3D Model",
-        "published": 1
+        "published": 1,
+        "format": "glTF 2.0 binary, 12 triangles, 1 texture"
     },
     {
         "assetID": "demo-sphere",
@@ -29,7 +30,8 @@
         "identifier": "bridge-demo:demo-sphere",
         "subject": "demo",
         "type": "3D Model",
-        "published": 1
+        "published": 1,
+        "format": "glTF 2.0 binary, 3,968 triangles"
     },
     {
         "assetID": "demo-column",
@@ -45,7 +47,8 @@
         "identifier": "bridge-demo:demo-column",
         "subject": "demo; architecture",
         "type": "3D Model",
-        "published": 1
+        "published": 1,
+        "format": "glTF 2.0 binary, 3,736 triangles"
     },
     {
         "assetID": "demo-image",

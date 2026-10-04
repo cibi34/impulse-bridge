@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { kindLabel, plural, timeAgo } from './format';
+import {
+	dimensionsLabel,
+	fileSizeLabel,
+	kindLabel,
+	megapixelsLabel,
+	plural,
+	timeAgo
+} from './format';
 
 describe('format', () => {
 	it('describes how long ago something happened', () => {
@@ -15,5 +22,21 @@ describe('format', () => {
 		expect(kindLabel('model/gltf-binary')).toBe('3D model');
 		expect(kindLabel('image/jpeg')).toBe('Image');
 		expect(kindLabel(undefined)).toBe('Asset');
+	});
+});
+
+describe('sizes', () => {
+	it('labels file sizes like the server', () => {
+		expect(fileSizeLabel(8770678)).toBe('8.8 MB');
+		expect(fileSizeLabel(3000)).toBe('3 KB');
+		expect(fileSizeLabel(999)).toBe('999 bytes');
+		expect(fileSizeLabel('n/a')).toBeNull();
+	});
+
+	it('labels pixel sizes', () => {
+		expect(dimensionsLabel(3606, '2894')).toBe('3606 × 2894');
+		expect(dimensionsLabel(10, null)).toBeNull();
+		expect(megapixelsLabel(3606, 2894)).toBe('10.4 MP');
+		expect(megapixelsLabel(800, 600)).toBeNull();
 	});
 });

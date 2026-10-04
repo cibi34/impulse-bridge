@@ -68,6 +68,13 @@ mapping:
       literal: "Wikimedia Commons"
     scale:
       literal: "1"
+    # The original file's size: shown in the web app, sent to Unity in `format`.
+    width:
+      expr: "imageinfo[0].width"
+    height:
+      expr: "imageinfo[0].height"
+    fileSize:
+      expr: "imageinfo[0].size"
 
 filter:
   allowed_content_types:

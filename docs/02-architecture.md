@@ -147,7 +147,7 @@ Collection metadata (`impulse_collection()` in [`app/curation/service.py`](../ap
 | `owner_id` | `BRIDGE_COLLECTION_OWNER_ID` for every collection — never the creator's email, because collection metadata is public |
 | `published` | Always `1` |
 
-Assets are the stored snapshot with two fields overridden: `assetID` (the collection's own id for the item) and `published: 1`.
+Assets are the stored snapshot with two fields overridden: `assetID` (the collection's own id for the item) and `published: 1`. The curator details `width`, `height` and `fileSize` are left out and summed up in `format` ("6000 × 3257 px, 9.3 MB"; appended to a format the source maps) — `impulse_asset()` vs. `web_asset()` in [`app/curation/service.py`](../app/curation/service.py).
 
 ### Response envelope and codes
 

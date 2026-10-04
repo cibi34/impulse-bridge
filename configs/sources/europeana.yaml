@@ -69,9 +69,12 @@ mapping:
     scale:
       literal: "1"
     subject:
-      expr: "dcSubject[0]"
+      # Up to five keywords; linked-data URIs left out.
+      expr: "join(', ', ((dcSubjectLangAware.en || dcSubjectLangAware.def) || `[]`)[?!starts_with(@, 'http')] | [:5])"
+    type:
+      expr: "edmConceptPrefLabelLangAware.en[0] || dcTypeLangAware.en[0] || dcTypeLangAware.def[0]"
     language:
-      expr: "dcLanguage[0]"
+      expr: "language[0]"
 
 filter:
   allowed_content_types:

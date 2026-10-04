@@ -276,7 +276,52 @@ def impulse_collection(record: CollectionRecord) -> dict[str, Any]:
     }
 
 
+DETAIL_FIELDS = ("width", "height", "fileSize")
+"""Technical facts a source may map (pixels, bytes): the web app shows them.
+They are not part of the Impulse asset schema, so the Impulse API leaves them
+out and sums them up in the Dublin Core `format` field instead."""
+
+
+def _count(value: Any) -> int | None:
+    try:
+        number = int(float(value))
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
+def human_size(size: int) -> str:
+    """8770678 → "8.8 MB" (decimal units, like file managers)."""
+    for unit, factor in (("GB", 10**9), ("MB", 10**6), ("KB", 10**3)):
+        if size >= factor:
+            return f"{size / factor:.1f} {unit}".replace(".0 ", " ")
+    return f"{size} bytes"
+
+
+def format_summary(asset: dict[str, Any]) -> str | None:
+    """"3606 × 2894 px, 8.8 MB" from the detail fields, or None."""
+    width, height, size = (_count(asset.get(k)) for k in DETAIL_FIELDS)
+    parts = []
+    if width and height:
+        parts.append(f"{width} × {height} px")
+    if size:
+        parts.append(human_size(size))
+    return ", ".join(parts) or None
+
+
 def impulse_asset(item: ItemRecord) -> dict[str, Any]:
+    """The asset as the Impulse API serves it: schema fields only, with the
+    detail fields folded into `format` ("glTF 2.0 binary, 76 KB")."""
+    asset = {k: v for k, v in item.asset.items() if k not in DETAIL_FIELDS}
+    summary = format_summary(item.asset)
+    if summary:
+        mapped = str(asset.get("format") or "").strip()
+        asset["format"] = f"{mapped}, {summary}" if mapped and summary not in mapped else mapped or summary
+    return {**asset, "assetID": item.asset_id, "published": 1}
+
+
+def web_asset(item: ItemRecord) -> dict[str, Any]:
+    """The asset as the web app shows it: everything the source mapped."""
     return {**item.asset, "assetID": item.asset_id, "published": 1}
 
 

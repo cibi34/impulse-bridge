@@ -248,6 +248,7 @@ How upstream items become Impulse asset dicts. Snapshots in curated collections 
 **Internal / management:** `assetID`, `assetURI`, `contentType`, `previewURI`, `published`, `scale`.
 **Dublin Core, required:** `contributor`, `description`, `identifier`, `rights`, `title`.
 **Dublin Core, optional:** `coverage`, `creator`, `date`, `format`, `language`, `publisher`, `relation`, `source`, `subject`, `type`.
+**Curator details (optional):** `width`, `height` (pixels of the media file), `fileSize` (bytes) — numbers. The web app shows them (cards, details, editor); they are not part of the Impulse schema, so the Impulse API leaves them out and adds them to `format` instead (`"3606 × 2894 px, 8.8 MB"`, appended to a mapped `format`). Fallback sources fill `fileSize`, and for PNG files `width` and `height`, from their local files when the manifest doesn't state them.
 
 Notes:
 

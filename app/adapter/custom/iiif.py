@@ -175,6 +175,11 @@ class IIIFManifestSource(Source):
                 "type": "Image",
                 "published": 1,
             }
+            # The page's size in pixels (the canvas, or the image on it).
+            for key in ("width", "height"):
+                size = canvas.get(key)
+                if isinstance(size, int) and size > 0:
+                    asset[key] = size
             assets.append(asset)
             self._by_id[asset["assetID"]] = asset
 

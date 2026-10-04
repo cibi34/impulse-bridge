@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Asset } from '#lib/api/index.js';
-	import { kindLabel } from '#lib/format.js';
+	import { dimensionsLabel, kindLabel } from '#lib/format.js';
 	import { licenceLabel } from '#lib/licences.js';
 	import AssetThumb from './AssetThumb.svelte';
 	import Icon from './Icon.svelte';
@@ -25,6 +25,7 @@
 	} = $props();
 
 	const title = $derived(asset.title || 'Untitled');
+	const dims = $derived(dimensionsLabel(asset.width, asset.height));
 	const meta = $derived([licenceLabel(asset), sourceName].filter(Boolean).join(' · '));
 </script>
 
@@ -45,7 +46,9 @@
 			{#if selected || included}<Icon name="check" size={14} strokeWidth={3} />{/if}
 		</span>
 		{#if included}<span class="in" aria-hidden="true">In collection</span>{/if}
-		<span class="kind" aria-hidden="true">{kindLabel(asset.contentType)}</span>
+		<span class="kind" aria-hidden="true"
+			>{kindLabel(asset.contentType)}{dims ? ` · ${dims}` : ''}</span
+		>
 	</button>
 	<div class="text">
 		<h3>
@@ -151,6 +154,10 @@
 		position: absolute;
 		left: 10px;
 		bottom: 10px;
+		max-width: calc(100% - 20px);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 		padding: 3px 8px;
 		border-radius: 999px;
 		background: rgb(18 18 20 / 0.72);

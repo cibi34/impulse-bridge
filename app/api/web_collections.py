@@ -24,10 +24,10 @@ from app.curation.service import (
     collection_uri,
     create_collection,
     edit_key_matches,
-    impulse_asset,
     new_edit_key,
     refresh_items,
     served,
+    web_asset,
 )
 from app.curation.store import CollectionRecord, CollectionStore, ItemRecord, utcnow
 from app.licensing import classify
@@ -145,7 +145,7 @@ def _item_out(item: ItemRecord, accepted: frozenset[str]) -> dict[str, Any]:
         "source_asset_id": item.source_asset_id,
         "published": item.published,
         "licence": classify(item.asset.get("rights")).as_dict(accepted),
-        "asset": impulse_asset(item),
+        "asset": web_asset(item),
         "added_at": item.added_at,
         "refreshed_at": item.refreshed_at,
     }

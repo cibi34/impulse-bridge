@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Asset, Licence } from '#lib/api/index.js';
-	import { kindLabel } from '#lib/format.js';
+	import { dimensionsLabel, fileSizeLabel, kindLabel, megapixelsLabel } from '#lib/format.js';
 	import { conditionsText, licenceLabel } from '#lib/licences.js';
 	import AssetThumb from './AssetThumb.svelte';
 	import Dialog from './Dialog.svelte';
@@ -31,21 +31,31 @@
 		typeof value === 'string' && /^https?:\/\//i.test(value);
 
 	const assetLicence = $derived(licence ?? asset?.licence ?? null);
+	const resolution = $derived.by(() => {
+		const dims = asset ? dimensionsLabel(asset.width, asset.height) : null;
+		if (!dims) return null;
+		const mp = megapixelsLabel(asset!.width, asset!.height);
+		return `${dims} px${mp ? ` (${mp})` : ''}`;
+	});
 
 	const rows = $derived(
 		asset
 			? ([
 					['Creator', asset.creator],
 					['Date', asset.date],
+					['Place', asset.coverage],
 					['Institution', asset.contributor],
 					['Licence', assetLicence?.label ?? licenceLabel(asset)],
 					['Subject', asset.subject],
 					['Type', asset.type],
 					['Language', asset.language],
 					[
-						'Format',
+						'Media',
 						kindLabel(asset.contentType) + (asset.contentType ? ` (${asset.contentType})` : '')
 					],
+					['Resolution', resolution],
+					['File size', fileSizeLabel(asset.fileSize)],
+					['Format', asset.format],
 					['Source', sourceName]
 				].filter(([, v]) => typeof v === 'string' && v.trim() !== '') as [string, string][])
 			: []

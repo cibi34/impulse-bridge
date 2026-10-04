@@ -38,6 +38,40 @@ export function kindLabel(contentType: string | undefined): string {
 	return 'Asset';
 }
 
+const count = (value: unknown): number | null => {
+	const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+	return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+};
+
+/** 8770678 → "8.8 MB" — decimal units, like file managers (and the server). */
+export function fileSizeLabel(bytes: unknown): string | null {
+	const size = count(bytes);
+	if (!size) return null;
+	for (const [unit, factor] of [
+		['GB', 1e9],
+		['MB', 1e6],
+		['KB', 1e3]
+	] as const) {
+		if (size >= factor) return `${(size / factor).toFixed(1).replace(/\.0$/, '')} ${unit}`;
+	}
+	return `${size} bytes`;
+}
+
+/** "3606 × 2894" for pixel sizes, or null. */
+export function dimensionsLabel(width: unknown, height: unknown): string | null {
+	const w = count(width);
+	const h = count(height);
+	return w && h ? `${w} × ${h}` : null;
+}
+
+/** "10.4 MP" for pixel sizes of a megapixel or more, or null. */
+export function megapixelsLabel(width: unknown, height: unknown): string | null {
+	const w = count(width);
+	const h = count(height);
+	if (!w || !h || w * h < 1e6) return null;
+	return `${((w * h) / 1e6).toFixed(1).replace(/\.0$/, '')} MP`;
+}
+
 export function isModel(contentType: string | undefined): boolean {
 	return !!contentType?.startsWith('model/');
 }

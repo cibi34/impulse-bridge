@@ -245,7 +245,31 @@ const NAMES: Record<FieldKind, string[]> = {
 		'dctype'
 	],
 	code: ['language', 'lang', 'locale'],
-	scale: ['scale']
+	scale: ['scale'],
+	width: ['width', 'imagewidth', 'pixelwidth', 'w'],
+	height: ['height', 'imageheight', 'pixelheight', 'h'],
+	bytes: ['size', 'filesize', 'bytes', 'bytesize', 'contentlength', 'length'],
+	place: [
+		'country',
+		'place',
+		'location',
+		'spatial',
+		'coverage',
+		'city',
+		'region',
+		'placelabel',
+		'edmplacelabel'
+	],
+	extent: [
+		'format',
+		'extent',
+		'dimensions',
+		'measurements',
+		'dctermsextent',
+		'dcformat',
+		'medium',
+		'technique'
+	]
 };
 
 const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -317,6 +341,15 @@ function valueScore(kind: FieldKind, value: unknown, list: boolean): number {
 			return /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(text) ? 3 : -Infinity;
 		case 'scale':
 			return -Infinity;
+		case 'width':
+		case 'height':
+		case 'bytes': {
+			const n = typeof value === 'number' ? value : Number(text);
+			return !list && Number.isFinite(n) && n > 0 ? 3 : -Infinity;
+		}
+		case 'place':
+		case 'extent':
+			return text && !url && !list ? 1 : list ? 0 : -Infinity;
 	}
 }
 

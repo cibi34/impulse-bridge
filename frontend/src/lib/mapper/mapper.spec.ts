@@ -27,7 +27,11 @@ const WIKIMEDIA = {
 				imageinfo: [
 					{
 						thumburl: 'https://upload.wikimedia.org/thumb/a/ab/Flottsund.jpg/1024px-Flottsund.jpg',
+						thumbwidth: 1024,
 						url: 'https://upload.wikimedia.org/a/ab/Flottsund.jpg',
+						width: 3606,
+						height: 2894,
+						size: 8770678,
 						descriptionurl: 'https://commons.wikimedia.org/wiki/File:Flottsund_lighthouse.jpg',
 						mime: 'image/jpeg',
 						extmetadata: {
@@ -44,7 +48,11 @@ const WIKIMEDIA = {
 				imageinfo: [
 					{
 						thumburl: 'https://upload.wikimedia.org/thumb/c/cd/Kopu.jpg/1024px-Kopu.jpg',
+						thumbwidth: 1024,
 						url: 'https://upload.wikimedia.org/c/cd/Kopu.jpg',
+						width: 4000,
+						height: 3000,
+						size: 5120000,
 						descriptionurl: 'https://commons.wikimedia.org/wiki/File:K%C3%B5pu_tuletorn.jpg',
 						mime: 'image/jpeg',
 						extmetadata: {
@@ -158,6 +166,9 @@ describe('suggestions', () => {
 		expect(best('previewURI', wiki).expr).toBe('imageinfo[0].thumburl');
 		expect(best('identifier', wiki).expr).toBe('imageinfo[0].descriptionurl');
 		expect(best('contentType', wiki).expr).toBe('imageinfo[0].mime');
+		expect(best('width', wiki).expr).toBe('imageinfo[0].width');
+		expect(best('height', wiki).expr).toBe('imageinfo[0].height');
+		expect(best('fileSize', wiki).expr).toBe('imageinfo[0].size');
 	});
 
 	it('suggests sensible paths for Openverse', () => {

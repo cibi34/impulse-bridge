@@ -18,7 +18,12 @@ export type FieldKind =
 	| 'list'
 	| 'genre'
 	| 'code'
-	| 'scale';
+	| 'scale'
+	| 'width'
+	| 'height'
+	| 'bytes'
+	| 'place'
+	| 'extent';
 
 export type FieldGroup = 'required' | 'recommended' | 'more';
 
@@ -131,6 +136,41 @@ export const FIELDS: FieldDef[] = [
 		label: 'Publisher',
 		help: 'Who published it.',
 		kind: 'institution',
+		group: 'more'
+	},
+	{
+		name: 'coverage',
+		label: 'Place',
+		help: 'Where the work is from or shows.',
+		kind: 'place',
+		group: 'more'
+	},
+	{
+		name: 'width',
+		label: 'Width (px)',
+		help: 'Pixel width of the media file — shown in the web app, sent to Unity inside “format”.',
+		kind: 'width',
+		group: 'more'
+	},
+	{
+		name: 'height',
+		label: 'Height (px)',
+		help: 'Pixel height of the media file.',
+		kind: 'height',
+		group: 'more'
+	},
+	{
+		name: 'fileSize',
+		label: 'File size (bytes)',
+		help: 'Size of the media file in bytes.',
+		kind: 'bytes',
+		group: 'more'
+	},
+	{
+		name: 'format',
+		label: 'Format',
+		help: 'File format, medium or the work’s dimensions, as text. Pixel size and file size are added to it for Unity.',
+		kind: 'extent',
 		group: 'more'
 	},
 	{

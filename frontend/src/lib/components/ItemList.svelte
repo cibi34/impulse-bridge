@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { CollectionItem } from '#lib/api/index.js';
+	import { dimensionsLabel, fileSizeLabel } from '#lib/format.js';
 	import { app } from '#lib/stores/app.svelte.js';
 	import AssetThumb from './AssetThumb.svelte';
 	import Icon from './Icon.svelte';
@@ -164,7 +165,13 @@
 					{titleOf(item)}<span class="visually-hidden"> — show details</span>
 				</button>
 				<span class="meta">
-					{[item.asset.creator, item.licence.label, app.sourceName(item.source)]
+					{[
+						item.asset.creator,
+						item.licence.label,
+						dimensionsLabel(item.asset.width, item.asset.height)?.concat(' px'),
+						fileSizeLabel(item.asset.fileSize),
+						app.sourceName(item.source)
+					]
 						.filter(Boolean)
 						.join(' · ')}
 				</span>
