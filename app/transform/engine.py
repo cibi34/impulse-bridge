@@ -100,16 +100,18 @@ def transform_item(
         logger.warning("Mapping failure for item — skipping. error=%s", e)
         return None
 
+    return asset if passes_filter(asset, filter_cfg) else None
+
+
+def passes_filter(asset: dict, filter_cfg: FilterCfg) -> bool:
+    """The drop rules: required fields present, content type allowed."""
     for required in filter_cfg.drop_if_missing:
         if not asset.get(required):
-            return None
-
+            return False
     if filter_cfg.allowed_content_types:
-        ct = asset.get("contentType")
-        if ct not in filter_cfg.allowed_content_types:
-            return None
-
-    return asset
+        if asset.get("contentType") not in filter_cfg.allowed_content_types:
+            return False
+    return True
 
 
 def extract_items(raw_response: Any, items_path: str) -> list[dict]:

@@ -57,7 +57,10 @@
 		only for results that are actually shown to you.
 	</p>
 	<ul>
-		<li>Europeana Foundation, The Hague, Netherlands (api.europeana.eu)</li>
+		<li>
+			Europeana Foundation, The Hague, Netherlands (api.europeana.eu) — and, for 3D models, the
+			providing museum's own server (for example mmb.cimec.ro, Romania)
+		</li>
 		<li>Heidelberg University Library, Germany (digi.ub.uni-heidelberg.de)</li>
 		<li>Statens Museum for Kunst, Copenhagen, Denmark (iip.smk.dk)</li>
 		<li>

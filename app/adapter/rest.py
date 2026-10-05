@@ -13,10 +13,11 @@ import logging
 from typing import Any
 
 import httpx
+import jmespath
 
 from app.adapter.base import SearchPage, Source
 from app.cache import cache
-from app.config.schema import PaginationCfg, SourceConfig
+from app.config.schema import FilterCfg, MappingCfg, PaginationCfg, SourceConfig
 from app.errors import (
     AssetNotFound,
     ConfigError,
@@ -26,10 +27,13 @@ from app.errors import (
     UpstreamUnavailable,
 )
 from app.settings import settings
-from app.transform.engine import extract_items, transform_item
+from app.transform.engine import extract_items, passes_filter, transform_item
 from app.transform.helpers import base32_id_decode, slug_to_regex
 
 logger = logging.getLogger(__name__)
+
+_PARALLEL_LOOKUPS = 6
+"""search.fetch_items: how many detail requests run at once."""
 
 
 def _substitute(template: str, substitutions: dict[str, str]) -> str:
@@ -77,11 +81,61 @@ class GenericRestSource(Source):
             count if count is not None else self._cfg.search.pagination.max_size,
             self._cfg.search.pagination.max_size,
         )
-        return SearchPage(
-            items=self._map_and_filter(items),
-            upstream_count=len(items),
-            page_size=page_size,
+        mapped = (
+            await self._hydrate_all(items)
+            if self._cfg.item_record.enabled
+            else self._map_and_filter(items)
         )
+        return SearchPage(items=mapped, upstream_count=len(items), page_size=page_size)
+
+    # ---- item_record: a second request per item ----
+
+    async def _hydrate(self, raw: dict, stub_mapping: MappingCfg) -> dict | None:
+        """The asset for a raw search (or lookup) item when `item_record` is
+        on: the stub's fields, overlaid with those of the item's record, then
+        the filter. None when the record is missing or the filter drops it."""
+        rec = self._cfg.item_record
+        stub = transform_item(raw, stub_mapping, FilterCfg())
+        if stub is None or not rec.path:
+            return None
+        item_id = jmespath.search(rec.item_id_path, raw)
+        if not isinstance(item_id, (str, int)) or item_id == "":
+            return None
+        substitutions = {"{item_id}": str(item_id)}
+        params: dict[str, str] = {}
+        auth = self._cfg.adapter.auth
+        if auth.type == "query_param" and auth.name and auth.value:
+            params[auth.name] = auth.value
+        for k, v in rec.query.items():
+            params[k] = _substitute(v, substitutions)
+        try:
+            record = await self._http_get(_substitute(rec.path, substitutions), params)
+        except UpstreamNotFound:
+            return None
+        mapping = rec.mapping or MappingCfg()
+        items = extract_items(record, mapping.items_path) if mapping.items_path else [record]
+        extra = transform_item(items[0], mapping, FilterCfg()) if items else None
+        asset = {**stub, **(extra or {})}
+        return asset if passes_filter(asset, self._cfg.filter) else None
+
+    async def _hydrate_all(self, raw_items: list[dict]) -> list[dict]:
+        """A page's items, a few records at a time; one whose record fails
+        is left out (logged), the rest are served."""
+        gate = asyncio.Semaphore(_PARALLEL_LOOKUPS)
+
+        async def one(raw: dict) -> dict | None:
+            async with gate:
+                try:
+                    asset = await self._hydrate(raw, self._cfg.mapping)
+                except (UpstreamUnavailable, UpstreamMalformed, UpstreamRateLimited) as e:
+                    logger.warning("%s: record skipped: %s", self.collection_meta["id"], e)
+                    return None
+            if asset and isinstance(asset.get("assetID"), str):
+                cache.set(self._seen_key(asset["assetID"]), raw)
+            return asset
+
+        found = await asyncio.gather(*(one(raw) for raw in raw_items))
+        return [a for a in found if a]
 
     async def get_asset(self, asset_id: str) -> dict:
         # 1. Cheapest and most reliable: the asset was returned by a recent
@@ -90,7 +144,12 @@ class GenericRestSource(Source):
         #    here, so YAML mapping edits still take effect immediately.
         seen = self._recently_seen(asset_id)
         if seen is not None:
-            return seen
+            if not self._cfg.item_record.enabled:
+                return seen
+            raw = cache.get(self._seen_key(asset_id))
+            hydrated = await self._hydrate(raw, self._cfg.mapping) if isinstance(raw, dict) else None
+            if hydrated is not None:
+                return hydrated
 
         detail = self._cfg.asset_detail
         if not detail.enabled or not detail.path:
@@ -173,8 +232,13 @@ class GenericRestSource(Source):
         # may legitimately return more than one candidate. Only when the detail
         # mapping produces no assetID at all do we trust the first item blindly.
         unverified: dict | None = None
+        hydrate = self._cfg.item_record.enabled
         for item in items:
-            asset = transform_item(item, mapping, self._cfg.filter)
+            asset = (
+                await self._hydrate(item, mapping)
+                if hydrate
+                else transform_item(item, mapping, self._cfg.filter)
+            )
             if asset is None:
                 continue
             mapped_id = asset.get("assetID")

@@ -185,6 +185,27 @@ class AssetDetailCfg(BaseModel):
     common case of "same item shape, different envelope"."""
 
 
+class ItemRecordCfg(BaseModel):
+    """A second request per item: when the search (and the single-asset
+    lookup) only return a stub, the item's full record is fetched from
+    `path` and its mapping is laid over the stub's. Europeana's search lists
+    a 3D record's preview and metadata, but the glTF file is only in the
+    Record API."""
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    path: str | None = None
+    """URL path template; `{item_id}` is the value of `item_id_path`."""
+    query: dict[str, str] = Field(default_factory=dict)
+    """The complete query of the record request (auth is added); values may
+    use `{item_id}`."""
+    item_id_path: str = "id"
+    """JMESPath on the raw search item giving the record's id."""
+    mapping: MappingCfg | None = None
+    """`items_path` into the record response, and the fields to take from it.
+    They win over the fields mapped from the stub. Filters apply afterwards."""
+
+
 class CacheCfg(BaseModel):
     model_config = ConfigDict(extra="forbid")
     ttl_seconds: int | None = None
@@ -203,4 +224,5 @@ class SourceConfig(BaseModel):
     mapping: MappingCfg = Field(default_factory=MappingCfg)
     filter: FilterCfg = Field(default_factory=FilterCfg)
     asset_detail: AssetDetailCfg = Field(default_factory=AssetDetailCfg)
+    item_record: ItemRecordCfg = Field(default_factory=ItemRecordCfg)
     cache: CacheCfg = Field(default_factory=CacheCfg)

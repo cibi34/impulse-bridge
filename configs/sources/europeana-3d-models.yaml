@@ -1,0 +1,124 @@
+# Position in the web app's source list (lower first; European archives lead).
+order: 55
+
+collection:
+  id: europeana-3d-models
+  name: "Europeana 3D Models"
+  description: "3D models aggregated by Europeana whose providers publish a downloadable glTF file: the Bucharest Municipality Museum's ceramics and the Polytechnic University of Turin's building scans. Most other 3D records on Europeana are Sketchfab embeds without a file."
+  organization: "Europeana Foundation"
+  owner_id: "bridge@impulse.eu"
+  published: 1
+
+adapter:
+  kind: rest
+  base_url: "https://api.europeana.eu"
+  auth:
+    type: query_param
+    name: wskey
+    value: "${EUROPEANA_API_KEY}"
+  timeout_seconds: 20
+  default_query:
+    reusability: "open"
+    media: "true"
+    qf: "TYPE:3D"
+    profile: "rich"
+
+search:
+  path: "/record/v2/search.json"
+  method: GET
+  pagination:
+    style: offset_limit
+    offset_param: start
+    limit_param: rows
+    offset_base: 1
+    max_size: 50
+  query:
+    pattern_param: query
+    # Only the providers whose records carry a glTF file (see item_record):
+    # a page of Sketchfab-only records would come back empty. Without a
+    # search term, the ceramics: most of Turin's building scans exceed the
+    # size cap below.
+    pattern_when_empty: "DATA_PROVIDER:\"Bucharest Municipality Museum\""
+    pattern_template: "({pattern}) AND DATA_PROVIDER:(\"Bucharest Municipality Museum\" OR \"Polytechnic University of Turin\")"
+
+# The search gives the record's metadata and preview; the file comes from
+# the Record API (item_record below).
+mapping:
+  items_path: "items"
+  total_path: "totalResults"
+  fields:
+    assetID:
+      expr: "id"
+      transform: slugify
+    title:
+      expr: "title[0]"
+      default: "Untitled"
+    description:
+      expr: "dcDescription[0]"
+      transform: strip_html
+    creator:
+      expr: "(dcCreator[?!starts_with(@, 'http')] | [0]) || edmAgentLabel[0].def"
+    date:
+      expr: "year[0] || edmTimespanLabel[0].def"
+    rights:
+      expr: "rights[0]"
+      default: "See source for license"
+    identifier:
+      expr: "guid"
+    previewURI:
+      expr: "edmPreview[0]"
+    contentType:
+      literal: "model/gltf-binary"
+    format:
+      literal: "glTF 2.0 binary"
+    contributor:
+      expr: "dataProvider[0]"
+    scale:
+      literal: "1"
+    subject:
+      expr: "join(', ', ((dcSubjectLangAware.en || dcSubjectLangAware.def) || `[]`)[?!starts_with(@, 'http')] | [:5])"
+    type:
+      expr: "edmConceptPrefLabelLangAware.en[0] || dcTypeLangAware.en[0] || dcTypeLangAware.def[0]"
+    coverage:
+      expr: "edmPlaceLabelLangAware.en[0] || edmPlaceLabel[0].def"
+  # Extra facts for the asset dialog (web app only).
+  details:
+    Provider: { expr: "dataProvider[0]" }
+    Aggregator: { expr: "provider[0]" }
+    Country: { expr: "country[0]" }
+    Europeana ID: { expr: "id" }
+
+item_record:
+  enabled: true
+  path: "/record/v2{item_id}.json"
+  item_id_path: "id"
+  mapping:
+    items_path: "object"
+    fields:
+      # The largest glTF under 100 MB among the record's web resources: these
+      # are photogrammetry scans of 30-130 MB, so the cap is higher than
+      # Zenodo's; Unity's desktop client copes, the web viewer shows progress.
+      assetURI:
+        expr: "sort_by(aggregations[0].webResources[?ebucoreHasMimeType == 'model/gltf-binary' && ebucoreFileByteSize < `104857600`], &ebucoreFileByteSize)[-1].about"
+      fileSize:
+        expr: "sort_by(aggregations[0].webResources[?ebucoreHasMimeType == 'model/gltf-binary' && ebucoreFileByteSize < `104857600`], &ebucoreFileByteSize)[-1].ebucoreFileByteSize"
+
+filter:
+  allowed_content_types:
+    - "model/gltf-binary"
+  drop_if_missing:
+    - "assetURI"
+    - "previewURI"
+
+asset_detail:
+  enabled: true
+  # The search, filtered by id (see europeana.yaml); the record is fetched
+  # on top, like for a search result.
+  path: "/record/v2/search.json"
+  query:
+    query: "europeana_id:/{asset_id_regex}/"
+    profile: "rich"
+    rows: "1"
+
+cache:
+  ttl_seconds: 900

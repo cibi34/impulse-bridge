@@ -249,6 +249,7 @@ Each entry in `mapping.fields` resolves to a value for one Impulse asset field:
 | `wellcome-collection` | rest | No API key needed. Wellcome Collection, London: CC BY / CC0 / public-domain images via IIIF. |
 | `cleveland-museum-of-art` | rest | No API key needed. The museum's CC0 Open Access works. |
 | `met-open-access` | custom (Met) | No API key needed. The Met's public-domain European Paintings (CC0); the adapter fetches the objects behind the search's ids. |
+| `europeana-3d-models` | rest | Needs `EUROPEANA_API_KEY`. Europeana's 3D records with a downloadable glTF (`item_record` fetches each record for the file). |
 
 ## How requests flow
 

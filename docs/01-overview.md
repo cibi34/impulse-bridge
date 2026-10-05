@@ -76,6 +76,7 @@ Nine sources are configured out of the box. They are examples; operators add the
 | `wellcome-collection` | Wellcome Collection catalogue API | No | Works with an openly licensed IIIF image (CC BY, CC0, Public Domain Mark); medicine, science, everyday life. The IIIF URL is resized with the `iiif_large` / `iiif_preview` transforms. |
 | `cleveland-museum-of-art` | Cleveland Museum of Art Open Access API | No | CC0 works with images; the museum's print-size JPEG for Unity, its web image for cards. Its image server sends no CORS headers, so previews load through the browser's plain retry. |
 | `met-open-access` | The Met Collection API (custom adapter `app/adapter/custom/met.py`) | No | Public-domain European Paintings (CC0). The search returns ids only; the adapter fetches a page's objects in parallel and caches them. One department per source (`departmentId`). |
+| `europeana-3d-models` | Europeana Search + Record API | Yes (`EUROPEANA_API_KEY`) | The 3D records whose provider publishes a glTF file (Bucharest Municipality Museum, Polytechnic University of Turin). The search gives metadata and preview; `item_record` fetches each record for the file (largest glTF under 100 MB). |
 
 ## What the Curator intentionally does not do
 

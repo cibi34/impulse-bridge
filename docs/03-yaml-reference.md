@@ -12,6 +12,7 @@ search: ...         # search pattern and pagination (REST only)
 mapping: ...        # JMESPath rules: upstream JSON → Impulse asset
 filter: ...         # drop rules applied after mapping
 asset_detail: ...   # optional single-asset lookup (REST only)
+item_record: ...    # optional second request per item, for searches that return stubs (REST only)
 cache: ...          # cache TTL (advisory, see below)
 ```
 
@@ -424,6 +425,28 @@ Prefer the first row whenever the upstream offers any id-schema-safe identifier.
 1. If a recent search on this server returned the asset, its raw item is re-mapped with the current mapping — no upstream call (kept for the cache TTL).
 2. Otherwise the configured detail request runs.
 3. Without `asset_detail`, the default search result (no query, `max_size` items) is scanned. Fine for small, static sources; configure `asset_detail` for anything larger.
+
+---
+
+## `item_record`
+
+A second request per item, for APIs whose search returns stubs. Europeana's search lists a 3D record's title, preview and rights, but the glTF file is only in its Record API.
+
+```yaml
+item_record:
+  enabled: true
+  path: "/record/v2{item_id}.json"   # {item_id}: the value of item_id_path
+  item_id_path: "id"                  # JMESPath on the raw search item
+  query: {}                           # complete query of the record request (auth is added)
+  mapping:
+    items_path: "object"
+    fields:
+      assetURI: { expr: "aggregations[0].webResources[?ebucoreHasMimeType == 'model/gltf-binary'] | [0].about" }
+```
+
+For every search result — and for every single-asset lookup — the search mapping maps the stub, the record is fetched (through the cache), its `mapping.fields` are laid over the stub's, and only then do the `filter` rules run. A record that is missing (404) or whose fetch fails leaves that item out of the page; the rest are served. The records of a page are fetched a few at a time.
+
+The admin mapper previews the search mapping only; the test run (`POST /admin/api/test`) and the explore page show the completed assets.
 
 ---
 
