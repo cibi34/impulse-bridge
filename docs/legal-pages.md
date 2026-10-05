@@ -25,7 +25,7 @@ Because visitors publish collections (names and descriptions), the Curator is a 
 
 | Processing | Details |
 |---|---|
-| Hosting | Virtual server of the provider named in `legal.ts` (`hosting`), located in Nuremberg, Germany; processor under Art. 28 GDPR. |
+| Hosting | Virtual server of the provider named in `legal.ts` (`hosting`), located in Frankfurt, Germany; processor under Art. 28 GDPR. |
 | Server logs | Traefik and the app log each request with IP address, time, path, status, user agent. Docker keeps at most 3 × 10 MB per container, then the oldest data is overwritten (`deploy/docker-compose.yml`, `deploy/traefik/docker-compose.yml`). For a fixed retention in days, add a logrotate/journald policy and change the notice. |
 | Searches | The server queries the archives; the archives see the server's address, not the visitor's. |
 | Archive images | Browsers load previews and files directly from the archives: Europeana (`api.europeana.eu`, NL), Heidelberg University Library (`digi.ub.uni-heidelberg.de`, DE), Wikimedia Foundation (`upload.wikimedia.org`, `thumb.wikimedia.org`, USA). The archive receives the visitor's IP address and user agent — no cookies (`crossorigin="anonymous"`) and no referrer (`referrerpolicy="no-referrer"`). Legal basis given: Art. 6 (1) (f) GDPR; the US transfer is named as such. **A source added in the admin adds a host: add it to section 3 of the notice.** |

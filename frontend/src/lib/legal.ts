@@ -22,7 +22,7 @@ export const provider = {
 	reportEmail: '[report email address]',
 	/** Who delivers the sign-in and edit-link emails (the SMTP service set in the admin). */
 	emailProvider: '[email service provider]',
-	hosting: { provider: 'Oracle', location: 'Nuremberg, Germany' },
+	hosting: { provider: 'Oracle', location: 'Frankfurt, Germany' },
 	siteUrl: 'https://impulse-bridge.octo-code.de',
 	impulse: {
 		name: 'IMPULSE — Immersive digitisation: upcycling cultural heritage towards new reviving strategies',
