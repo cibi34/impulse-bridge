@@ -250,7 +250,7 @@ In a browser:
 - [ ] **Admin → Sources:** every source has a green dot. Open Europeana and **Run test** — code 20 / "Upstream auth failed" means the API key in `.env` is missing or wrong (fix it, `docker compose up -d`). A missing key does not turn the dot red; only searches fail.
 - [ ] **Admin → Settings → Email (SMTP):** server, port, encryption, username, password, sender. **Save settings**, then **Send a test email**.
 - [ ] **Admin → Settings → Submissions:** the address of the IMPULSE team that registers collections.
-- [ ] **Legal pages:** imprint, privacy, terms, accessibility and the report page (`frontend/src/routes/(site)/legal/*`, `…/report`) ship with placeholder text; [legal-pages.md](legal-pages.md) lists what each must cover. Fill them in and rebuild (`docker compose up -d --build`) before the site goes public.
+- [ ] **Legal pages:** fill in the provider's details in `frontend/src/lib/legal.ts` (address, contact, register entry, report address, email provider); the pages show a "Not final" notice while a `[placeholder]` is left. [legal-pages.md](legal-pages.md) explains the texts. Rebuild (`docker compose up -d --build`) afterwards.
 - [ ] **End to end:** create a test collection in `/explore`, open its edit page, check `curl $B/collections/<id>/assets`, sign in by email once. Delete the test collection in the admin afterwards.
 - [ ] **CORS:** set `BRIDGE_CORS_ALLOW_ORIGINS` to the Impulse frontend origin(s) if `*` is too open.
 - [ ] **Backups:** schedule the database backup (below) and copy it off the VM.

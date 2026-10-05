@@ -1,9 +1,9 @@
 <script lang="ts">
+	import Email from '#lib/components/Email.svelte';
 	import LegalPage from '#lib/components/LegalPage.svelte';
+	import { legalDraft, provider } from '#lib/legal.js';
 
-	// Notice-and-action mechanism (Art. 16 DSA). The address is a
-	// placeholder, like the rest of the legal content.
-	const REPORT_ADDRESS = 'report@example.org';
+	// Notice-and-action mechanism (Art. 16 DSA).
 	const template = `Collection URL:
 [paste the address of the collection, or of the asset within it]
 
@@ -16,14 +16,15 @@ Your name and email address:
 I believe in good faith that the information in this report is accurate and complete.`;
 </script>
 
-<LegalPage title="Report content">
+<LegalPage title="Report content" updated={provider.updated} draft={legalDraft}>
 	<p>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut
-		labore et dolore magna aliqua.
+		Collections on IMPULSE Curator are created by visitors; the assets in them come from the
+		archives. If a collection is unlawful or breaks the terms of use, tell us. Reports are handled
+		by {provider.name}.
 	</p>
 
 	<h2>How to report</h2>
-	<p>Send an email to <strong>{REPORT_ADDRESS}</strong> with:</p>
+	<p>Send an email to <Email address={provider.reportEmail} /> with:</p>
 	<ul>
 		<li>the address (URL) of the collection,</li>
 		<li>an explanation of why you consider it unlawful or in breach of the terms,</li>
@@ -33,6 +34,14 @@ I believe in good faith that the information in this report is accurate and comp
 
 	<h3>Template</h3>
 	<pre class="template">{template}</pre>
+
+	<h2>What happens next</h2>
+	<p>
+		We confirm that we received your report and review it, usually within a few days. If it is
+		justified, we hide the collection from the public list, lock it or delete it, and we tell you
+		the outcome. Where we can reach the collection's creator, we tell them what we did and why.
+		Reports that are manifestly unfounded, or repeated in bad faith, may be left unanswered.
+	</p>
 
 	<p>
 		Problems with an asset itself — its licence, metadata or image — are best reported to the

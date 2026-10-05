@@ -4,7 +4,7 @@
 	let {
 		title,
 		updated,
-		draft = true,
+		draft = false,
 		children
 	}: { title: string; updated?: string; draft?: boolean; children: Snippet } = $props();
 </script>
@@ -20,8 +20,7 @@
 	</header>
 	{#if draft}
 		<p class="draft" role="note">
-			<strong>Placeholder.</strong> This page contains dummy text; the final content will follow before
-			launch.
+			<strong>Not final.</strong> Details shown in [square brackets] are still to be filled in.
 		</p>
 	{/if}
 	<div class="prose">
@@ -65,9 +64,14 @@
 	}
 
 	.prose :global(p),
-	.prose :global(li) {
+	.prose :global(li),
+	.prose :global(address) {
 		color: var(--text-2);
 		max-width: 68ch;
+	}
+
+	.prose :global(address) {
+		font-style: normal;
 	}
 
 	.prose :global(p + p) {
@@ -80,16 +84,10 @@
 	}
 
 	.prose :global(li + li) {
-		margin-top: 6px;
+		margin-top: 4px;
 	}
 
-	.prose :global(strong) {
+	.prose :global(a) {
 		color: var(--text);
-		font-weight: 600;
-	}
-
-	.prose :global(address) {
-		font-style: normal;
-		color: var(--text-2);
 	}
 </style>

@@ -1,32 +1,46 @@
 <script lang="ts">
+	import Email from '#lib/components/Email.svelte';
 	import LegalPage from '#lib/components/LegalPage.svelte';
+	import { legalDraft, provider } from '#lib/legal.js';
 </script>
 
-<LegalPage title="Accessibility">
+<LegalPage title="Accessibility" updated={provider.updated} draft={legalDraft}>
 	<p>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut
-		labore et dolore magna aliqua. This statement applies to https://impulse-bridge.octo-code.de.
+		This statement applies to IMPULSE Curator at {provider.siteUrl}. {provider.name} is not a public-sector
+		body; we publish this statement voluntarily because the Curator is built for everyone who works with
+		cultural heritage.
 	</p>
 
-	<h2>What we do</h2>
+	<h2>Status</h2>
+	<p>
+		We aim for conformance with WCAG 2.2 at level AA. Automated checks (axe-core) find no violations
+		on any page or dialog, in light and in dark appearance. A manual audit by accessibility experts
+		has not been done yet.
+	</p>
+
+	<h2>What works</h2>
 	<ul>
-		<li>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.</li>
-		<li>Nisi ut aliquip ex ea commodo consequat.</li>
-		<li>Duis aute irure dolor in reprehenderit in voluptate velit esse.</li>
+		<li>
+			Everything can be done with the keyboard, including reordering assets with the arrow keys.
+		</li>
+		<li>Focus is always visible; reduced-motion settings are respected.</li>
+		<li>Text scales with your browser's settings; the layout works on phones.</li>
+		<li>Light, dark and system appearance, with sufficient contrast in each.</li>
 	</ul>
 
-	<h2>Status and known limitations</h2>
-	<p>
-		Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim
-		id est laborum.
-	</p>
+	<h2>Known limitations</h2>
+	<ul>
+		<li>
+			Images and their descriptions come from the archives. Most images have no text alternative
+			beyond their title and creator, which the Curator uses instead.
+		</li>
+		<li>3D models are shown through a preview image; the model itself is loaded by IMPULSE.</li>
+		<li>The quality of the archives' metadata varies, and some of it is not in English.</li>
+	</ul>
 
 	<h2>Feedback</h2>
-	<p>Sed ut perspiciatis unde omnis iste natus error: lorem@example.org.</p>
-
-	<h2>Enforcement</h2>
 	<p>
-		Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia
-		consequuntur magni dolores.
+		If something is hard to use, tell us at <Email address={provider.email} />. We aim to reply
+		within two weeks.
 	</p>
 </LegalPage>

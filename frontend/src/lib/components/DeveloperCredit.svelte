@@ -8,12 +8,12 @@
 	const alt = 'Developed by Institut für Strategische Ästhetik gGmbH';
 </script>
 
-<span class="credit">
+<a class="credit" href="https://k8.design" rel="noopener noreferrer" target="_blank">
 	<span class="label tertiary">Developed by</span>
 	<img class="neg" src={asset('brand/k8-neg.png')} {alt} {width} {height} />
 	<!-- Only the visible variant is exposed to assistive technology. -->
 	<img class="pos" src={asset('brand/k8-pos.png')} {alt} {width} {height} />
-</span>
+</a>
 
 <style>
 	.credit {
@@ -21,6 +21,12 @@
 		flex-direction: column;
 		gap: 4px;
 		flex-shrink: 0;
+		text-decoration: none;
+		border-radius: 4px;
+	}
+
+	.credit:hover img {
+		opacity: 1;
 	}
 
 	.label {
