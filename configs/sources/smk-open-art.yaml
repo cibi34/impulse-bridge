@@ -1,0 +1,88 @@
+collection:
+  id: smk-open-art
+  name: "SMK — Statens Museum for Kunst"
+  description: "Public-domain paintings, prints and drawings from the Danish National Gallery (SMK Open). Images are free to use (Public Domain Mark)."
+  organization: "Statens Museum for Kunst"
+  owner_id: "bridge@impulse.eu"
+  published: 1
+
+adapter:
+  kind: rest
+  base_url: "https://api.smk.dk"
+  timeout_seconds: 15
+  default_query:
+    # Only works whose image the museum has released; `lang=en` turns object
+    # names and techniques into English (titles stay original).
+    filters: "[public_domain:true],[has_image:true]"
+    lang: "en"
+
+search:
+  path: "/api/v1/art/search"
+  method: GET
+  pagination:
+    style: offset_limit
+    offset_param: offset
+    limit_param: rows
+    offset_base: 0
+    max_size: 100
+  query:
+    pattern_param: keys
+    pattern_when_empty: "*"
+
+mapping:
+  items_path: "items"
+  total_path: "found"
+  fields:
+    assetID:
+      # Inventory numbers ("KMS3352"); the lookup below accepts them in lower case.
+      expr: "object_number"
+      transform: slugify
+    title:
+      expr: "titles[0].title"
+      default: "Untitled"
+    description:
+      expr: "content_description"
+    creator:
+      expr: "artist[0] || production[0].creator"
+    date:
+      expr: "production_date[0].period"
+    rights:
+      expr: "rights"
+      default: "See source for license"
+    identifier:
+      expr: "frontend_url"
+    # The IIIF Image API sizes the picture: a 2048 px JPEG for Unity, a
+    # 400 px one for cards. The native file is a TIFF of tens of megabytes.
+    assetURI:
+      expr: "join('', [image_iiif_id, '/full/!2048,2048/0/default.jpg'])"
+    previewURI:
+      expr: "join('', [image_iiif_id, '/full/!400,400/0/default.jpg'])"
+    contentType:
+      literal: "image/jpeg"
+    contributor:
+      literal: "Statens Museum for Kunst"
+    scale:
+      literal: "1"
+    type:
+      expr: "object_names[0].name"
+    format:
+      expr: "join(', ', techniques || `[]`)"
+
+filter:
+  allowed_content_types:
+    - "image/jpeg"
+  drop_if_missing:
+    - "assetURI"
+    - "previewURI"
+
+asset_detail:
+  enabled: true
+  # One object by inventory number; the response has the same shape as a
+  # search page, so the mapping above is reused.
+  path: "/api/v1/art/"
+  query:
+    object_number: "{asset_id}"
+    lang: "en"
+
+cache:
+  ttl_seconds: 900

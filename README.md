@@ -244,6 +244,7 @@ Each entry in `mapping.fields` resolves to a value for one Impulse asset field:
 | `wikimedia-commons-images` | rest | No API key needed. Public Commons search via MediaWiki API. |
 | `europeana-public-domain-images` | rest | Needs `EUROPEANA_API_KEY` (free, register at [pro.europeana.eu](https://pro.europeana.eu/get-api)). |
 | `iiif-codex-manesse` | custom (IIIF) | The Codex Manesse from Heidelberg University Library (public domain). Copy + edit YAML to add more IIIF sources. |
+| `smk-open-art` | rest | No API key needed. Public-domain works of the Danish National Gallery (SMK Open), images via IIIF. |
 
 ## How requests flow
 

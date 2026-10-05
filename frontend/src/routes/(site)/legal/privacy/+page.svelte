@@ -56,6 +56,7 @@
 	<ul>
 		<li>Europeana Foundation, The Hague, Netherlands (api.europeana.eu)</li>
 		<li>Heidelberg University Library, Germany (digi.ub.uni-heidelberg.de)</li>
+		<li>Statens Museum for Kunst, Copenhagen, Denmark (iip.smk.dk)</li>
 		<li>
 			Wikimedia Foundation, San Francisco, USA (upload.wikimedia.org, thumb.wikimedia.org) — a
 			transfer to a country for which the EU has not issued an adequacy decision covering this

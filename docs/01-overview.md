@@ -63,7 +63,7 @@ Every response uses the spec's envelope `{code, message, data}`. Search (`s`, wi
 
 ## Sources in the box
 
-Four sources are configured out of the box. They are examples; operators add their own.
+Five sources are configured out of the box. They are examples; operators add their own.
 
 | Source id | Backend | Key needed | Notes |
 |---|---|---|---|
@@ -71,6 +71,7 @@ Four sources are configured out of the box. They are examples; operators add the
 | `wikimedia-commons-images` | Wikimedia Commons (MediaWiki API) | No | Open-licensed images; titles cleaned with `file_title`. |
 | `europeana-public-domain-images` | Europeana Search API | Yes (`EUROPEANA_API_KEY`) | Open-licensed images from European institutions. |
 | `iiif-codex-manesse` | One IIIF manifest | No | The Codex Manesse (Heidelberg University Library, public domain), 871 pages named after the manuscript's table of contents; shows the IIIF adapter. |
+| `smk-open-art` | SMK Open API (Statens Museum for Kunst) | No | Public-domain paintings, prints and drawings of the Danish National Gallery; images sized through the IIIF Image API. |
 
 ## What the Curator intentionally does not do
 

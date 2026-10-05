@@ -22,7 +22,7 @@
 		},
 		{
 			q: 'Where do the assets come from?',
-			a: 'From open archives: Europeana, Wikimedia Commons and IIIF collections such as the Codex Manesse at Heidelberg University Library. The files stay with them; a collection points to them.'
+			a: 'From open archives: Europeana, Wikimedia Commons, the Danish National Gallery (SMK) and IIIF collections such as the Codex Manesse at Heidelberg University Library. The files stay with them; a collection points to them.'
 		}
 	];
 </script>
@@ -67,6 +67,7 @@
 		<span class="tertiary">Search across</span>
 		<span>Europeana</span>
 		<span>Wikimedia Commons</span>
+		<span>Statens Museum for Kunst</span>
 		<span>Codex Manesse (Heidelberg)</span>
 	</div>
 </section>

@@ -34,6 +34,11 @@
 				target="_blank">digi.ub.uni-heidelberg.de</a
 			>
 		</li>
+		<li>
+			<strong>Statens Museum for Kunst</strong> — the Danish National Gallery's SMK Open: works in
+			the public domain, released under the Public Domain Mark.
+			<a href="https://open.smk.dk" rel="noopener noreferrer" target="_blank">open.smk.dk</a>
+		</li>
 	</ul>
 
 	<h2>Images on the home page</h2>
