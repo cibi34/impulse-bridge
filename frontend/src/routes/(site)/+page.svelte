@@ -69,6 +69,7 @@
 		<span>Wikimedia Commons</span>
 		<span>Statens Museum for Kunst</span>
 		<span>Codex Manesse (Heidelberg)</span>
+		<span>Zenodo 3D models</span>
 	</div>
 </section>
 

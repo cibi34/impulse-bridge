@@ -58,6 +58,10 @@
 		<li>Heidelberg University Library, Germany (digi.ub.uni-heidelberg.de)</li>
 		<li>Statens Museum for Kunst, Copenhagen, Denmark (iip.smk.dk)</li>
 		<li>
+			Zenodo, run by CERN in Geneva, Switzerland (zenodo.org) — Switzerland is covered by an EU
+			adequacy decision
+		</li>
+		<li>
 			Wikimedia Foundation, San Francisco, USA (upload.wikimedia.org, thumb.wikimedia.org) — a
 			transfer to a country for which the EU has not issued an adequacy decision covering this
 			recipient. It happens only when a Wikimedia Commons result is shown to you; you can avoid it

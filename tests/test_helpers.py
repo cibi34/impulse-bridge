@@ -12,6 +12,13 @@ from app.transform.helpers import (
 )
 
 
+def test_strip_html_decodes_entities_and_collapses_whitespace():
+    from app.transform.helpers import strip_html
+
+    assert strip_html("<p>Kinora&nbsp;viewer &amp; more.</p>\n<p>Second</p>") == "Kinora viewer & more. Second"
+    assert strip_html("") == ""
+
+
 @pytest.mark.parametrize(
     "original",
     [

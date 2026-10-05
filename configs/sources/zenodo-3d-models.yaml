@@ -1,0 +1,95 @@
+collection:
+  id: zenodo-3d-models
+  name: "Zenodo 3D Models"
+  description: "Openly licensed 3D models (glTF binary) published on Zenodo, the research repository run by CERN for the EU's OpenAIRE: scans of sculptures, buildings and artefacts. Each record carries its own licence."
+  organization: "Zenodo"
+  owner_id: "bridge@impulse.eu"
+  published: 1
+
+adapter:
+  kind: rest
+  base_url: "https://zenodo.org"
+  timeout_seconds: 20
+  default_query:
+    file_type: "glb"        # records with at least one .glb file
+    access_right: "open"
+    sort: "mostviewed"
+
+search:
+  path: "/api/records"
+  method: GET
+  pagination:
+    style: page_size
+    page_param: page
+    size_param: size
+    page_base: 1
+    max_size: 25            # Zenodo's limit for unauthenticated requests
+  query:
+    pattern_param: q
+    # Ask Zenodo only for licences IMPULSE accepts by default (public domain,
+    # CC0, CC BY, CC BY-SA); most other .glb records are CC BY-NC-SA scans,
+    # which the licence policy would drop anyway, page after page. The policy
+    # still applies on top: tightening it in the admin tightens this too.
+    pattern_when_empty: "metadata.rights.id:(cc0-1.0 OR cc-by-4.0 OR cc-by-3.0 OR cc-by-2.5 OR cc-by-2.0 OR cc-by-sa-4.0 OR cc-by-sa-3.0 OR cc-by-sa-2.5)"
+    pattern_template: "({pattern}) AND metadata.rights.id:(cc0-1.0 OR cc-by-4.0 OR cc-by-3.0 OR cc-by-2.5 OR cc-by-2.0 OR cc-by-sa-4.0 OR cc-by-sa-3.0 OR cc-by-sa-2.5)"
+
+mapping:
+  items_path: "hits.hits"
+  total_path: "hits.total"
+  fields:
+    assetID:
+      expr: "to_string(id)"
+    title:
+      expr: "metadata.title"
+      default: "Untitled"
+    description:
+      expr: "metadata.description"
+      transform: strip_html
+    creator:
+      expr: "join(', ', metadata.creators[:3].name)"
+    contributor:
+      # Uploads migrated from Sketchfab carry the affiliation "none".
+      expr: "(metadata.creators[0].affiliation != 'none' && metadata.creators[0].affiliation) || 'Zenodo'"
+    # No `date`: a record's publication date is not the date of the work.
+    rights:
+      # Zenodo licence ids: "cc-by-4.0", "cc0-1.0", "cc-by-nc-sa-4.0", …
+      expr: "metadata.license.id"
+      default: "See source for license"
+    identifier:
+      expr: "links.self_html"
+    # The largest .glb under 50 MB: records often ship the full model and
+    # decimated copies, so this is the best quality Unity can fetch without
+    # pulling hundreds of megabytes. The first image in the record is the preview.
+    assetURI:
+      expr: "sort_by(files[?(ends_with(key, '.glb') || ends_with(key, '.GLB')) && size < `52428800`], &size)[-1].links.self"
+    fileSize:
+      expr: "sort_by(files[?(ends_with(key, '.glb') || ends_with(key, '.GLB')) && size < `52428800`], &size)[-1].size"
+    previewURI:
+      # The smallest image above 20 KB (records carry renders of 2 MB next to
+      # thumbnails of 5 KB; cards want something in between), else any image.
+      expr: "sort_by(files[?(ends_with(key, '.png') || ends_with(key, '.jpg') || ends_with(key, '.jpeg') || ends_with(key, '.PNG') || ends_with(key, '.JPG')) && size > `20000`], &size)[0].links.self || (files[?ends_with(key, '.png') || ends_with(key, '.jpg') || ends_with(key, '.jpeg') || ends_with(key, '.PNG') || ends_with(key, '.JPG')] | [0].links.self)"
+    contentType:
+      literal: "model/gltf-binary"
+    format:
+      literal: "glTF 2.0 binary"
+    subject:
+      expr: "join(', ', (metadata.keywords || `[]`)[:5])"
+    # No `type`: Zenodo's resource type ("Dataset") says nothing about the work.
+    scale:
+      literal: "1"
+
+filter:
+  allowed_content_types:
+    - "model/gltf-binary"
+  drop_if_missing:
+    - "assetURI"
+    - "previewURI"
+
+asset_detail:
+  enabled: true
+  path: "/api/records/{asset_id}"
+  mapping:
+    items_path: ""          # the response is the record itself
+
+cache:
+  ttl_seconds: 900

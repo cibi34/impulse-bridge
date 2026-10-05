@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import base64
 import binascii
+import html
 import mimetypes
 import re
 from urllib.parse import urlparse
 
 _SLUG_REPLACE = re.compile(r"[^a-z0-9]+")
 _HTML_TAG = re.compile(r"<[^>]+>")
+_WHITESPACE = re.compile(r"\s+")
 
 
 def slugify(value: str) -> str:
@@ -51,9 +53,11 @@ def base32_id_decode(value: str) -> str | None:
 
 
 def strip_html(value: str) -> str:
+    """Drop tags, decode entities ("&nbsp;", "&amp;"), collapse whitespace."""
     if not value:
         return value
-    return _HTML_TAG.sub("", value).strip()
+    text = html.unescape(_HTML_TAG.sub(" ", value))
+    return _WHITESPACE.sub(" ", text).strip()
 
 
 _FILE_PREFIX = re.compile(r"^(file|image|datei):\s*", re.IGNORECASE)

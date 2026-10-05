@@ -63,7 +63,7 @@ Every response uses the spec's envelope `{code, message, data}`. Search (`s`, wi
 
 ## Sources in the box
 
-Five sources are configured out of the box. They are examples; operators add their own.
+Six sources are configured out of the box. They are examples; operators add their own.
 
 | Source id | Backend | Key needed | Notes |
 |---|---|---|---|
@@ -72,6 +72,7 @@ Five sources are configured out of the box. They are examples; operators add the
 | `europeana-public-domain-images` | Europeana Search API | Yes (`EUROPEANA_API_KEY`) | Open-licensed images from European institutions. |
 | `iiif-codex-manesse` | One IIIF manifest | No | The Codex Manesse (Heidelberg University Library, public domain), 871 pages named after the manuscript's table of contents; shows the IIIF adapter. |
 | `smk-open-art` | SMK Open API (Statens Museum for Kunst) | No | Public-domain paintings, prints and drawings of the Danish National Gallery; images sized through the IIIF Image API. |
+| `zenodo-3d-models` | Zenodo REST API | No | Records with a glTF binary (.glb) under 50 MB and a preview image; licence per record (CC BY, CC0; NC records are filtered by the policy). The only 3D source besides the demo models. |
 
 ## What the Curator intentionally does not do
 

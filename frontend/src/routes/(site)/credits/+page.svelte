@@ -39,6 +39,11 @@
 			the public domain, released under the Public Domain Mark.
 			<a href="https://open.smk.dk" rel="noopener noreferrer" target="_blank">open.smk.dk</a>
 		</li>
+		<li>
+			<strong>Zenodo</strong> — the open research repository run by CERN for OpenAIRE; 3D models
+			published there by their authors, each record under the licence its authors chose.
+			<a href="https://zenodo.org" rel="noopener noreferrer" target="_blank">zenodo.org</a>
+		</li>
 	</ul>
 
 	<h2>Images on the home page</h2>
