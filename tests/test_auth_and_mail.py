@@ -111,6 +111,7 @@ def test_sign_in_is_unavailable_without_email_setup(client):
 def test_sign_in_link_only_goes_to_addresses_with_collections(client, outbox):
     client.put("/admin/api/settings", json=SMTP)
     _create(client, email="Me@Example.org")
+    outbox.clear()  # the edit link that creating sends
 
     stranger = client.post("/api/auth/login", json={"email": "stranger@example.org"})
     owner = client.post("/api/auth/login", json={"email": "me@example.org"})
@@ -188,6 +189,7 @@ def test_logout(client, outbox):
 def test_links_per_address_are_limited(client, outbox):
     client.put("/admin/api/settings", json=SMTP)
     _create(client, email="me@example.org")
+    outbox.clear()  # the edit link that creating sends
     for _ in range(7):
         client.post("/api/auth/login", json={"email": "me@example.org"})
     assert len(outbox) == 5
@@ -204,6 +206,26 @@ def test_email_edit_link(client, outbox):
 
     assert (r.status_code, r.json()) == (202, {"sent_to": "me@example.org"})
     assert f"http://bridge.test/c/{cid}/edit#key={key}" in _text(outbox[-1])
+
+
+def test_creating_with_an_address_emails_the_edit_link(client, outbox):
+    client.put("/admin/api/settings", json=SMTP)
+    r = client.post("/api/collections", json={"name": "Mine", "items": [], "email": "me@example.org"})
+
+    assert r.status_code == 201
+    assert r.json()["emailed"] is True
+    assert len(outbox) == 1
+    assert outbox[0]["Subject"] == "Edit link for “Mine”"
+    assert f"/c/{r.json()['collection']['id']}/edit#key={r.json()['edit_key']}" in _text(outbox[0])
+
+
+def test_creating_without_an_address_or_mail_sends_nothing(client, outbox):
+    r = client.post("/api/collections", json={"name": "Mine", "items": []})
+    assert (r.status_code, r.json()["emailed"], len(outbox)) == (201, False, 0)
+
+    # An address, but no mail server set up: stored for later, nothing sent.
+    r = client.post("/api/collections", json={"name": "Mine", "items": [], "email": "me@example.org"})
+    assert (r.status_code, r.json()["emailed"], len(outbox)) == (201, False, 0)
 
 
 def test_email_edit_link_needs_an_address(client):

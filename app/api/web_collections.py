@@ -8,10 +8,21 @@ address the collection was created with (app/api/auth.py).
 
 from __future__ import annotations
 
+import logging
 import re
+from email.message import EmailMessage
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+)
 from pydantic import BaseModel, Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
@@ -34,15 +45,40 @@ from app.licensing import classify
 from app.mail import MailError, build_message, mail_available, send
 from app.ratelimit import create_limit, write_limit
 from app.settings import settings
-from app.site_settings import SiteSettingsStore
+from app.site_settings import SiteSettings, SiteSettingsStore
 from app.storage import get_auth_store, get_licence_conditions, get_site_store, get_store
 
 router = APIRouter(prefix="/api/collections", tags=["web"])
+
+logger = logging.getLogger(__name__)
 
 Store = Annotated[CollectionStore, Depends(get_store)]
 Auth = Annotated[AuthStore, Depends(get_auth_store)]
 Site = Annotated[SiteSettingsStore, Depends(get_site_store)]
 Accepted = Annotated[frozenset[str], Depends(get_licence_conditions)]
+
+
+def _edit_link_message(site_settings: SiteSettings, record: CollectionRecord, key: str) -> EmailMessage:
+    link = f"{settings.public_base_url.rstrip('/')}/c/{record.id}/edit#key={key}"
+    return build_message(
+        site_settings,
+        record.owner_email or "",
+        f"Edit link for “{record.name}”",
+        [
+            f"Here is the edit link for your IMPULSE Curator collection “{record.name}”.",
+            "Anyone with this link can change the collection, so keep it private.",
+        ],
+        link=("Open the collection", link),
+    )
+
+
+async def _mail_edit_link(site_settings: SiteSettings, record: CollectionRecord, key: str) -> None:
+    """After creating a collection: the creator keeps the link in the browser
+    anyway, so a failed email is logged, not reported."""
+    try:
+        await send(site_settings, _edit_link_message(site_settings, record, key))
+    except MailError as e:
+        logger.warning("Edit link for %s not emailed to %s: %s", record.id, record.owner_email, e)
 
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _PREVIEWS_PER_COLLECTION = 4
@@ -267,7 +303,10 @@ Editable = Annotated[CollectionRecord, Depends(editable)]
 # ---------------------------------------------------------------------------
 
 @router.post("", status_code=201, dependencies=[Depends(create_limit)])
-async def create(body: CollectionCreate, store: Store, accepted: Accepted):
+async def create(
+    body: CollectionCreate, store: Store, accepted: Accepted, site: Site, background: BackgroundTasks
+):
+    """`emailed` says whether the edit link is on its way to the address given."""
     refs = [AssetRef(i.source, i.asset_id) for i in body.items]
     try:
         record, key, failures = await create_collection(
@@ -281,11 +320,18 @@ async def create(body: CollectionCreate, store: Store, accepted: Accepted):
         )
     except CollectionFull:
         raise _full_error() from None
+    emailed = False
+    if record.owner_email:
+        site_settings = await run_in_threadpool(site.load)
+        if mail_available(site_settings):
+            background.add_task(_mail_edit_link, site_settings, record, key)
+            emailed = True
     items = await run_in_threadpool(store.items, record.id)
     return {
         "collection": _collection_out(record, items, accepted, editor=True),
         "edit_key": key,
         "failed": [_failure_out(f) for f in failures],
+        "emailed": emailed,
     }
 
 
@@ -440,19 +486,8 @@ async def email_edit_link(
     site_settings = await run_in_threadpool(site.load)
     if not mail_available(site_settings):
         raise HTTPException(status_code=503, detail="Email is not available on this server")
-    link = f"{settings.public_base_url.rstrip('/')}/c/{record.id}/edit#key={key}"
-    message = build_message(
-        site_settings,
-        record.owner_email,
-        f"Edit link for “{record.name}”",
-        [
-            f"Here is the edit link for your IMPULSE Curator collection “{record.name}”.",
-            "Anyone with this link can change the collection, so keep it private.",
-        ],
-        link=("Open the collection", link),
-    )
     try:
-        await send(site_settings, message)
+        await send(site_settings, _edit_link_message(site_settings, record, key))
     except MailError as e:
         raise HTTPException(status_code=502, detail=str(e)) from None
     return {"sent_to": record.owner_email}

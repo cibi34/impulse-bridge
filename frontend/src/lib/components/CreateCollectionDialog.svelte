@@ -11,7 +11,13 @@
 		oncreated
 	}: {
 		open?: boolean;
-		oncreated: (result: { collection: Collection; editKey: string; failed: Failure[] }) => void;
+		oncreated: (result: {
+			collection: Collection;
+			editKey: string;
+			failed: Failure[];
+			/** The address the edit link was emailed to, if any. */
+			emailedTo: string | null;
+		}) => void;
 	} = $props();
 
 	const id = $props.id();
@@ -38,7 +44,12 @@
 				email: email.trim() || null,
 				items: selection.refs()
 			});
-			oncreated({ collection: result.collection, editKey: result.edit_key, failed: result.failed });
+			oncreated({
+				collection: result.collection,
+				editKey: result.edit_key,
+				failed: result.failed,
+				emailedTo: result.emailed ? email.trim() : null
+			});
 			name = description = email = '';
 			open = false;
 		} catch (e) {
@@ -97,7 +108,7 @@
 			/>
 			<span id="{id}-email-hint" class="field-hint">
 				{#if app.config?.sign_in_available}
-					Lets you sign in on other devices to edit this collection. Never shown publicly.
+					We email you the edit link, and you can sign in on other devices. Never shown publicly.
 				{:else}
 					Stored with the collection so the team can reach you. Never shown publicly.
 				{/if}

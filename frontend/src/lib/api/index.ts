@@ -63,10 +63,10 @@ export const api = {
 		email?: string | null;
 		items: AssetRef[];
 	}) =>
-		request<{ collection: Collection; edit_key: string; failed: Failure[] }>('/api/collections', {
-			method: 'POST',
-			body
-		}),
+		request<{ collection: Collection; edit_key: string; failed: Failure[]; emailed: boolean }>(
+			'/api/collections',
+			{ method: 'POST', body }
+		),
 
 	collection: (id: string, editKey?: string | null) =>
 		request<Collection>(`/api/collections/${enc(id)}`, { editKey }),

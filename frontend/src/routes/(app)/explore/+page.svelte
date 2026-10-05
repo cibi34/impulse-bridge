@@ -161,11 +161,20 @@
 		}
 	}
 
-	function created(result: { collection: Collection; editKey: string; failed: Failure[] }) {
+	function created(result: {
+		collection: Collection;
+		editKey: string;
+		failed: Failure[];
+		emailedTo: string | null;
+	}) {
 		library.save(result.collection.id, result.collection.name, result.editKey);
 		selection.clear();
 		reportFailures(result.failed);
-		toasts.success(`Collection “${result.collection.name}” created`);
+		toasts.success(
+			result.emailedTo
+				? `Collection “${result.collection.name}” created — edit link sent to ${result.emailedTo}`
+				: `Collection “${result.collection.name}” created`
+		);
 		goto(resolve(`c/${result.collection.id}/edit`));
 	}
 

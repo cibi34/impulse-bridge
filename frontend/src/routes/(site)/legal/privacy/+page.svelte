@@ -86,7 +86,8 @@
 	<h2>5. Email and sign-in</h2>
 	<p>
 		If you enter your email address, we send you sign-in links (valid for 15 minutes, usable once)
-		and, on request, the edit link of a collection. These emails are delivered through
+		the edit link of a collection you create (and again on request). These emails are delivered
+		through
 		{known(provider.emailProvider) ? provider.emailProvider : 'our email service provider'}, which
 		processes them on our behalf (Art. 28 GDPR).
 	</p>
