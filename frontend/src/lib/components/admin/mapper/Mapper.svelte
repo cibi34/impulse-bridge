@@ -3,7 +3,7 @@
 	import type { Document } from 'yaml';
 	import { admin, type TestRun } from '#lib/api/admin.js';
 	import { errorMessage, type Licence } from '#lib/api/index.js';
-	import { edit, parseConfig, setField, setValue } from '#lib/mapper/config.js';
+	import { edit, parseConfig, setDetails, setField, setValue } from '#lib/mapper/config.js';
 	import {
 		evaluateField,
 		extractItems,
@@ -19,6 +19,7 @@
 	import CopyField from '../../CopyField.svelte';
 	import Icon from '../../Icon.svelte';
 	import JsonTree from './JsonTree.svelte';
+	import KeyValueEditor from './KeyValueEditor.svelte';
 	import MapperField from './MapperField.svelte';
 	import MapperLookup from './MapperLookup.svelte';
 	import MapperPreview from './MapperPreview.svelte';
@@ -278,6 +279,12 @@
 	});
 	let requestOpen = $state(false);
 	let lookupOpen = $state(false);
+	let detailsOpen = $state(false);
+	const detailEntries = $derived(
+		Object.entries(data.mapping?.details ?? {}).map(
+			([label, fm]) => [label, fm?.expr ?? ''] as [string, string]
+		)
+	);
 	onMount(() => {
 		requestOpen = !data.adapter?.base_url;
 	});
@@ -521,6 +528,29 @@
 			</div>
 			<p class="visually-hidden" role="status">{announcement}</p>
 		</section>
+
+		<details class="step panel" bind:open={detailsOpen}>
+			<summary>
+				<span class="num">3b</span>
+				<span class="step-title">Archive details</span>
+				<span class="caption tertiary">Shown in the asset dialog only, never sent to Unity</span>
+				{#if detailEntries.length}<span class="pill">{plural(detailEntries.length, 'row')}</span
+					>{/if}
+			</summary>
+			<div class="body">
+				<p class="footnote tertiary">
+					Facts worth showing that have no IMPULSE field — dimensions, credit line, provenance,
+					accession number. Label as it should appear, path as in the fields above.
+				</p>
+				<KeyValueEditor
+					entries={detailEntries}
+					label="Archive details"
+					keyPlaceholder="Credit line"
+					valuePlaceholder="creditLine"
+					onchange={(entries) => onedit((doc) => setDetails(doc, entries))}
+				/>
+			</div>
+		</details>
 
 		<section class="step panel" aria-labelledby="mapper-preview">
 			<div class="step-head">

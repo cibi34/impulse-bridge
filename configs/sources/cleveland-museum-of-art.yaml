@@ -77,6 +77,17 @@ mapping:
     coverage:
       expr: "culture[0]"
 
+  # Extra facts for the asset dialog (web app only).
+  details:
+    Accession number: { expr: "accession_number" }
+    Measurements: { expr: "measurements" }
+    Credit line: { expr: "creditline" }
+    Department: { expr: "department" }
+    Collection: { expr: "collection" }
+    Culture: { expr: "join(', ', culture)" }
+    Provenance: { expr: "join('; ', provenance[:3].description)" }
+    Citation: { expr: "tombstone" }
+
 filter:
   allowed_content_types:
     - "image/jpeg"

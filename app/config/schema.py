@@ -143,6 +143,10 @@ class MappingCfg(BaseModel):
     """JMESPath to the list of raw items in the upstream response."""
     total_path: str | None = None
     fields: dict[str, FieldMapping] = Field(default_factory=dict)
+    details: dict[str, FieldMapping] = Field(default_factory=dict)
+    """Extra facts for the web app's asset dialog, label → mapping ("Credit
+    line": {expr: "creditLine"}), shown in this order. Not part of the Impulse
+    asset schema: stored with the snapshot, never served to Unity."""
 
 
 class FilterCfg(BaseModel):

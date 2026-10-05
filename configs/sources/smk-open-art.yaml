@@ -71,6 +71,15 @@ mapping:
     format:
       expr: "join(', ', techniques || `[]`)"
 
+  # Extra facts for the asset dialog (web app only).
+  details:
+    Inventory number: { expr: "object_number" }
+    Object: { expr: "join(', ', object_names[].name)" }
+    Dimensions: { expr: "join('; ', dimensions[].join(' ', [type, value, unit]))" }
+    Department: { expr: "responsible_department" }
+    Acquired: { expr: "acquisition_date_precision" }
+    Literature: { expr: "documentation[0].title" }
+
 filter:
   allowed_content_types:
     - "image/jpeg"

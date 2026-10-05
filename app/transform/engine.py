@@ -61,6 +61,20 @@ def _evaluate_field(item: dict, fm: FieldMapping) -> Any:
     return value
 
 
+def detail_text(value: Any) -> str | None:
+    """A detail as one line of text: lists joined, numbers written out,
+    objects and empty values left out."""
+    if value is None or isinstance(value, dict):
+        return None
+    if isinstance(value, list):
+        parts = [detail_text(v) for v in value]
+        value = ", ".join(p for p in parts if p)
+    if isinstance(value, bool):
+        value = "yes" if value else "no"
+    text = str(value).strip()
+    return text or None
+
+
 def transform_item(
     raw: dict,
     mapping: MappingCfg,
@@ -75,6 +89,13 @@ def transform_item(
             value = _evaluate_field(raw, fm)
             if value is not None:
                 asset[field_name] = value
+        details = [
+            {"label": label, "value": text}
+            for label, fm in mapping.details.items()
+            if (text := detail_text(_evaluate_field(raw, fm)))
+        ]
+        if details:
+            asset["details"] = details
     except Exception as e:
         logger.warning("Mapping failure for item — skipping. error=%s", e)
         return None

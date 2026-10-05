@@ -79,6 +79,14 @@ mapping:
     language:
       expr: "language[0]"
 
+  # Extra facts for the asset dialog (web app only).
+  details:
+    Provider: { expr: "dataProvider[0]" }
+    Aggregator: { expr: "provider[0]" }
+    Country: { expr: "country[0]" }
+    Year: { expr: "year[0]" }
+    Europeana ID: { expr: "id" }
+
 filter:
   allowed_content_types:
     - "image/jpeg"

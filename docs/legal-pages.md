@@ -34,7 +34,7 @@ Because visitors publish collections (names and descriptions), the Curator is a 
 | Sessions | After sign-in: session cookie (`HttpOnly`, 30 days). Stored server-side with the email address. |
 | Browser storage | `localStorage`: the current selection, the visitor's collections with their edit keys, the appearance setting (`curator-theme`). Set only by the visitor's own actions, nothing for analytics or tracking. Strictly necessary under § 25 (2) No. 2 TDDDG — **no cookie consent needed.** |
 | Submission | "Submit to IMPULSE" opens the visitor's own email program; the Curator does not send that email. |
-| Not used | No analytics, no tracking, no advertising, no third-party scripts, fonts or embeds (fonts are self-hosted; the CSP allows scripts and connections only to the site itself). |
+| Not used | No analytics, no tracking, no advertising, no third-party scripts, fonts or embeds (fonts and the 3D viewer's code are self-hosted; the CSP allows scripts only from the site itself, and connections only to it and to `https:` archives — images, and the model file when a visitor opens the 3D viewer). |
 
 Not stated, because not needed as things stand: a data protection officer (appoint one and add the contact if the law requires it), a named supervisory authority (the notice points to the right to complain; name the authority of the provider's federal state if you prefer).
 

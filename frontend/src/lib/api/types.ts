@@ -40,6 +40,8 @@ export interface Asset {
 	height?: number;
 	/** Bytes of the media file, where the archive says (web app only). */
 	fileSize?: number;
+	/** What else the archive says about the work, in its order (web app only). */
+	details?: { label: string; value: string }[];
 	/** Added by the web app API to search results and source lookups. */
 	licence?: Licence;
 	[field: string]: unknown;

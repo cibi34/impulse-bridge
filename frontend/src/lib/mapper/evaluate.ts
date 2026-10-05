@@ -18,6 +18,22 @@ export interface FieldMapping {
 export interface MappingConfig {
 	items_path?: string | null;
 	fields?: Record<string, FieldMapping | null> | null;
+	/** Extra facts for the asset dialog, label → mapping (web app only). */
+	details?: Record<string, FieldMapping | null> | null;
+}
+
+/** A detail as one line of text (app/transform/engine.py: detail_text). */
+export function detailText(value: unknown): string | null {
+	if (value === null || value === undefined) return null;
+	if (Array.isArray(value)) {
+		value = value
+			.map(detailText)
+			.filter((v): v is string => !!v)
+			.join(', ');
+	} else if (typeof value === 'object') return null;
+	if (typeof value === 'boolean') value = value ? 'yes' : 'no';
+	const text = String(value).trim();
+	return text || null;
 }
 
 export interface FilterConfig {
@@ -167,6 +183,17 @@ export function mapItem(raw: unknown, mapping: MappingConfig, filter: FilterConf
 			errors[name] = e instanceof Error ? e.message : String(e);
 		}
 	}
+	const details: { label: string; value: string }[] = [];
+	for (const [label, fm] of Object.entries(mapping.details ?? {})) {
+		if (!fm) continue;
+		try {
+			const text = detailText(evaluateField(raw, fm));
+			if (text) details.push({ label, value: text });
+		} catch (e) {
+			errors[`details.${label}`] = e instanceof Error ? e.message : String(e);
+		}
+	}
+	if (details.length) asset.details = details;
 	let dropped: string | null = null;
 	if (Object.keys(errors).length > 0) dropped = 'A field expression fails';
 	for (const required of filter.drop_if_missing ?? []) {

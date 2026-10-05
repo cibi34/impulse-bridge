@@ -280,6 +280,20 @@ fields:
 
 Order: `literal` or `expr` → `default` → `map` → `transform`. A field whose final value is `null` is left out of the asset. If evaluating any field raises, the item is skipped (logged as a warning).
 
+### `details` — extra facts for the asset dialog
+
+Next to `fields`, `mapping.details` maps **labels** to the same kind of rule. The web app shows them in the asset dialog under "From the archive", in this order; they are stored with a collection's snapshot but **never served to Unity** (they are not part of the Impulse asset schema). Values become one line of text: lists are joined with ", ", objects are left out.
+
+```yaml
+mapping:
+  details:
+    Credit line: { expr: "creditline" }
+    Measurements: { expr: "measurements" }
+    Provenance: { expr: "join('; ', provenance[:3].description)" }
+```
+
+The admin mapper edits them under "Archive details". The IIIF adapter fills them from the manifest's `metadata`, the Met adapter from the object record.
+
 ### Transforms
 
 | Transform | What it does |

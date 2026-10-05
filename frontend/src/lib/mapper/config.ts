@@ -132,6 +132,33 @@ export function setStringMap(doc: Document, path: YamlPath, entries: [string, st
 	for (const [key, value] of wanted) setValue(doc, [...path, key], value);
 }
 
+/** Replace the `mapping.details` map (label → expression), keeping the
+ * transform and comments of labels that stay. */
+export function setDetails(doc: Document, entries: [string, string][]): void {
+	const path: YamlPath = ['mapping', 'details'];
+	const wanted = new Map(
+		entries
+			.map(([label, expr]) => [label.trim(), expr.trim()] as [string, string])
+			.filter(([label, expr]) => label !== '' && expr !== '')
+	);
+	const existing = doc.getIn(path, true);
+	if (isMap(existing)) {
+		for (const pair of [...existing.items]) {
+			const key = isScalar(pair.key) ? String(pair.key.value) : String(pair.key);
+			if (!wanted.has(key)) existing.delete(key);
+		}
+	}
+	if (wanted.size === 0) {
+		if (doc.hasIn(path)) doc.deleteIn(path);
+		return;
+	}
+	for (const [label, expr] of wanted) {
+		const node = doc.getIn([...path, label], true);
+		if (isMap(node)) setValue(doc, [...path, label, 'expr'], expr);
+		else doc.setIn([...path, label], toNode({ expr }));
+	}
+}
+
 /** Apply edits to `text` and return the new text. */
 export function edit(text: string, change: (doc: Document) => void): string {
 	const { doc } = parseConfig(text);

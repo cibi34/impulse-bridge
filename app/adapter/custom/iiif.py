@@ -71,6 +71,7 @@ def _label_to_str(label: Any) -> str | None:
 
 _IIIF_IMAGE_API_PATH = re.compile(r"/full/[^/]+/0/default\.\w+$")
 _MEANINGFUL = re.compile(r"\w")
+_MAX_DETAILS = 16
 # Canvas labels that only number the page: "3r", "fol. 12v", "p. 7", "page 3", "xii".
 _PAGE_NUMBER = re.compile(
     r"(?:(?:p|pp|page|pages|fol|folio|f|s|seite|bl|blatt)\.?\s*)?[\divxlc]+\s*[rvab]?", re.I
@@ -230,6 +231,14 @@ class IIIFManifestSource(Source):
         date = _metadata(manifest, "date", "dates", "datum", "created", "publication date")
         place = _metadata(manifest, "location", "place", "ort", "origin")
         sections = _canvas_sections(manifest)
+        # Everything the manifest says about the work, for the asset dialog.
+        details = [
+            {"label": label, "value": value}
+            for entry in (manifest.get("metadata") or [])[:_MAX_DETAILS]
+            if isinstance(entry, dict)
+            and (label := (_label_to_str(entry.get("label")) or "").strip())
+            and (value := (_label_to_str(entry.get("value")) or "").strip())
+        ]
 
         assets: list[dict] = []
         for idx, canvas in enumerate(canvases):
@@ -279,6 +288,9 @@ class IIIFManifestSource(Source):
                 asset["description"] = description
             if section:
                 asset["subject"] = section
+            page_details = [{"label": "Page", "value": label}] if label else []
+            if details or page_details:
+                asset["details"] = page_details + details
             if date:
                 asset["date"] = date
             if place:

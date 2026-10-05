@@ -33,6 +33,8 @@ def _object(object_id: int, **extra) -> dict:
         "medium": "Oil on canvas",
         "objectName": "Painting",
         "culture": "",
+        "dimensions": "18 x 16 in. (45.7 x 40.6 cm)",
+        "creditLine": "Marquand Collection, 1889",
         "objectURL": f"https://www.metmuseum.org/art/collection/search/{object_id}",
         "tags": [{"term": "Women"}, {"term": "Interiors"}],
         **extra,
@@ -68,6 +70,10 @@ async def test_search_fetches_the_objects_of_a_page():
     assert asset["assetURI"].endswith("/original/DP1.jpg")
     assert (asset["type"], asset["format"], asset["subject"]) == ("Painting", "Oil on canvas", "Women, Interiors")
     assert "coverage" not in asset
+    assert asset["details"] == [
+        {"label": "Dimensions", "value": "18 x 16 in. (45.7 x 40.6 cm)"},
+        {"label": "Credit line", "value": "Marquand Collection, 1889"},
+    ]
 
 
 @respx.mock

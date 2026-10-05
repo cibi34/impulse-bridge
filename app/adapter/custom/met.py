@@ -99,6 +99,22 @@ class MetSource(Source):
             return None
         tags = [t.get("term") for t in o.get("tags") or [] if isinstance(t, dict) and t.get("term")]
         rights = "CC0 1.0" if o.get("isPublicDomain") else (o.get("rightsAndReproduction") or "See source for license")
+        details = [
+            {"label": label, "value": str(o[key]).strip()}
+            for label, key in (
+                ("Artist", "artistDisplayBio"),
+                ("Dimensions", "dimensions"),
+                ("Classification", "classification"),
+                ("Period", "period"),
+                ("Culture", "culture"),
+                ("Department", "department"),
+                ("Credit line", "creditLine"),
+                ("Accession number", "accessionNumber"),
+                ("Accession year", "accessionYear"),
+                ("Gallery", "GalleryNumber"),
+            )
+            if o.get(key) not in (None, "", [])
+        ]
         asset = {
             "assetID": str(o.get("objectID")),
             "title": o.get("title") or "Untitled",
@@ -115,6 +131,7 @@ class MetSource(Source):
             "format": o.get("medium") or None,
             "coverage": o.get("culture") or o.get("country") or None,
             "subject": ", ".join(tags[:5]) or None,
+            "details": details or None,
             "published": 1,
         }
         return {k: v for k, v in asset.items() if v is not None}

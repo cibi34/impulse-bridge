@@ -77,6 +77,14 @@ mapping:
     format:
       expr: "physicalDescription"
 
+  # Extra facts for the asset dialog (web app only).
+  details:
+    Reference number: { expr: "referenceNumber" }
+    Contributors: { expr: "join(', ', contributors[].agent.label)" }
+    Production: { expr: "production[0].label" }
+    Lettering: { expr: "lettering" }
+    Physical description: { expr: "physicalDescription" }
+
 filter:
   allowed_content_types:
     - "image/jpeg"

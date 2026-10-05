@@ -87,5 +87,9 @@
 		<li>IMPULSE wordmark — © the IMPULSE consortium.</li>
 		<li>EU emblem — European Commission, used according to the EU visibility rules.</li>
 		<li>Typefaces Geist and Geist Mono by Vercel, under the SIL Open Font License 1.1.</li>
+		<li>
+			3D viewer: <code>&lt;model-viewer&gt;</code> by Google (Apache License 2.0), built on three.js (MIT
+			License); served from this site.
+		</li>
 	</ul>
 </LegalPage>

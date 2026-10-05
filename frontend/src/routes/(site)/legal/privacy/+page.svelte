@@ -135,8 +135,9 @@
 	<h2>9. What we don't do</h2>
 	<p>
 		No analytics, no tracking, no advertising, no third-party scripts, fonts or embeds. The fonts
-		are served from this site, and the site's content security policy allows scripts and connections
-		only to this site itself.
+		and the 3D viewer's code are served from this site, and the site's content security policy
+		allows scripts only from this site itself. The only connections to other servers are the archive
+		images described above and, when you press "View in 3D", the model file from its archive.
 	</p>
 
 	<h2>10. Your rights</h2>

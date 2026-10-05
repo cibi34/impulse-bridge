@@ -79,6 +79,14 @@ mapping:
     fileSize:
       expr: "imageinfo[0].size"
 
+  # Extra facts for the asset dialog (web app only).
+  details:
+    Credit: { expr: "imageinfo[0].extmetadata.Credit.value", transform: strip_html }
+    Original date: { expr: "imageinfo[0].extmetadata.DateTimeOriginal.value", transform: strip_html }
+    Usage terms: { expr: "imageinfo[0].extmetadata.UsageTerms.value", transform: strip_html }
+    Categories: { expr: "imageinfo[0].extmetadata.Categories.value" }
+    Page ID: { expr: "to_string(pageid)" }
+
 filter:
   allowed_content_types:
     - "image/jpeg"

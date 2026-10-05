@@ -81,6 +81,14 @@ mapping:
     scale:
       literal: "1"
 
+  # Extra facts for the asset dialog (web app only).
+  details:
+    DOI: { expr: "doi_url || links.doi" }
+    Published: { expr: "metadata.publication_date" }
+    Version: { expr: "metadata.version" }
+    Resource type: { expr: "metadata.resource_type.title" }
+    Files: { expr: "join(', ', files[].key)" }
+
 filter:
   allowed_content_types:
     - "model/gltf-binary"

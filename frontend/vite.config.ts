@@ -21,13 +21,18 @@ export default defineConfig({
 				mode: 'hash',
 				directives: {
 					'default-src': ['self'],
-					'script-src': ['self'],
+					// wasm-unsafe-eval: the 3D viewer's mesh decoders are WebAssembly
+					// (it allows WebAssembly only, not eval()).
+					'script-src': ['self', 'wasm-unsafe-eval'],
 					'style-src': ['self', 'unsafe-inline'],
 					// Thumbnails and media are loaded directly from the archives.
 					'img-src': ['self', 'https:', 'data:', 'blob:'],
 					'media-src': ['self', 'https:'],
 					'font-src': ['self'],
-					'connect-src': ['self'],
+					// The 3D viewer fetches a model file from its archive on request,
+					// and reads the textures packed into it as blob: URLs.
+					'connect-src': ['self', 'https:', 'blob:', 'data:'],
+					'worker-src': ['self', 'blob:'],
 					'object-src': ['none'],
 					'base-uri': ['self'],
 					'form-action': ['self']

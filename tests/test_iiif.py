@@ -96,6 +96,11 @@ async def test_v2_pages_are_named_after_their_section_and_holder():
     assert page["subject"] == "Kaiser Heinrich"
     assert page["contributor"] == "Heidelberg University Library"
     assert (page["date"], page["coverage"]) == ("ca. 1300", "Zürich")
+    assert page["details"] == [
+        {"label": "Page", "value": "6r"},
+        {"label": "Date", "value": "ca. 1300"},
+        {"label": "Location", "value": "Zürich"},
+    ]
     assert page["rights"] == "http://creativecommons.org/publicdomain/mark/1.0/"
     assert page["assetURI"] == "https://iiif.example.org/iiif/2/2.jpg/full/max/0/default.jpg"
     assert page["previewURI"] == "https://iiif.example.org/iiif/2/2.jpg/full/!400,400/0/default.jpg"

@@ -289,10 +289,11 @@ def impulse_collection(record: CollectionRecord) -> dict[str, Any]:
     }
 
 
-DETAIL_FIELDS = ("width", "height", "fileSize")
-"""Technical facts a source may map (pixels, bytes): the web app shows them.
-They are not part of the Impulse asset schema, so the Impulse API leaves them
-out and sums them up in the Dublin Core `format` field instead."""
+DETAIL_FIELDS = ("width", "height", "fileSize", "details")
+"""What a source may map beyond the Impulse asset schema: technical facts
+(pixels, bytes) and the archive's extra `details` (label/value pairs). The
+web app shows them; the Impulse API leaves them out — pixels and bytes are
+summed up in the Dublin Core `format` field instead."""
 
 
 def _count(value: Any) -> int | None:
@@ -313,7 +314,7 @@ def human_size(size: int) -> str:
 
 def format_summary(asset: dict[str, Any]) -> str | None:
     """"3606 × 2894 px, 8.8 MB" from the detail fields, or None."""
-    width, height, size = (_count(asset.get(k)) for k in DETAIL_FIELDS)
+    width, height, size = (_count(asset.get(k)) for k in ("width", "height", "fileSize"))
     parts = []
     if width and height:
         parts.append(f"{width} × {height} px")

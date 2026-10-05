@@ -88,7 +88,8 @@ async def test_iiif_pages_carry_their_pixel_size():
 
 ASSETS = [
     {"assetID": "photo", "title": "Photo", "assetURI": "https://example.org/p.jpg", "rights": "CC0",
-     "width": 3606, "height": 2894, "fileSize": 8770678},
+     "width": 3606, "height": 2894, "fileSize": 8770678,
+     "details": [{"label": "Credit line", "value": "Gift of X"}]},
     {"assetID": "model", "title": "Model", "assetURI": "https://example.org/m.glb", "rights": "CC0",
      "format": "glTF 2.0 binary", "fileSize": 76336},
 ]
@@ -110,6 +111,7 @@ def test_web_app_gets_the_details_impulse_gets_format(client):
     impulse = {a["title"]: a for a in client.get(f"/collections/{cid}/assets").json()["data"]}
 
     assert (web["photo"]["width"], web["photo"]["height"], web["photo"]["fileSize"]) == (3606, 2894, 8770678)
+    assert web["photo"]["details"] == [{"label": "Credit line", "value": "Gift of X"}]
     assert impulse["Photo"]["format"] == "3606 × 2894 px, 8.8 MB"
     assert impulse["Model"]["format"] == "glTF 2.0 binary, 76.3 KB"
-    assert not {"width", "height", "fileSize"} & set(impulse["Photo"])
+    assert not {"width", "height", "fileSize", "details"} & set(impulse["Photo"])
