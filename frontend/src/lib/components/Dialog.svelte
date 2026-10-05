@@ -14,7 +14,7 @@
 		open?: boolean;
 		title: string;
 		description?: string;
-		size?: 'sm' | 'md' | 'lg';
+		size?: 'sm' | 'md' | 'lg' | 'xl';
 		onclose?: () => void;
 		children: Snippet;
 		footer?: Snippet;
@@ -103,6 +103,9 @@
 	}
 	.size-lg {
 		--dialog-width: 880px;
+	}
+	.size-xl {
+		--dialog-width: 1120px;
 	}
 
 	.dialog::backdrop {

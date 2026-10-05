@@ -40,8 +40,10 @@
 
 	const assetLicence = $derived(licence ?? asset?.licence ?? null);
 	const model = $derived(isModel(asset?.contentType));
-	// The 3D viewer loads the model file (and its code) only when asked.
+	// The 3D viewer loads the model file (and its code) only when asked, and
+	// then takes the dialog's full width.
 	let viewer = $state<'closed' | 'open'>('closed');
+	let viewerRef = $state<ModelViewer | undefined>();
 	$effect(() => {
 		void asset?.assetID;
 		viewer = 'closed';
@@ -77,16 +79,25 @@
 	);
 </script>
 
-<Dialog bind:open title={asset?.title || 'Untitled'} size="lg">
+<Dialog bind:open title={asset?.title || 'Untitled'} size={viewer === 'open' ? 'xl' : 'lg'}>
 	{#if asset}
-		<div class="layout">
-			<div class="preview">
+		<div class="layout" class:viewer={viewer === 'open'}>
+			<div class="preview" class:viewer={viewer === 'open'}>
 				{#if model && viewer === 'open' && isUrl(asset.assetURI)}
 					<ModelViewer
+						bind:this={viewerRef}
 						src={asset.assetURI}
 						poster={previewSrc(asset.previewURI)}
 						alt={asset.title ?? ''}
 					/>
+					<div class="viewer-tools">
+						<button type="button" class="btn btn-sm" onclick={() => viewerRef?.fullscreen()}>
+							Fullscreen
+						</button>
+						<button type="button" class="btn btn-sm" onclick={() => (viewer = 'closed')}>
+							<Icon name="image" size={16} /> Back to image
+						</button>
+					</div>
 				{:else}
 					<AssetThumb
 						src={asset.previewURI}
@@ -190,17 +201,46 @@
 <style>
 	.layout {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
 		gap: 24px;
 		align-items: start;
 	}
 
+	/* With the 3D viewer open, the media takes the whole width. */
+	.layout.viewer {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
 	.preview {
 		position: relative;
-		aspect-ratio: 1;
+		min-height: 280px;
+		max-height: 68vh;
 		border-radius: var(--radius-media);
 		overflow: hidden;
 		background: var(--surface-sunken);
+	}
+
+	.preview :global(.placeholder) {
+		min-height: 280px;
+	}
+
+	.preview.viewer {
+		aspect-ratio: 16 / 10;
+		min-height: 360px;
+		max-height: 70vh;
+	}
+
+	.viewer-tools {
+		position: absolute;
+		top: 12px;
+		right: 12px;
+		display: flex;
+		gap: 8px;
+	}
+
+	.viewer-tools .btn {
+		background: color-mix(in srgb, var(--surface) 85%, transparent);
+		backdrop-filter: blur(6px);
 	}
 
 	.view-3d {
@@ -218,7 +258,10 @@
 		color: var(--text-3);
 	}
 
+	/* The image at its own aspect ratio, as large as the column allows. */
 	.preview :global(img) {
+		height: auto;
+		max-height: 68vh;
 		object-fit: contain;
 		background: var(--surface-sunken);
 	}
