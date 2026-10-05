@@ -26,10 +26,12 @@
 			>
 		</li>
 		<li>
-			<strong>Wellcome Collection</strong> — digitised works via the IIIF standard; licences differ
-			per item.
-			<a href="https://wellcomecollection.org" rel="noopener noreferrer" target="_blank"
-				>wellcomecollection.org</a
+			<strong>Heidelberg University Library</strong> — the Codex Manesse (Cod. Pal. germ. 848),
+			digitised and served via the IIIF standard under the Public Domain Mark.
+			<a
+				href="https://digi.ub.uni-heidelberg.de/diglit/cpg848"
+				rel="noopener noreferrer"
+				target="_blank">digi.ub.uni-heidelberg.de</a
 			>
 		</li>
 	</ul>

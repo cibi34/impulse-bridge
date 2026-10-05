@@ -32,13 +32,30 @@ from app.transform.helpers import slugify
 
 logger = logging.getLogger(__name__)
 
+_LANGUAGES = ("en", "de", "none", "@none")
+
 
 def _label_to_str(label: Any) -> str | None:
-    """Normalize IIIF label values: v2 is a string, v3 is a language-keyed dict."""
+    """Normalize IIIF text values: a v2 string, a v2 `{"@language", "@value"}`
+    (or a list of them), or a v3 language-keyed dict."""
     if isinstance(label, str):
         return label
+    if isinstance(label, list):
+        by_lang = {
+            str(v.get("@language") or "none"): v.get("@value")
+            for v in label
+            if isinstance(v, dict) and v.get("@value")
+        }
+        if by_lang:
+            return _label_to_str({k: [v] for k, v in by_lang.items()})
+        for v in label:
+            if text := _label_to_str(v):
+                return text
+        return None
     if isinstance(label, dict):
-        for k in ("en", "none", "@none"):
+        if "@value" in label:
+            return _label_to_str(label["@value"])
+        for k in _LANGUAGES:
             v = label.get(k)
             if isinstance(v, list) and v:
                 return str(v[0])
@@ -54,6 +71,10 @@ def _label_to_str(label: Any) -> str | None:
 
 _IIIF_IMAGE_API_PATH = re.compile(r"/full/[^/]+/0/default\.\w+$")
 _MEANINGFUL = re.compile(r"\w")
+# Canvas labels that only number the page: "3r", "fol. 12v", "p. 7", "page 3", "xii".
+_PAGE_NUMBER = re.compile(
+    r"(?:(?:p|pp|page|pages|fol|folio|f|s|seite|bl|blatt)\.?\s*)?[\divxlc]+\s*[rvab]?", re.I
+)
 
 
 def _to_image_url(body_id: str, size: str = "max") -> str:
@@ -67,6 +88,17 @@ def _to_image_url(body_id: str, size: str = "max") -> str:
     return body_id
 
 
+def _service_id(resource: dict) -> str | None:
+    """The Image API service behind an image resource, if it names one."""
+    service = resource.get("service")
+    if isinstance(service, list):
+        service = service[0] if service else None
+    if isinstance(service, dict):
+        sid = service.get("@id") or service.get("id")
+        return sid.rstrip("/") if isinstance(sid, str) else None
+    return None
+
+
 def _extract_canvases_v3(manifest: dict) -> list[dict]:
     return [c for c in (manifest.get("items") or []) if c.get("type") == "Canvas"]
 
@@ -78,7 +110,7 @@ def _extract_canvases_v2(manifest: dict) -> list[dict]:
     return out
 
 
-def _canvas_image_url_v3(canvas: dict) -> str | None:
+def _canvas_image_v3(canvas: dict) -> dict | None:
     for ap in canvas.get("items") or []:
         for ann in ap.get("items") or []:
             if ann.get("motivation") != "painting":
@@ -86,18 +118,55 @@ def _canvas_image_url_v3(canvas: dict) -> str | None:
             body = ann.get("body") or {}
             if isinstance(body, list):
                 body = body[0] if body else {}
-            body_id = body.get("id")
-            if isinstance(body_id, str):
-                return body_id
+            if isinstance(body.get("id"), str):
+                return body
     return None
 
 
-def _canvas_image_url_v2(canvas: dict) -> str | None:
+def _canvas_image_v2(canvas: dict) -> dict | None:
     for img in canvas.get("images") or []:
         resource = img.get("resource") or {}
-        rid = resource.get("@id") or resource.get("id")
-        if isinstance(rid, str):
-            return rid
+        if isinstance(resource.get("@id") or resource.get("id"), str):
+            return resource
+    return None
+
+
+def _canvas_sections(manifest: dict) -> dict[str, str]:
+    """Canvas id → the label of the section (IIIF range) it belongs to, from
+    the manifest's table of contents. A canvas keeps the first section that
+    lists it directly, so wrapper ranges that only hold other ranges don't
+    claim it."""
+    sections: dict[str, str] = {}
+
+    def visit(range_: dict) -> None:
+        label = _label_to_str(range_.get("label"))
+        members = list(range_.get("canvases") or [])  # v2
+        for item in list(range_.get("items") or []) + list(range_.get("members") or []):
+            if isinstance(item, dict) and item.get("type") == "Canvas":
+                members.append(item.get("id"))
+            elif isinstance(item, dict) and item.get("@type") == "sc:Canvas":
+                members.append(item.get("@id"))
+            elif isinstance(item, dict) and item.get("type") == "Range":
+                visit(item)
+        for member in members:
+            if isinstance(member, str) and label and member not in sections:
+                sections[member.split("#", 1)[0]] = label
+
+    for range_ in manifest.get("structures") or []:
+        if isinstance(range_, dict):
+            visit(range_)
+    return sections
+
+
+def _metadata(manifest: dict, *labels: str) -> str | None:
+    """The first manifest `metadata` entry whose label is one of `labels`."""
+    wanted = {label.lower() for label in labels}
+    for entry in manifest.get("metadata") or []:
+        if not isinstance(entry, dict):
+            continue
+        label = (_label_to_str(entry.get("label")) or "").strip().lower()
+        if label in wanted and (value := _label_to_str(entry.get("value"))):
+            return value
     return None
 
 
@@ -149,35 +218,74 @@ class IIIFManifestSource(Source):
         canvases = _extract_canvases_v3(manifest) if is_v3 else _extract_canvases_v2(manifest)
         manifest_label = _label_to_str(manifest.get("label")) or "IIIF Manifest"
         rights = manifest.get("rights") or manifest.get("license") or "See manifest"
+        if isinstance(rights, list):
+            rights = rights[0] if rights else "See manifest"
+        # Who holds the work: v2 `attribution`, v3 `requiredStatement`.
+        holder = _label_to_str(manifest.get("attribution")) or _label_to_str(
+            (manifest.get("requiredStatement") or {}).get("value")
+        )
+        description = _label_to_str(manifest.get("description")) or _label_to_str(
+            (manifest.get("summary") or None)
+        )
+        date = _metadata(manifest, "date", "dates", "datum", "created", "publication date")
+        place = _metadata(manifest, "location", "place", "ort", "origin")
+        sections = _canvas_sections(manifest)
 
         assets: list[dict] = []
         for idx, canvas in enumerate(canvases):
-            body_id = (
-                _canvas_image_url_v3(canvas) if is_v3 else _canvas_image_url_v2(canvas)
-            )
-            if not body_id:
+            image = _canvas_image_v3(canvas) if is_v3 else _canvas_image_v2(canvas)
+            if not image:
                 continue
+            body_id = image.get("id") or image.get("@id")
             canvas_id = canvas.get("id") or canvas.get("@id") or f"canvas-{idx}"
             label = _label_to_str(canvas.get("label"))
             if not label or not _MEANINGFUL.search(label):
                 # Many manifests label canvases "-" or leave them empty.
-                label = f"{manifest_label} — page {idx + 1}"
+                label = f"page {idx + 1}"
+            section = sections.get(canvas_id)
+            # "Kaiser Heinrich — 6r" when the table of contents names the
+            # section, else "Book of Wonders — 6r" for a bare page number.
+            if section:
+                title = f"{section} — {label}"
+            elif _PAGE_NUMBER.fullmatch(label):
+                title = f"{manifest_label} — {label}"
+            else:
+                title = label
+            # Prefer the Image API service: it sizes the image and sends
+            # CORS headers, which a plain file URL next to it may not.
+            service = _service_id(image)
             asset = {
                 "assetID": slugify(canvas_id.rsplit("/", 1)[-1] or f"canvas-{idx}"),
-                "title": label,
-                "assetURI": _to_image_url(body_id, "max"),
-                "previewURI": _to_image_url(body_id, "!400,400"),
-                "contentType": "image/jpeg",
+                "title": title,
+                "assetURI": (
+                    f"{service}/full/max/0/default.jpg"
+                    if service
+                    else _to_image_url(body_id, "max")
+                ),
+                "previewURI": (
+                    f"{service}/full/!400,400/0/default.jpg"
+                    if service
+                    else _to_image_url(body_id, "!400,400")
+                ),
+                "contentType": image.get("format") or "image/jpeg",
                 "scale": "1",
                 "rights": str(rights),
                 "identifier": canvas_id,
-                "contributor": manifest_label,
+                "contributor": holder or manifest_label,
                 "type": "Image",
                 "published": 1,
             }
+            if description:
+                asset["description"] = description
+            if section:
+                asset["subject"] = section
+            if date:
+                asset["date"] = date
+            if place:
+                asset["coverage"] = place
             # The page's size in pixels (the canvas, or the image on it).
             for key in ("width", "height"):
-                size = canvas.get(key)
+                size = canvas.get(key) or image.get(key)
                 if isinstance(size, int) and size > 0:
                     asset[key] = size
             assets.append(asset)
@@ -200,7 +308,7 @@ class IIIFManifestSource(Source):
         if pattern and pattern != "*":
             chunks = [c for c in pattern.split("*") if c]
             def keep(a: dict) -> bool:
-                hay = " ".join(str(a.get(k, "")) for k in ("title", "identifier"))
+                hay = " ".join(str(a.get(k, "")) for k in ("title", "subject", "identifier"))
                 hay = hay.lower()
                 pos = 0
                 for ch in chunks:

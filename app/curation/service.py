@@ -13,6 +13,7 @@ import hashlib
 import hmac
 import re
 import secrets
+import unicodedata
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urljoin, urlparse
@@ -37,8 +38,20 @@ _SLUG_MAX = 48
 # Ids and edit keys
 # ---------------------------------------------------------------------------
 
+_TRANSLITERATE = str.maketrans(
+    {"ß": "ss", "æ": "ae", "Æ": "ae", "œ": "oe", "Œ": "oe", "ø": "o", "Ø": "o",
+     "đ": "d", "Đ": "d", "ł": "l", "Ł": "l", "þ": "th", "ð": "d"}
+)
+
+
+def _ascii(text: str) -> str:
+    """"König" → "Konig": ids are ASCII, and "k-nig" reads badly."""
+    decomposed = unicodedata.normalize("NFKD", text.translate(_TRANSLITERATE))
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+
+
 def _short_slug(text: str, fallback: str) -> str:
-    slug = slugify(text)
+    slug = slugify(_ascii(text))
     if slug == "untitled":
         slug = fallback
     if len(slug) > _SLUG_MAX:

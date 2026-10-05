@@ -1,6 +1,6 @@
 collection:
   id: europeana-public-domain-images
-  name: "Europeana Public Domain Images"
+  name: "Europeana Open Images"
   description: "Open-licensed images aggregated from European cultural heritage institutions via Europeana."
   organization: "Europeana Foundation"
   owner_id: "bridge@impulse.eu"

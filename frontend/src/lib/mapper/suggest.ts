@@ -156,7 +156,6 @@ const NAMES: Record<FieldKind, string[]> = {
 		'creditline',
 		'credit',
 		'publisher',
-		'source',
 		'department'
 	],
 	page: [

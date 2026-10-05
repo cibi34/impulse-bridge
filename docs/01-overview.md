@@ -45,7 +45,7 @@ Sources are **not** Impulse collections any more. Earlier versions exposed each 
       ┌────────────┼───────────────┐
       ▼            ▼               ▼
   Europeana    Wikimedia      IIIF manifests
-               Commons        (e.g. Wellcome)
+               Commons        (e.g. Codex Manesse)
 ```
 
 The Curator is a peer **asset-service node**, of the same kind that hosts the consortium's own collections. It is not the platform API: the platform keeps its own list of collections, and a curated collection gets into that list when the IMPULSE team registers its URI (see [05 — Cookbook, "How a curated collection reaches Unity"](05-cookbook.md#recipe-13--how-a-curated-collection-reaches-unity)).
@@ -70,11 +70,11 @@ Four sources are configured out of the box. They are examples; operators add the
 | `bridge-demo` | Local files (`data/fallback/assets/`) | No | Three generated glTF models (textured cube, sphere, column) and an image, CC0. Work offline; for end-to-end tests with Unity. |
 | `wikimedia-commons-images` | Wikimedia Commons (MediaWiki API) | No | Open-licensed images; titles cleaned with `file_title`. |
 | `europeana-public-domain-images` | Europeana Search API | Yes (`EUROPEANA_API_KEY`) | Open-licensed images from European institutions. |
-| `iiif-wellcome-vererbung` | One IIIF manifest | No | An illustrated 1929 book from the Wellcome Collection; shows the IIIF adapter. |
+| `iiif-codex-manesse` | One IIIF manifest | No | The Codex Manesse (Heidelberg University Library, public domain), 871 pages named after the manuscript's table of contents; shows the IIIF adapter. |
 
 ## What the Curator intentionally does not do
 
-- **It does not re-host media.** Browsers and Unity load assets directly from the original hosts (`upload.wikimedia.org`, `iiif.wellcomecollection.org`, …). Only local fallback files are served by the Curator itself.
+- **It does not re-host media.** Browsers and Unity load assets directly from the original hosts (`upload.wikimedia.org`, `digi.ub.uni-heidelberg.de`, …). Only local fallback files are served by the Curator itself.
 - **It does not write to archives.** Sources are read-only.
 - **It does not register collections in the Impulse platform.** "Submit to IMPULSE" opens a pre-filled email to the IMPULSE team; the team adds the collection URI to the platform.
 - **It has no user accounts.** Editing is protected by an edit key; an optional passwordless sign-in by email lets creators reach their collections on other devices. The admin area relies on HTTP basic auth at the reverse proxy.

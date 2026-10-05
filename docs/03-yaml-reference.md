@@ -138,9 +138,11 @@ Custom adapter (IIIF):
 adapter:
   kind: custom
   custom_class: "app.adapter.custom.iiif.IIIFManifestSource"
-  base_url: "https://iiif.wellcomecollection.org/presentation/b18035723"
+  base_url: "https://digi.ub.uni-heidelberg.de/diglit/iiif/cpg848/manifest.json"
   timeout_seconds: 20
 ```
+
+The IIIF adapter reads Presentation API v2 and v3. Every canvas with an image becomes an asset: the title comes from the manifest's table of contents plus the page label ("Kaiser Heinrich — 6r"), the institution from the manifest's `attribution` / `requiredStatement`, the licence from `license` / `rights`, and `Date` / `Location` metadata entries become `date` / `coverage`. Images are requested through the Image API service when the manifest names one (previews at `!400,400`, the asset at `max`), so they load in browsers with CORS.
 
 ---
 

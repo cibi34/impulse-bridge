@@ -1,0 +1,17 @@
+collection:
+  id: iiif-codex-manesse
+  name: "Codex Manesse (Heidelberg)"
+  description: "The Große Heidelberger Liederhandschrift, Zürich c. 1300–1340: 137 full-page miniatures of medieval poets among its pages, digitised by Heidelberg University Library and served via IIIF. Public domain."
+  organization: "Heidelberg University Library"
+  owner_id: "bridge@impulse.eu"
+  published: 1
+
+adapter:
+  kind: custom
+  custom_class: "app.adapter.custom.iiif.IIIFManifestSource"
+  # base_url is the IIIF manifest URL for this collection. To add more IIIF
+  # collections, copy this file with a new id and a different manifest URL.
+  # Pages are named after the manifest's table of contents ("Kaiser Heinrich — 6r"),
+  # so a search for a poet finds their pages.
+  base_url: "https://digi.ub.uni-heidelberg.de/diglit/iiif/cpg848/manifest.json"
+  timeout_seconds: 30
