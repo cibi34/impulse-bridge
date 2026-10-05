@@ -34,6 +34,11 @@
 		autocomplete="off"
 		spellcheck="false"
 		enterkeyhint="search"
+		oninput={(event) => {
+			// Clearing the field — the browser's ✕ button, Escape, or deleting
+			// the text — is a search for nothing; don't wait for Enter.
+			if (event.currentTarget.value.trim() === '') onsubmit('');
+		}}
 	/>
 </form>
 
