@@ -275,7 +275,7 @@ fields:
 | `literal` | any | A constant. If both are set, `literal` wins. |
 | `default` | any | Used when the result is `null`, `""`, `[]` or `{}`. |
 | `map` | dict | If the (string) result equals a key, it is replaced by the value. |
-| `transform` | enum | `slugify`, `base32`, `strip_html`, `file_title`, `lower`, `upper`. Runs last, on strings only. |
+| `transform` | enum | `slugify`, `base32`, `strip_html`, `file_title`, `iiif_large`, `iiif_preview`, `lower`, `upper`. Runs last, on strings only. |
 
 Order: `literal` or `expr` → `default` → `map` → `transform`. A field whose final value is `null` is left out of the asset. If evaluating any field raises, the item is skipped (logged as a warning).
 
@@ -285,8 +285,9 @@ Order: `literal` or `expr` → `default` → `map` → `transform`. A field whos
 |---|---|
 | `slugify` | Lower-case; every run of non-alphanumerics becomes one hyphen; leading/trailing hyphens removed; empty → `untitled`. Makes ids id-schema safe. **Lossy**: case and separators cannot be recovered (see `{asset_id_regex}`). |
 | `base32` | Lowercase, unpadded base32 (`a-z2-7`). Id-schema safe for any input and **reversible** via `{asset_id_from_base32}`; opaque and about 1.6× longer. |
-| `strip_html` | Removes HTML tags (regex) and trims. Does not unescape entities. |
+| `strip_html` | Removes HTML tags, decodes entities (`&nbsp;`, `&amp;`), collapses whitespace and trims. |
 | `file_title` | Turns a file name into a title: drops a `File:` / `Image:` / `Datei:` prefix and a media extension, underscores become spaces (`File:Young_Hare.jpg` → `Young Hare`). |
+| `iiif_large` / `iiif_preview` | For a IIIF Image API URL (an `info.json` or any sized image request): the same image at `/full/!2048,2048/0/default.jpg` (for Unity) or `/full/!400,400/0/default.jpg` (for cards). Example: Wellcome's `…/image/V0014272/info.json`. |
 | `lower` / `upper` | `str.lower()` / `str.upper()`. |
 
 ### Example — Wikimedia Commons

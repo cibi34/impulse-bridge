@@ -44,6 +44,28 @@
 			published there by their authors, each record under the licence its authors chose.
 			<a href="https://zenodo.org" rel="noopener noreferrer" target="_blank">zenodo.org</a>
 		</li>
+		<li>
+			<strong>Wellcome Collection</strong> — London; images released under CC BY, CC0 or the Public
+			Domain Mark, served via IIIF.
+			<a href="https://wellcomecollection.org" rel="noopener noreferrer" target="_blank"
+				>wellcomecollection.org</a
+			>
+		</li>
+		<li>
+			<strong>The Cleveland Museum of Art</strong> — Open Access: works and images released as CC0.
+			<a href="https://www.clevelandart.org/open-access" rel="noopener noreferrer" target="_blank"
+				>clevelandart.org/open-access</a
+			>
+		</li>
+		<li>
+			<strong>The Metropolitan Museum of Art</strong> — New York; Open Access images of
+			public-domain works released as CC0.
+			<a
+				href="https://www.metmuseum.org/about-the-met/policies-and-documents/open-access"
+				rel="noopener noreferrer"
+				target="_blank">metmuseum.org/open-access</a
+			>
+		</li>
 	</ul>
 
 	<h2>Images on the home page</h2>

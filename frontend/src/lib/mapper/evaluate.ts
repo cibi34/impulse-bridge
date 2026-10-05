@@ -88,11 +88,22 @@ export function fileTitle(value: string): string {
 	return title.split(/\s+/).filter(Boolean).join(' ') || value;
 }
 
+const IIIF_INFO = /\/info\.json$/;
+const IIIF_IMAGE_REQUEST =
+	/\/(?:full|square|pct:[\d.,]+|[\d,]+)\/(?:full|max|\^?!?[\d,]*|pct:[\d.]+)\/\d+\/(?:default|color|gray|bitonal|native)\.\w+$/;
+
+/** The Image API base of an info.json or any sized image request. */
+export function iiifImageBase(url: string): string {
+	return url.trim().replace(IIIF_INFO, '').replace(IIIF_IMAGE_REQUEST, '').replace(/\/+$/, '');
+}
+
 const TRANSFORM_FNS: Record<string, (value: string) => string> = {
 	slugify,
 	base32,
 	strip_html: stripHtml,
 	file_title: fileTitle,
+	iiif_large: (s) => (s ? `${iiifImageBase(s)}/full/!2048,2048/0/default.jpg` : s),
+	iiif_preview: (s) => (s ? `${iiifImageBase(s)}/full/!400,400/0/default.jpg` : s),
 	lower: (s) => s.toLowerCase(),
 	upper: (s) => s.toUpperCase()
 };

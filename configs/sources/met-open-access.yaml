@@ -1,0 +1,22 @@
+collection:
+  id: met-open-access
+  name: "The Met — European Paintings"
+  description: "The European Paintings of The Metropolitan Museum of Art, New York, as far as they are in the public domain — Vermeer, Rembrandt, Bruegel, El Greco, Monet — with images released as CC0. Without a search term, the department's highlights."
+  organization: "The Metropolitan Museum of Art"
+  owner_id: "bridge@impulse.eu"
+  published: 1
+
+adapter:
+  kind: custom
+  # The Met's search answers with object ids only; the adapter fetches the
+  # objects of a page in parallel and keeps them in the cache.
+  custom_class: "app.adapter.custom.met.MetSource"
+  base_url: "https://collectionapi.metmuseum.org"
+  timeout_seconds: 20
+  default_query:
+    # One department per source: the Met's search takes a single departmentId
+    # (11 = European Paintings). Copy this file with another id for more.
+    departmentId: "11"
+
+cache:
+  ttl_seconds: 3600

@@ -52,6 +52,30 @@ def base32_id_decode(value: str) -> str | None:
         return None
 
 
+_IIIF_INFO = re.compile(r"/info\.json$")
+_IIIF_IMAGE_REQUEST = re.compile(
+    r"/(?:full|square|pct:[\d.,]+|[\d,]+)/(?:full|max|\^?!?[\d,]*|pct:[\d.]+)/\d+/"
+    r"(?:default|color|gray|bitonal|native)\.\w+$"
+)
+
+
+def iiif_image_base(url: str) -> str:
+    """The Image API base of `url`: an info.json or any sized image request
+    is cut back to the identifier, so a new size can be asked for."""
+    base = _IIIF_INFO.sub("", url.strip())
+    return _IIIF_IMAGE_REQUEST.sub("", base).rstrip("/")
+
+
+def iiif_large(url: str) -> str:
+    """A JPEG of at most 2048 px on the longer side: what Unity loads."""
+    return f"{iiif_image_base(url)}/full/!2048,2048/0/default.jpg" if url else url
+
+
+def iiif_preview(url: str) -> str:
+    """A JPEG of at most 400 px: what the cards show."""
+    return f"{iiif_image_base(url)}/full/!400,400/0/default.jpg" if url else url
+
+
 def strip_html(value: str) -> str:
     """Drop tags, decode entities ("&nbsp;", "&amp;"), collapse whitespace."""
     if not value:

@@ -1,0 +1,93 @@
+collection:
+  id: wellcome-collection
+  name: "Wellcome Collection"
+  description: "Images from Wellcome Collection, London: medicine, science and everyday life across five centuries — prints, drawings, photographs and manuscripts released under CC BY, CC0 or the Public Domain Mark."
+  organization: "Wellcome Collection"
+  owner_id: "bridge@impulse.eu"
+  published: 1
+
+adapter:
+  kind: rest
+  base_url: "https://api.wellcomecollection.org"
+  timeout_seconds: 20
+  default_query:
+    # Only works with an openly licensed IIIF image; the licence filter
+    # mirrors what IMPULSE accepts by default (NC and ND stay out).
+    items.locations.license: "cc-by,cc0,pdm"
+    items.locations.locationType: "iiif-image"
+    include: "items,contributors,subjects,production"
+
+search:
+  path: "/catalogue/v2/works"
+  method: GET
+  pagination:
+    style: page_size
+    page_param: page
+    size_param: pageSize
+    page_base: 1
+    max_size: 100
+  query:
+    pattern_param: query
+    pattern_when_empty: ""
+
+mapping:
+  items_path: "results"
+  total_path: "totalResults"
+  fields:
+    assetID:
+      expr: "id"
+    title:
+      expr: "title"
+      default: "Untitled"
+    description:
+      expr: "description || lettering"
+      transform: strip_html
+    creator:
+      expr: "(contributors[?primary] | [0].agent.label) || contributors[0].agent.label"
+    date:
+      expr: "production[0].dates[0].label"
+    coverage:
+      expr: "production[0].places[0].label"
+    rights:
+      expr: "thumbnail.license.id"      # "pdm", "cc-by", "cc0"
+      default: "See source for license"
+    identifier:
+      expr: "join('', ['https://wellcomecollection.org/works/', id])"
+    # The work's thumbnail is a IIIF Image API request; the transforms ask
+    # the same service for other sizes.
+    assetURI:
+      expr: "thumbnail.url"
+      transform: iiif_large
+    previewURI:
+      expr: "thumbnail.url"
+      transform: iiif_preview
+    contentType:
+      literal: "image/jpeg"
+    contributor:
+      literal: "Wellcome Collection"
+    scale:
+      literal: "1"
+    subject:
+      expr: "join(', ', subjects[:5].label)"
+    type:
+      expr: "workType.label"
+    format:
+      expr: "physicalDescription"
+
+filter:
+  allowed_content_types:
+    - "image/jpeg"
+  drop_if_missing:
+    - "assetURI"
+    - "previewURI"
+
+asset_detail:
+  enabled: true
+  path: "/catalogue/v2/works/{asset_id}"
+  query:
+    include: "items,contributors,subjects,production"
+  mapping:
+    items_path: ""          # the response is the work itself
+
+cache:
+  ttl_seconds: 900

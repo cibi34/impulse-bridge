@@ -12,6 +12,23 @@ from app.transform.helpers import (
 )
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://iiif.example.org/image/V0014272/info.json",
+        "https://iiif.example.org/image/V0014272/full/300,/0/default.jpg",
+        "https://iiif.example.org/image/V0014272/full/!1024,1024/0/default.png",
+        "https://iiif.example.org/image/V0014272/square/max/90/gray.tif",
+        "https://iiif.example.org/image/V0014272",
+    ],
+)
+def test_iiif_transforms_resize_any_image_api_url(url):
+    from app.transform.helpers import iiif_large, iiif_preview
+
+    assert iiif_large(url) == "https://iiif.example.org/image/V0014272/full/!2048,2048/0/default.jpg"
+    assert iiif_preview(url) == "https://iiif.example.org/image/V0014272/full/!400,400/0/default.jpg"
+
+
 def test_strip_html_decodes_entities_and_collapses_whitespace():
     from app.transform.helpers import strip_html
 

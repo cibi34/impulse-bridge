@@ -246,6 +246,9 @@ Each entry in `mapping.fields` resolves to a value for one Impulse asset field:
 | `iiif-codex-manesse` | custom (IIIF) | The Codex Manesse from Heidelberg University Library (public domain). Copy + edit YAML to add more IIIF sources. |
 | `smk-open-art` | rest | No API key needed. Public-domain works of the Danish National Gallery (SMK Open), images via IIIF. |
 | `zenodo-3d-models` | rest | No API key needed. Openly licensed glTF models (.glb) from Zenodo records, with the record's preview image. |
+| `wellcome-collection` | rest | No API key needed. Wellcome Collection, London: CC BY / CC0 / public-domain images via IIIF. |
+| `cleveland-museum-of-art` | rest | No API key needed. The museum's CC0 Open Access works. |
+| `met-open-access` | custom (Met) | No API key needed. The Met's public-domain European Paintings (CC0); the adapter fetches the objects behind the search's ids. |
 
 ## How requests flow
 

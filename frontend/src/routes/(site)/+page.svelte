@@ -22,7 +22,7 @@
 		},
 		{
 			q: 'Where do the assets come from?',
-			a: 'From open archives: Europeana, Wikimedia Commons, the Danish National Gallery (SMK) and IIIF collections such as the Codex Manesse at Heidelberg University Library. The files stay with them; a collection points to them.'
+			a: 'From open archives in Europe and beyond: Europeana, the Danish National Gallery (SMK), Wellcome Collection, The Met, the Cleveland Museum of Art, Zenodo, Wikimedia Commons and IIIF collections such as the Codex Manesse at Heidelberg University Library. The files stay with them; a collection points to them.'
 		}
 	];
 </script>
@@ -66,10 +66,13 @@
 	<div class="container row">
 		<span class="tertiary">Search across</span>
 		<span>Europeana</span>
-		<span>Wikimedia Commons</span>
 		<span>Statens Museum for Kunst</span>
 		<span>Codex Manesse (Heidelberg)</span>
+		<span>Wellcome Collection</span>
+		<span>The Met</span>
+		<span>Cleveland Museum of Art</span>
 		<span>Zenodo 3D models</span>
+		<span>Wikimedia Commons</span>
 	</div>
 </section>
 

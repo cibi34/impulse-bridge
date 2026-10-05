@@ -1,0 +1,91 @@
+collection:
+  id: cleveland-museum-of-art
+  name: "Cleveland Museum of Art"
+  description: "Open Access works of the Cleveland Museum of Art: paintings, sculpture, prints and objects from antiquity to the 20th century, images released as CC0. Strong in European art."
+  organization: "The Cleveland Museum of Art"
+  owner_id: "bridge@impulse.eu"
+  published: 1
+
+adapter:
+  kind: rest
+  base_url: "https://openaccess-api.clevelandart.org"
+  timeout_seconds: 20
+  default_query:
+    cc0: "1"                # only works whose images are CC0
+    has_image: "1"
+
+search:
+  path: "/api/artworks/"
+  method: GET
+  pagination:
+    style: offset_limit
+    offset_param: skip
+    limit_param: limit
+    offset_base: 0
+    max_size: 100
+  query:
+    pattern_param: q
+    pattern_when_empty: ""
+
+mapping:
+  items_path: "data"
+  total_path: "info.total"
+  fields:
+    assetID:
+      expr: "to_string(id)"
+    title:
+      expr: "title"
+      default: "Untitled"
+    description:
+      expr: "description || wall_description"
+      transform: strip_html
+    creator:
+      # "Claude Monet (French, 1840–1926)" — the name with its dates, like the museum writes it.
+      expr: "join(', ', creators[:3].description)"
+    date:
+      expr: "creation_date"
+    rights:
+      expr: "share_license_status"       # "CC0"
+      default: "See source for license"
+    identifier:
+      expr: "url"
+    # The museum's web image (up to 900 px, ~250 KB) for cards, the print
+    # image (up to 3400 px, a few MB) for Unity. The full file is a TIFF.
+    assetURI:
+      expr: "images.print.url || images.web.url"
+    previewURI:
+      expr: "images.web.url"
+    width:
+      expr: "to_number(images.print.width || images.web.width)"
+    height:
+      expr: "to_number(images.print.height || images.web.height)"
+    fileSize:
+      expr: "to_number(images.print.filesize || images.web.filesize)"
+    contentType:
+      literal: "image/jpeg"
+    contributor:
+      literal: "The Cleveland Museum of Art"
+    scale:
+      literal: "1"
+    type:
+      expr: "type"
+    format:
+      expr: "technique"
+    coverage:
+      expr: "culture[0]"
+
+filter:
+  allowed_content_types:
+    - "image/jpeg"
+  drop_if_missing:
+    - "assetURI"
+    - "previewURI"
+
+asset_detail:
+  enabled: true
+  path: "/api/artworks/{asset_id}"
+  mapping:
+    items_path: "data"      # a single artwork under `data`
+
+cache:
+  ttl_seconds: 900

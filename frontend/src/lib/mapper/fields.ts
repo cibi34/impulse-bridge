@@ -195,6 +195,8 @@ export const ESSENTIAL = ['assetID', 'title', 'assetURI', 'previewURI', 'rights'
 export const TRANSFORMS = [
 	{ value: 'strip_html', label: 'Remove HTML' },
 	{ value: 'file_title', label: 'File name → title' },
+	{ value: 'iiif_large', label: 'IIIF image → up to 2048 px' },
+	{ value: 'iiif_preview', label: 'IIIF image → 400 px preview' },
 	{ value: 'slugify', label: 'Slug (readable id)' },
 	{ value: 'base32', label: 'Base32 (reversible id)' },
 	{ value: 'lower', label: 'Lower case' },

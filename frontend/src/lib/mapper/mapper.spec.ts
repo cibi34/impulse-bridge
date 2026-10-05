@@ -122,6 +122,13 @@ describe('evaluation mirrors the server', () => {
 		expect(evaluateField(item, { expr: 'missing', default: 'Untitled' })).toBe('Untitled');
 		expect(evaluateField(item, { expr: 'name', transform: 'file_title' })).toBe('Old map');
 		expect(evaluateField(item, { expr: 'html', transform: 'strip_html' })).toBe('Hi there');
+		const iiif = { info: 'https://iiif.example.org/image/V1/info.json' };
+		expect(evaluateField(iiif, { expr: 'info', transform: 'iiif_large' })).toBe(
+			'https://iiif.example.org/image/V1/full/!2048,2048/0/default.jpg'
+		);
+		expect(evaluateField(iiif, { expr: 'info', transform: 'iiif_preview' })).toBe(
+			'https://iiif.example.org/image/V1/full/!400,400/0/default.jpg'
+		);
 		expect(evaluateField(item, { literal: '1', expr: 'kind' })).toBe('1');
 	});
 

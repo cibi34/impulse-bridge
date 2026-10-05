@@ -49,23 +49,28 @@
 	<p>
 		Preview images and the full-size files, however, load directly from the archives' servers into
 		your browser. The archive then receives your IP address and your browser's identification, but
-		no cookies and no information about the page you came from (we load images with
-		<code>crossorigin="anonymous"</code> and <code>referrerpolicy="no-referrer"</code>). This
-		happens only for results that are actually shown to you.
+		no information about the page you came from (<code>referrerpolicy="no-referrer"</code>) and, as
+		a rule, no cookies: images are requested with <code>crossorigin="anonymous"</code>. Two
+		archives' image servers refuse such anonymous requests (the Cleveland Museum of Art and The
+		Metropolitan Museum of Art); for them the browser retries the image as an ordinary request,
+		which sends any cookies you may have from earlier visits to that museum's website. This happens
+		only for results that are actually shown to you.
 	</p>
 	<ul>
 		<li>Europeana Foundation, The Hague, Netherlands (api.europeana.eu)</li>
 		<li>Heidelberg University Library, Germany (digi.ub.uni-heidelberg.de)</li>
 		<li>Statens Museum for Kunst, Copenhagen, Denmark (iip.smk.dk)</li>
 		<li>
-			Zenodo, run by CERN in Geneva, Switzerland (zenodo.org) — Switzerland is covered by an EU
-			adequacy decision
+			Zenodo, run by CERN in Geneva, Switzerland (zenodo.org), and Wellcome Collection, London,
+			United Kingdom (iiif.wellcomecollection.org) — both countries are covered by an EU adequacy
+			decision
 		</li>
 		<li>
-			Wikimedia Foundation, San Francisco, USA (upload.wikimedia.org, thumb.wikimedia.org) — a
-			transfer to a country for which the EU has not issued an adequacy decision covering this
-			recipient. It happens only when a Wikimedia Commons result is shown to you; you can avoid it
-			by choosing another archive in the source list.
+			Wikimedia Foundation, San Francisco (upload.wikimedia.org, thumb.wikimedia.org), the Cleveland
+			Museum of Art (openaccess-cdn.clevelandart.org) and The Metropolitan Museum of Art, New York
+			(images.metmuseum.org) — all in the USA, a country for which the EU has not issued an adequacy
+			decision covering these recipients. Such a transfer happens only when a result from that
+			archive is shown to you; you can avoid it by choosing another archive in the source list.
 		</li>
 	</ul>
 	<p>
