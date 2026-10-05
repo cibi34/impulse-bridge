@@ -27,7 +27,7 @@ export const provider = {
 	impulse: {
 		name: 'IMPULSE — Immersive digitisation: upcycling cultural heritage towards new reviving strategies',
 		grant: '101132704',
-		url: 'https://cordis.europa.eu/project/id/101132704'
+		url: 'https://euimpulse.eu/'
 	},
 	updated: '5 October 2026'
 };
