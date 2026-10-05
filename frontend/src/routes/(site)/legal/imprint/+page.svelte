@@ -2,7 +2,13 @@
 	import { resolve } from '$app/paths';
 	import Email from '#lib/components/Email.svelte';
 	import LegalPage from '#lib/components/LegalPage.svelte';
-	import { legalDraft, provider } from '#lib/legal.js';
+	import { known, legalDraft, provider } from '#lib/legal.js';
+
+	// Lines whose facts are still missing from legal.ts are left out rather
+	// than shown as blanks; the page notice says what is still to come.
+	const address = known(provider.street) && known(provider.city);
+	const contact = known(provider.email) || known(provider.phone);
+	const register = known(provider.registerCourt) && known(provider.registerNumber);
 </script>
 
 <LegalPage title="Imprint" updated={provider.updated} draft={legalDraft}>
@@ -11,32 +17,40 @@
 	<h2>Provider</h2>
 	<address>
 		{provider.name}<br />
-		{provider.street}<br />
-		{provider.city}<br />
+		{#if address}
+			{provider.street}<br />
+			{provider.city}<br />
+		{/if}
 		{provider.country}
 	</address>
 
-	<h2>Represented by</h2>
-	<p>{provider.representedBy}</p>
+	{#if known(provider.representedBy)}
+		<h2>Represented by</h2>
+		<p>{provider.representedBy}</p>
+	{/if}
 
 	<h2>Contact</h2>
 	<p>
-		Email: <Email address={provider.email} /><br />
-		Phone: {provider.phone}<br />
+		{#if known(provider.email)}Email: <Email address={provider.email} /><br />{/if}
+		{#if known(provider.phone)}Phone: {provider.phone}<br />{/if}
 		Website:
 		<a href={provider.website} rel="noopener noreferrer" target="_blank">{provider.website}</a>
 	</p>
 
-	<h2>Register entry</h2>
-	<p>{provider.registerCourt}, {provider.registerNumber}</p>
+	{#if register}
+		<h2>Register entry</h2>
+		<p>{provider.registerCourt}, {provider.registerNumber}</p>
+	{/if}
 
-	{#if provider.vatId}
+	{#if known(provider.vatId)}
 		<h2>VAT identification number</h2>
 		<p>{provider.vatId}</p>
 	{/if}
 
-	<h2>Responsible for the content of this website</h2>
-	<p>{provider.representedBy}, address as above.</p>
+	{#if known(provider.representedBy)}
+		<h2>Responsible for the content of this website</h2>
+		<p>{provider.representedBy}, address as above.</p>
+	{/if}
 
 	<h2>Project</h2>
 	<p>
@@ -64,11 +78,14 @@
 		<a href={resolve('report')}>Report content</a>.
 	</p>
 
-	<h2>Point of contact under the Digital Services Act</h2>
-	<p>
-		For authorities and users (Art. 11 and 12 DSA): <Email address={provider.email} />. Languages:
-		German and English.
-	</p>
+	{#if contact}
+		<h2>Point of contact under the Digital Services Act</h2>
+		<p>
+			For authorities and users (Art. 11 and 12 DSA):
+			{#if known(provider.email)}<Email address={provider.email} />{:else}{provider.phone}{/if}.
+			Languages: German and English.
+		</p>
+	{/if}
 
 	<h2>Consumer dispute resolution</h2>
 	<p>

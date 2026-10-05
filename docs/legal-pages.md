@@ -1,6 +1,6 @@
 # Legal pages — what they say and what to fill in
 
-The imprint, privacy notice, terms of use, accessibility statement and the report page are written. They are built from one file of facts, `frontend/src/lib/legal.ts`: who runs the Curator, where it is hosted, how to reach the provider. Values still in `[square brackets]` are placeholders; as long as one is left, the pages show a "Not final" notice. The pages are prerendered: rebuild and redeploy after editing (`docker compose up -d --build`).
+The imprint, privacy notice, terms of use, accessibility statement and the report page are written. They are built from one file of facts, `frontend/src/lib/legal.ts`: who runs the Curator, where it is hosted, how to reach the provider. Values still in `[square brackets]` are placeholders: the lines that need them (address, contact, register entry, report address) are left out, and the pages show a "Test deployment" notice instead, until the value is filled in. The pages are prerendered: rebuild and redeploy after editing (`docker compose up -d --build`).
 
 This page records the reasoning behind the texts and the facts they rely on. It is not legal advice; have the final texts reviewed.
 

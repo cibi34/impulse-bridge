@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Email from '#lib/components/Email.svelte';
 	import LegalPage from '#lib/components/LegalPage.svelte';
-	import { legalDraft, provider } from '#lib/legal.js';
+	import { known, legalDraft, provider } from '#lib/legal.js';
 
 	// Notice-and-action mechanism (Art. 16 DSA).
 	const template = `Collection URL:
@@ -24,7 +24,16 @@ I believe in good faith that the information in this report is accurate and comp
 	</p>
 
 	<h2>How to report</h2>
-	<p>Send an email to <Email address={provider.reportEmail} /> with:</p>
+	{#if known(provider.reportEmail)}
+		<p>Send an email to <Email address={provider.reportEmail} /> with:</p>
+	{:else}
+		<p>
+			The report address will be published here before the public launch. Until then, reach the team
+			through
+			<a href={provider.website} rel="noopener noreferrer" target="_blank">{provider.website}</a>
+			with:
+		</p>
+	{/if}
 	<ul>
 		<li>the address (URL) of the collection,</li>
 		<li>an explanation of why you consider it unlawful or in breach of the terms,</li>

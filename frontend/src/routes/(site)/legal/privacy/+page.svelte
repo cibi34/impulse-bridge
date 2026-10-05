@@ -2,7 +2,9 @@
 	import { resolve } from '$app/paths';
 	import Email from '#lib/components/Email.svelte';
 	import LegalPage from '#lib/components/LegalPage.svelte';
-	import { legalDraft, provider } from '#lib/legal.js';
+	import { known, legalDraft, provider } from '#lib/legal.js';
+
+	const address = known(provider.street) && known(provider.city);
 </script>
 
 <LegalPage title="Privacy" updated={provider.updated} draft={legalDraft}>
@@ -16,8 +18,12 @@
 	<h2>1. Controller</h2>
 	<address>
 		{provider.name}<br />
-		{provider.street}, {provider.city}, {provider.country}<br />
-		Email: <Email address={provider.email} />
+		{#if address}{provider.street}, {provider.city}, {provider.country}<br />{/if}
+		{#if known(provider.email)}
+			Email: <Email address={provider.email} />
+		{:else}
+			Contact: see the <a href={resolve('legal/imprint')}>imprint</a>
+		{/if}
 	</address>
 
 	<h2>2. Hosting and server logs</h2>
@@ -81,7 +87,8 @@
 	<p>
 		If you enter your email address, we send you sign-in links (valid for 15 minutes, usable once)
 		and, on request, the edit link of a collection. These emails are delivered through
-		{provider.emailProvider}, which processes them on our behalf (Art. 28 GDPR).
+		{known(provider.emailProvider) ? provider.emailProvider : 'our email service provider'}, which
+		processes them on our behalf (Art. 28 GDPR).
 	</p>
 	<p>
 		After you sign in, a session cookie keeps you signed in on that device for 30 days. The cookie
@@ -125,9 +132,14 @@
 	<p>
 		You have the right to access the personal data we hold about you, to have it corrected or
 		erased, to restrict its processing, to receive it in a portable format and to object to
-		processing based on our legitimate interests (Art. 15–21 GDPR). To exercise these rights, write
-		to <Email address={provider.email} />. You also have the right to lodge a complaint with a data
-		protection supervisory authority, for example the one at your place of residence.
+		processing based on our legitimate interests (Art. 15–21 GDPR). To exercise these rights,
+		{#if known(provider.email)}
+			write to <Email address={provider.email} />.
+		{:else}
+			contact us through the <a href={resolve('legal/imprint')}>imprint</a>.
+		{/if}
+		You also have the right to lodge a complaint with a data protection supervisory authority, for example
+		the one at your place of residence.
 	</p>
 
 	<h2>11. Changes</h2>

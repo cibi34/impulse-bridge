@@ -20,7 +20,8 @@
 	</header>
 	{#if draft}
 		<p class="draft" role="note">
-			<strong>Not final.</strong> Details shown in [square brackets] are still to be filled in.
+			<strong>Test deployment.</strong> This address is a preview of IMPULSE Curator for the project partners.
+			Contact details, the register entry and the report address will be added before the public launch.
 		</p>
 	{/if}
 	<div class="prose">

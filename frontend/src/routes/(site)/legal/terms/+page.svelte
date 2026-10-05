@@ -2,7 +2,7 @@
 	import { resolve } from '$app/paths';
 	import Email from '#lib/components/Email.svelte';
 	import LegalPage from '#lib/components/LegalPage.svelte';
-	import { legalDraft, provider } from '#lib/legal.js';
+	import { known, legalDraft, provider } from '#lib/legal.js';
 </script>
 
 <LegalPage title="Terms of use" updated={provider.updated} draft={legalDraft}>
@@ -63,9 +63,10 @@
 	<h2>5. Reporting content</h2>
 	<p>
 		If you think a collection is unlawful or breaks these terms, tell us:
-		<a href={resolve('report')}>Report content</a>. Point of contact under the Digital Services Act: <Email
-			address={provider.email}
-		/>.
+		<a href={resolve('report')}>Report content</a>.
+		{#if known(provider.email)}
+			Point of contact under the Digital Services Act: <Email address={provider.email} />.
+		{/if}
 	</p>
 
 	<h2>6. Liability</h2>

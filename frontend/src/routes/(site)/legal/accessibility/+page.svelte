@@ -1,7 +1,8 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import Email from '#lib/components/Email.svelte';
 	import LegalPage from '#lib/components/LegalPage.svelte';
-	import { legalDraft, provider } from '#lib/legal.js';
+	import { known, legalDraft, provider } from '#lib/legal.js';
 </script>
 
 <LegalPage title="Accessibility" updated={provider.updated} draft={legalDraft}>
@@ -40,7 +41,12 @@
 
 	<h2>Feedback</h2>
 	<p>
-		If something is hard to use, tell us at <Email address={provider.email} />. We aim to reply
-		within two weeks.
+		If something is hard to use, tell us
+		{#if known(provider.email)}
+			at <Email address={provider.email} />.
+		{:else}
+			through the contact in the <a href={resolve('legal/imprint')}>imprint</a>.
+		{/if}
+		We aim to reply within two weeks.
 	</p>
 </LegalPage>

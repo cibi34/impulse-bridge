@@ -34,6 +34,9 @@ export const provider = {
 
 export const isPlaceholder = (text: string): boolean => /^\[.*\]$/.test(text.trim());
 
+/** True once a fact has been filled in: the pages show such lines, and leave the rest out. */
+export const known = (text: string): boolean => text.trim() !== '' && !isPlaceholder(text);
+
 const strings = (value: object): string[] =>
 	Object.values(value).flatMap((v) => (typeof v === 'string' ? [v] : strings(v)));
 
