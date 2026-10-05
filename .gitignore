@@ -15,3 +15,8 @@ dist/
 # Curated collections database (SQLite + WAL files)
 data/*.db
 data/*.db-*
+
+# The server copy of deploy/docker-compose.yml (docs/07-deployment.md) and
+# backups of source configs edited on the server
+/docker-compose.yml
+configs/sources/*.bak
