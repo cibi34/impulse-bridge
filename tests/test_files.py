@@ -21,6 +21,18 @@ def test_serves_files_next_to_the_manifest(config_dir):
     assert head.status_code == 200
 
 
+def test_files_are_revalidated_not_cached_on_a_guess(config_dir):
+    """A replaced file must show up at once: browsers may revalidate with the
+    ETag (304), but not keep an old copy for days."""
+    write_fallback(config_dir, "demo", files={"demo.png": "PNG"})
+    with TestClient(app) as client:
+        r = client.get("/sources/demo/files/demo.png")
+        again = client.get("/sources/demo/files/demo.png", headers={"If-None-Match": r.headers["etag"]})
+
+    assert r.headers["cache-control"] == "no-cache"
+    assert again.status_code == 304
+
+
 def test_unknown_source_is_404(config_dir):
     with TestClient(app) as client:
         r = client.get("/sources/nope/files/demo.glb")
