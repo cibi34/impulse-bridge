@@ -5,6 +5,7 @@ Every source (archive) is described by **one YAML file** in `configs/sources/` (
 ## Top-level structure
 
 ```yaml
+order: 10           # position in the web app's source list (lower first; default 100)
 collection: ...     # describes the source: id, name, … (required)
 adapter: ...        # how to reach the upstream (required)
 search: ...         # search pattern and pagination (REST only)
@@ -14,7 +15,7 @@ asset_detail: ...   # optional single-asset lookup (REST only)
 cache: ...          # cache TTL (advisory, see below)
 ```
 
-`collection` and `adapter` are required; every other block has defaults.
+`collection` and `adapter` are required; every other block has defaults. `order` sorts the web app's source list (ties by filename); the shipped configs put the European archives first and the demo models last.
 
 ## Environment variables
 

@@ -25,7 +25,8 @@ async def load_sources() -> None:
     configs, errors = load_all(settings.config_dir)
     sources: dict[str, Source] = {}
     files: dict[str, Path] = {}
-    for path, cfg in configs:
+    # The web app lists sources in this order: `order` from the YAML, then filename.
+    for path, cfg in sorted(configs, key=lambda pair: (pair[1].order, pair[0].name)):
         cid = cfg.collection.id
         if cid in sources:
             errors.append(

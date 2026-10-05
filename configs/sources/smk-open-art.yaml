@@ -1,3 +1,6 @@
+# Position in the web app's source list (lower first; European archives lead).
+order: 20
+
 collection:
   id: smk-open-art
   name: "SMK — Statens Museum for Kunst"

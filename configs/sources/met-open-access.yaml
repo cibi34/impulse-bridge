@@ -1,3 +1,6 @@
+# Position in the web app's source list (lower first; European archives lead).
+order: 60
+
 collection:
   id: met-open-access
   name: "The Met — European Paintings"

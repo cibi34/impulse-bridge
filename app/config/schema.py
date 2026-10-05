@@ -190,6 +190,9 @@ class SourceConfig(BaseModel):
     """Top-level YAML schema for one external source."""
     model_config = ConfigDict(extra="forbid")
 
+    order: int = 100
+    """Position in the web app's source list: lower first, ties by filename.
+    The shipped configs put European archives first."""
     collection: CollectionMeta
     adapter: AdapterCfg
     search: SearchCfg = Field(default_factory=SearchCfg)
