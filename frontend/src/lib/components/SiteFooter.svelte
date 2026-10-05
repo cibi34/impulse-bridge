@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import DeveloperCredit from './DeveloperCredit.svelte';
 	import EuFunding from './EuFunding.svelte';
 	import ThemeSwitcher from './ThemeSwitcher.svelte';
 
@@ -17,6 +18,7 @@
 				grant agreement No 101132704.
 			</p>
 		{/if}
+		<DeveloperCredit height={compact ? 22 : 32} />
 	</div>
 	<div class="bottom">
 		<nav aria-label="Legal">
@@ -81,6 +83,10 @@
 
 	.compact {
 		gap: 12px;
+	}
+
+	.compact .funding {
+		gap: 10px 16px;
 	}
 
 	.compact nav {

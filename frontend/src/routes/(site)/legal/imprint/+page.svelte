@@ -32,6 +32,7 @@
 	<p>
 		IMPULSE Curator is part of IMPULSE — Immersive digitisation: upcycling cultural heritage towards
 		new reviving strategies. IMPULSE has received funding from the European Union's Horizon Europe
-		research and innovation programme under grant agreement No 101132704.
+		research and innovation programme under grant agreement No 101132704. The Curator was designed
+		and developed by Institut für Strategische Ästhetik gGmbH (K8).
 	</p>
 </LegalPage>

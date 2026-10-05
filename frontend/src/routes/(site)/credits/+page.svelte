@@ -47,8 +47,11 @@
 		{/each}
 	</ul>
 
-	<h2>Design</h2>
+	<h2>Design and development</h2>
 	<ul>
+		<li>
+			IMPULSE Curator was designed and developed by Institut für Strategische Ästhetik gGmbH (K8).
+		</li>
 		<li>IMPULSE wordmark — © the IMPULSE consortium.</li>
 		<li>EU emblem — European Commission, used according to the EU visibility rules.</li>
 		<li>Typefaces Geist and Geist Mono by Vercel, under the SIL Open Font License 1.1.</li>
