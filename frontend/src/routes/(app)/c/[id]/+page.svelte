@@ -62,6 +62,12 @@
 	{:else if error}
 		<p class="notice" role="alert">{error}</p>
 	{:else if collection}
+		{#if collection.locked}
+			<p class="notice" role="status">
+				<Icon name="lock" size={16} /> An administrator locked this collection. Only you can open it,
+				and it isn't served to IMPULSE.
+			</p>
+		{/if}
 		<header class="head">
 			<div class="titles">
 				<p class="eyebrow">Collection</p>
